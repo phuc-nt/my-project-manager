@@ -15,7 +15,7 @@ from typing import Any
 
 from src.adapters.mcp_adapter import call_tool
 from src.config.reporting_config import McpServerSpec, get_reporting_config
-from src.tools.models import Issue
+from src.tools.models import Issue, Sprint
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +106,61 @@ def get_open_issues(
         spec,
         "enhancedSearchIssues",
         {"projectKey": project, "maxResults": max_results},
+    )
+    issues_raw = result.get("issues", []) if isinstance(result, dict) else []
+    return [parse_issue(item) for item in issues_raw]
+
+
+def parse_sprint(raw: dict[str, Any]) -> Sprint:
+    """Map one raw Jira sprint object to a normalized Sprint."""
+    sid = raw.get("id")
+    if sid is None:
+        raise ValueError(f"Jira sprint missing 'id': {raw!r:.120}")
+    return Sprint(
+        id=str(sid),
+        name=str(raw.get("name") or ""),
+        state=str(raw.get("state") or "unknown"),
+        start_date=_parse_due(raw.get("startDate")),
+        end_date=_parse_due(raw.get("endDate")),
+    )
+
+
+def get_active_sprint(
+    *, board_id: int | str | None = None, server: McpServerSpec | None = None
+) -> Sprint | None:
+    """Return the active sprint for the project's board, or None if there isn't one.
+
+    Resolves the board from the project key when `board_id` is not given.
+    """
+    cfg = get_reporting_config()
+    spec = server or cfg.jira_server
+
+    resolved_board = board_id
+    if resolved_board is None:
+        project = cfg.jira_project_key
+        if not project:
+            raise RuntimeError("JIRA_PROJECT_KEY is not set (in .env).")
+        boards = call_tool(spec, "listBoards", {"projectKeyOrId": project, "maxResults": 5})
+        board_list = boards.get("boards", []) if isinstance(boards, dict) else []
+        if not board_list:
+            return None
+        resolved_board = board_list[0].get("id")
+
+    result = call_tool(spec, "listSprints", {"boardId": resolved_board, "state": "active"})
+    sprints = result.get("sprints", []) if isinstance(result, dict) else []
+    if not sprints:
+        return None
+    return parse_sprint(sprints[0])
+
+
+def get_sprint_issues(
+    sprint_id: str | int, *, server: McpServerSpec | None = None, max_results: int = 100
+) -> list[Issue]:
+    """Fetch + normalize the issues in a sprint (same flat shape as open issues)."""
+    cfg = get_reporting_config()
+    spec = server or cfg.jira_server
+    result = call_tool(
+        spec, "getSprintIssues", {"sprintId": sprint_id, "maxResults": max_results}
     )
     issues_raw = result.get("issues", []) if isinstance(result, dict) else []
     return [parse_issue(item) for item in issues_raw]

@@ -68,11 +68,35 @@ _DETAIL_SYSTEM = (
 )
 
 
-def build_detail_messages(risks: list[Risk], *, report_date: str) -> list[dict[str, str]]:
-    """Messages for the detail report that goes onto a Confluence page (XHTML)."""
+def build_detail_messages(
+    risks: list[Risk],
+    *,
+    report_date: str,
+    kind: str = "daily",
+    sprint_context: str | None = None,
+) -> list[dict[str, str]]:
+    """Messages for the detail report on a Confluence page (XHTML).
+
+    `kind` is "daily" (standup digest — ngắn, hôm nay) or "weekly" (sprint review
+    — đầy đủ, cả sprint). `sprint_context` (weekly only) is a short text block of
+    sprint name/dates/issue counts the model should summarize.
+    """
+    if kind == "weekly":
+        framing = (
+            "Viết BÁO CÁO SPRINT REVIEW (tổng kết tuần) đầy đủ. Nhấn vào tiến độ cả sprint, "
+            "việc đã hoàn thành vs còn lại, và rủi ro tới cuối sprint."
+        )
+        sprint_block = f"\n\nThông tin sprint:\n{sprint_context}" if sprint_context else ""
+    else:
+        framing = (
+            "Viết DAILY STANDUP DIGEST ngắn gọn cho hôm nay. Tập trung tín hiệu cần chú ý "
+            "hôm nay, không dài dòng."
+        )
+        sprint_block = ""
+
     user = (
-        f"Viết báo cáo tiến độ đầy đủ cho team ngày {report_date}, dựa trên các tín hiệu sau "
-        f"(đã sắp xếp theo mức độ):\n\n{_format_risks(risks)}\n\n"
+        f"{framing} Ngày {report_date}. Dựa trên các tín hiệu sau (đã sắp xếp theo mức độ):"
+        f"\n\n{_format_risks(risks)}{sprint_block}\n\n"
         "Bố cục: <h2> tiêu đề, <p> tóm tắt trạng thái, rồi phần rủi ro (mỗi rủi ro 1 <li> "
         "trong <ul>, nêu chi tiết + <strong>hành động</strong>). Nếu không có rủi ro, nói rõ "
         "tiến độ ổn. Chỉ dùng các thẻ cho phép."
@@ -81,6 +105,13 @@ def build_detail_messages(risks: list[Risk], *, report_date: str) -> list[dict[s
         {"role": "system", "content": _DETAIL_SYSTEM},
         {"role": "user", "content": user},
     ]
+
+
+# Human-facing titles per report kind (used for the Confluence page title).
+REPORT_TITLES = {
+    "daily": "Daily Standup",
+    "weekly": "Sprint Review",
+}
 
 
 def build_slack_short(risks: list[Risk], *, report_date: str, detail_url: str | None) -> str:

@@ -48,6 +48,17 @@ class CiRun:
 
 
 @dataclass(frozen=True)
+class Sprint:
+    """A normalized Jira sprint (for weekly sprint review)."""
+
+    id: str
+    name: str
+    state: str  # active | closed | future
+    start_date: date | None
+    end_date: date | None
+
+
+@dataclass(frozen=True)
 class Risk:
     """One detected risk, with a suggested action (design-guidelines: actionable)."""
 

@@ -91,13 +91,29 @@ export AGENT_WRITE_DISABLED=true
 ```
 → Action Gateway từ chối mọi mutation, chỉ còn READ + log.
 
-## 5. Cron (report định kỳ — Phase 1)
+## 5. Cron (report định kỳ — launchd macOS)
 
-Dự kiến chạy qua launchd (macOS) hoặc cron:
-- Daily standup digest (vd 9:00).
-- Weekly sprint report (vd thứ 6 17:00).
+Entrypoint: `python -m src.entrypoints.cron --daily|--weekly` (gọi cùng luồng report).
+- **Daily standup digest** — 9:00 mỗi ngày (`com.mpm.report.daily.plist`).
+- **Weekly sprint review** — thứ 6 17:00, kéo thêm Jira sprint data (`com.mpm.report.weekly.plist`).
 
-Lệnh cụ thể + lịch: agent build điền sau khi entrypoint cron xong.
+Artifacts ở `deploy/launchd/`: 2 plist + `run-report.sh` (wrapper set PATH cho node/gh/uv, cd repo, gọi cron).
+
+**Cài (load vào launchd):**
+```bash
+cp deploy/launchd/com.mpm.report.*.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/com.mpm.report.daily.plist
+launchctl load ~/Library/LaunchAgents/com.mpm.report.weekly.plist
+# chạy thử ngay (không chờ tới giờ):
+launchctl start com.mpm.report.daily
+```
+**Gỡ:** `launchctl unload ~/Library/LaunchAgents/com.mpm.report.{daily,weekly}.plist`.
+**Log:** `.data/cron-{daily,weekly}.log` (+ `.err.log`).
+
+⚠️ **Lưu ý**:
+- launchd chỉ chạy khi máy bật. Cron chạy với env tối thiểu → wrapper tự set PATH; token đọc từ `.env`.
+- Mặc định `.env` có `DRY_RUN=true` (chỉ log). **Để cron post thật, đặt `DRY_RUN=false` trong `.env`.**
+- Plist + wrapper hardcode path tuyệt đối `/Users/phucnt/workspace/my-project-manager` — đổi nếu repo ở chỗ khác.
 
 ## 6. Đường lên service (Phase 5 — chưa làm)
 

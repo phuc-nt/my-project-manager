@@ -1,14 +1,14 @@
 # Project Roadmap — my-project-manager
 
 > Lộ trình + milestone. Status sống, cập nhật khi phase đổi trạng thái.
-> Status hiện tại: **Phase 1 Slice-1 code done (2026-06-21), E2E pending**.
+> Status hiện tại: **Phase 1 (MVP Reporting) HOÀN TẤT (2026-06-22) — daily/weekly + Confluence/Slack + cron. Sẵn sàng Phase 2.**
 
 ## Trạng thái tổng
 
 | Phase | Tên | Trạng thái | Mục tiêu chính |
 |---|---|---|---|
 | 0 | Khởi tạo docs + scaffold | ✅ Done | Bộ docs + cấu trúc repo + setup LangGraph chạy được |
-| 1 | MVP Reporting + Monitoring | 🟡 In progress | Đọc Jira/GitHub → report → đăng Slack/Confluence |
+| 1 | MVP Reporting + Monitoring | ✅ Done | Đọc Jira/GitHub → report (daily/weekly) → đăng Slack/Confluence + cron |
 | 2 | Guardrail hardening | ⬜ Chưa | Audit/dry-run/kill-switch/idempotency vững trước khi mở write rộng |
 | 3 | OKR / objective | ⬜ Chưa | Đặt + track OKR, map xuống Jira epic |
 | 4 | Resource + Cost | ⬜ Chưa | Capacity, allocation, budget alert |
@@ -34,19 +34,28 @@
 
 Trọng tâm: ROI rõ, rủi ro thấp. Đọc nhiều, write chỉ là *post report*.
 
-**Slice 1 (code done 2026-06-21, 114 UT pass, ruff clean — E2E pending MCP server dist + tokens):**
+**Slice 1 — Jira+GitHub → Slack (✅ DONE, E2E thật 2026-06-21):**
 - [x] `tools/jira_read.py` — pull issues (via MCP spawn).
 - [x] `tools/github_read.py` — pull PR/CI (via `gh` CLI).
-- [x] `agent/` graph: perceive → analyze → compose_report → deliver (report_graph.py, injectable deps).
-- [x] Risk detect: overdue/blocker/stale_pr/ci_failure (risk_analyzer.py pure analyze).
-- [x] `actions/slack_write.py` deliver_report + action_gateway write guardrail.
+- [x] `agent/report_graph.py` graph: perceive → analyze → compose → deliver (injectable deps).
+- [x] Risk detect: overdue/blocker/stale_pr/ci_failure (risk_analyzer.py pure).
+- [x] `actions/slack_write.py` + action_gateway write guardrail. E2E: post Slack thật.
 
-**Slice 2+ (unstarted):**
-- [ ] Confluence_write (template read/write).
-- [ ] Report template (status daily + sprint weekly).
-- [ ] Cron entrypoint: daily digest + weekly report.
+**Slice 2 — Confluence detail + Slack short+link (✅ DONE, E2E thật 2026-06-22):**
+- [x] `actions/confluence_write.py` — createPage qua gateway, parse page id/URL.
+- [x] Report detail (XHTML storage) lên Confluence (page/ngày, space MPM) + short+link lên Slack.
+- [x] Slack mrkdwn sạch; state chỉ primitive (checkpointer-safe). 130 UT.
 
-**Exit Phase 1**: agent tự sinh + đăng report tiến độ Slack (Slice 1), Confluence sau; số liệu sát Jira/GitHub, không cần người viết tay.
+**Slice 3 — Daily/Weekly + Cron (✅ DONE, E2E thật 2026-06-22):**
+- [x] `cli report --daily|--weekly`: 2 loại report (daily standup ngắn / weekly sprint review).
+- [x] Weekly kéo Jira sprint data (get_active_sprint + get_sprint_issues).
+- [x] `cron.py` thật + launchd (`deploy/launchd/`: daily 9:00, weekly thứ 6 17:00). 136 UT.
+
+**Còn lại (Phase 2 / sau):**
+- [ ] Burndown / velocity metrics nâng cao.
+- [ ] (Phase 2) Lớp B interrupt cho hành động nhạy cảm; dedup bền qua restart.
+
+**Exit Phase 1**: ✅ ĐẠT. Agent tự sinh + đăng report tiến độ (Slack + Confluence), daily/weekly có sprint data, chạy tự động qua cron. Số liệu sát Jira/GitHub, không cần người viết tay.
 
 ## Phase 2 — Guardrail hardening
 

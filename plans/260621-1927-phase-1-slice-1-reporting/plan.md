@@ -1,6 +1,6 @@
 # Plan — Phase 1 Slice 1: Reporting (Jira+GitHub → Slack)
 
-> Status: **IMPLEMENTED — code done, 114 UT pass, ruff clean, reviewed. E2E deferred (prereq: dist builds + tokens).** (2026-06-21)
+> Status: **DONE — E2E verified 2026-06-21: Jira (MCP) + GitHub (gh) → report → real Slack post via gateway. (Superseded by Slice 2: deliver now Confluence+Slack.)** (2026-06-22)
 > Mode: `/cook` auto. First thin end-to-end slice of Phase 1 (MVP Reporting).
 
 ## Outcome (2026-06-21)

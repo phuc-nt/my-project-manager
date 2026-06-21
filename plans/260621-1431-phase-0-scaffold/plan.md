@@ -1,6 +1,6 @@
 # Plan — Phase 0 Scaffold (my-project-manager)
 
-> Status: **IMPLEMENTED — Phase 0 exit met (guardrails verified). E2E smoke deferred (no OpenRouter key yet).** (2026-06-21)
+> Status: **DONE — Phase 0 exit met. E2E OpenRouter verified (cli hello, real call, cost $0.000429).** (2026-06-21)
 > Mode: `/cook` interactive. Goal: hit roadmap Phase 0 exit criteria.
 
 ## Outcome (2026-06-21)

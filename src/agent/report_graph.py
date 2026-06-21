@@ -49,42 +49,79 @@ def _today_utc() -> date:
 
 
 def default_report_deps(
-    *, client: LlmClient | None = None, gateway: ActionGateway | None = None
+    *,
+    report_kind: str = "daily",
+    client: LlmClient | None = None,
+    gateway: ActionGateway | None = None,
 ) -> ReportDeps:
-    """Wire the real implementations (lazy imports keep graph-build network-free)."""
+    """Wire the real implementations for a report kind ("daily" | "weekly").
+
+    Weekly pulls the active sprint's issues (instead of all open issues) and
+    passes sprint context to the detail prompt. Lazy imports keep graph-build
+    network-free.
+    """
     from src.actions.confluence_write import create_report_page
     from src.config.reporting_config import get_reporting_config
-    from src.llm.report_prompt import build_detail_messages, build_slack_short
+    from src.llm.report_prompt import REPORT_TITLES, build_detail_messages, build_slack_short
     from src.tools import github_read, jira_read
 
     cfg = get_reporting_config()
     gw = gateway or ActionGateway()
     llm = client
+    sprint_box: dict[str, object] = {}
+
+    def _fetch_issues() -> list[Issue]:
+        if report_kind == "weekly":
+            sprint = jira_read.get_active_sprint()
+            sprint_box["sprint"] = sprint
+            if sprint is not None:
+                return jira_read.get_sprint_issues(sprint.id)
+            return jira_read.get_open_issues()  # fallback: no active sprint
+        return jira_read.get_open_issues()
+
+    def _sprint_context() -> str | None:
+        sprint = sprint_box.get("sprint")
+        if sprint is None:
+            if report_kind == "weekly":
+                return "Không có sprint active — dùng toàn bộ issue đang mở."
+            return None
+        return (
+            f"Sprint: {sprint.name} ({sprint.state}), "
+            f"{sprint.start_date} → {sprint.end_date}."
+        )
 
     def _compose(risks: list[Risk]) -> tuple[str, float | None]:
-        """Compose the Confluence detail body (storage HTML) via one LLM call."""
         nonlocal llm
         if llm is None:
             llm = LlmClient()
-        messages = build_detail_messages(risks, report_date=_today_utc().isoformat())
+        messages = build_detail_messages(
+            risks,
+            report_date=_today_utc().isoformat(),
+            kind=report_kind,
+            sprint_context=_sprint_context(),
+        )
         result = llm.complete(messages)
         return result.content, result.cost_usd
 
     def _deliver(risks: list[Risk], detail_body: str) -> tuple[bool, str]:
         today = _today_utc().isoformat()
-        # 1) Confluence detail page (through the gateway).
+        title = f"{REPORT_TITLES.get(report_kind, 'Báo cáo')} {today}"
+        # 1) Confluence detail page (through the gateway). dedup keyed per kind+date.
         conf_result, page = create_report_page(
-            f"Báo cáo tiến độ {today}",
+            title,
             detail_body,
             gateway=gw,
-            report_date=today,
-            rationale="scheduled/triggered progress report (detail)",
+            report_date=f"{report_kind}-{today}",
+            rationale=f"scheduled {report_kind} progress report (detail)",
         )
         detail_url = page.url if page else None
         # 2) Slack short message + link (through the gateway), derived from risks.
         short = build_slack_short(risks, report_date=today, detail_url=detail_url)
         slack_result = deliver_report(
-            short, gateway=gw, report_date=today, rationale="progress report (short + link)"
+            short,
+            gateway=gw,
+            report_date=f"{report_kind}-{today}",
+            rationale=f"{report_kind} progress report (short + link)",
         )
         ok = (
             conf_result.status in {"executed", "dry_run"}
@@ -93,7 +130,7 @@ def default_report_deps(
         return ok, f"confluence={conf_result.status} slack={slack_result.status} url={detail_url}"
 
     return ReportDeps(
-        fetch_issues=lambda: jira_read.get_open_issues(),
+        fetch_issues=_fetch_issues,
         fetch_prs=lambda: github_read.get_open_prs(),
         fetch_ci=lambda: github_read.get_recent_ci(),
         analyze_risks=lambda issues, prs, ci: analyze(
@@ -142,10 +179,17 @@ def _risks_to_dicts(risks: list[Risk]) -> list[dict]:
 
 
 def build_report_graph(
-    checkpointer: SqliteSaver | None = None, *, deps: ReportDeps | None = None
+    checkpointer: SqliteSaver | None = None,
+    *,
+    deps: ReportDeps | None = None,
+    report_kind: str = "daily",
 ) -> CompiledStateGraph:
-    """Build + compile the reporting graph. `deps` defaults to real wiring."""
-    resolved = deps or default_report_deps()
+    """Build + compile the reporting graph. `deps` defaults to real wiring.
+
+    `report_kind` ("daily" | "weekly") selects the data scope + prompt framing
+    when `deps` is not explicitly provided.
+    """
+    resolved = deps or default_report_deps(report_kind=report_kind)
     perceive, analyze_node, compose_report, deliver = _make_nodes(resolved)
 
     builder = StateGraph(ReportState)

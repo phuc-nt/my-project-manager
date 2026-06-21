@@ -5,7 +5,6 @@ from __future__ import annotations
 from src.agent.checkpoint import get_checkpointer
 from src.agent.graph import build_graph
 from src.entrypoints.cli import main as cli_main
-from src.entrypoints.cron import main as cron_main
 from src.llm.client import LlmResult
 
 
@@ -63,5 +62,5 @@ def test_cli_no_key_returns_one(monkeypatch, tmp_path):
         settings_mod.get_settings.cache_clear()
 
 
-def test_cron_stub_runs():
-    assert cron_main() == 0
+# cron is no longer a stub (Slice 3) — covered by test_sprint_and_report_kind.py
+# (test_cron_no_key_returns_one), which avoids hitting the network.

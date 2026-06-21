@@ -1,0 +1,111 @@
+"""Phase 1 reporting + MCP/CLI integration config (env-loaded).
+
+Kept separate from `settings.py` (LLM + guardrail config) so each concern stays
+small. Holds: which Jira project / GitHub repo / Slack channel to report on, the
+risk thresholds, and how to launch each stdio MCP server (dist path + the env
+vars that server reads). Tokens are passed down to the spawned server's env;
+the agent does not use them directly.
+
+Validation is lazy: a missing server token raises only when that server is
+actually spawned, so unit tests and unrelated flows run without credentials.
+"""
+
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+from src.config.settings import REPO_ROOT
+
+# Default dist paths for the local MCP server repos (overridable via env).
+_DEFAULT_JIRA_DIST = Path.home() / "workspace" / "jira-cloud-mcp-server" / "dist" / "index.js"
+_DEFAULT_SLACK_DIST = Path.home() / "workspace" / "slack-browser-mcp-server" / "dist" / "index.js"
+
+
+@dataclass(frozen=True)
+class McpServerSpec:
+    """How to spawn one stdio MCP server: node entry + the env it reads."""
+
+    name: str
+    dist_path: Path
+    env: dict[str, str]
+    required_env_keys: tuple[str, ...]
+
+    def validate(self) -> None:
+        """Raise a clear error if the dist build or required env is missing.
+
+        Called right before spawning the server, not at import.
+        """
+        if not self.dist_path.exists():
+            raise FileNotFoundError(
+                f"MCP server {self.name!r} dist not found at {self.dist_path}. "
+                f"Build it: cd <repo> && npm install && npm run build."
+            )
+        missing = [k for k in self.required_env_keys if not self.env.get(k)]
+        if missing:
+            raise RuntimeError(
+                f"MCP server {self.name!r} missing required env: {', '.join(missing)}. "
+                f"Set them in .env (see config.example.env)."
+            )
+
+
+@dataclass(frozen=True)
+class ReportingConfig:
+    """Target project/repo/channel + risk thresholds for the report flow."""
+
+    jira_project_key: str | None
+    github_repo: str | None  # "owner/repo"
+    slack_report_channel: str | None
+
+    # Risk thresholds (defaults; tune later via env).
+    pr_stale_days: int
+    blocker_label_substring: str  # an issue label containing this => blocker
+
+    jira_server: McpServerSpec
+    slack_server: McpServerSpec
+
+
+def _server_dist(env_key: str, default: Path) -> Path:
+    raw = os.getenv(env_key)
+    return Path(raw) if raw else default
+
+
+@lru_cache(maxsize=1)
+def get_reporting_config() -> ReportingConfig:
+    """Load .env once and return cached reporting config."""
+    load_dotenv(REPO_ROOT / ".env")
+
+    jira_server = McpServerSpec(
+        name="jira",
+        dist_path=_server_dist("JIRA_MCP_DIST", _DEFAULT_JIRA_DIST),
+        env={
+            "ATLASSIAN_SITE_NAME": os.getenv("ATLASSIAN_SITE_NAME", ""),
+            "ATLASSIAN_USER_EMAIL": os.getenv("ATLASSIAN_USER_EMAIL", ""),
+            "ATLASSIAN_API_TOKEN": os.getenv("ATLASSIAN_API_TOKEN", ""),
+        },
+        required_env_keys=("ATLASSIAN_SITE_NAME", "ATLASSIAN_USER_EMAIL", "ATLASSIAN_API_TOKEN"),
+    )
+    slack_server = McpServerSpec(
+        name="slack",
+        dist_path=_server_dist("SLACK_MCP_DIST", _DEFAULT_SLACK_DIST),
+        env={
+            "SLACK_XOXC_TOKEN": os.getenv("SLACK_XOXC_TOKEN", ""),
+            "SLACK_XOXD_TOKEN": os.getenv("SLACK_XOXD_TOKEN", ""),
+            "SLACK_TEAM_DOMAIN": os.getenv("SLACK_TEAM_DOMAIN", ""),
+        },
+        required_env_keys=("SLACK_XOXC_TOKEN", "SLACK_XOXD_TOKEN", "SLACK_TEAM_DOMAIN"),
+    )
+
+    return ReportingConfig(
+        jira_project_key=os.getenv("JIRA_PROJECT_KEY") or None,
+        github_repo=os.getenv("GITHUB_REPO") or None,
+        slack_report_channel=os.getenv("SLACK_REPORT_CHANNEL") or None,
+        pr_stale_days=int(os.getenv("PR_STALE_DAYS", "7")),
+        blocker_label_substring=os.getenv("BLOCKER_LABEL_SUBSTRING", "block"),
+        jira_server=jira_server,
+        slack_server=slack_server,
+    )

@@ -1,7 +1,7 @@
 # Codebase Summary — my-project-manager
 
 > Bản đồ codebase, cập nhật khi code hình thành. Đọc để biết "cái gì ở đâu" nhanh.
-> Status: **2026-06-21 — Phase 0 scaffold xong.** Hello-agent + guardrail core chạy (74 UT pass, ruff clean). E2E (gọi OpenRouter thật) hoãn tới khi có key.
+> Status: **2026-06-21 — Phase 0 xong. Phase 1 Slice-1 code done (114 UT pass, ruff clean).** CLI `report` command → Jira+GitHub read via MCP/CLI → risk_analyzer → LLM compose → Slack post via Action Gateway. E2E deferred (needs MCP server dist + tokens).
 
 ## Trạng thái hiện tại
 
@@ -28,16 +28,22 @@ src/
 
 | Cần tìm | Ở |
 |---|---|
-| Flow agent (graph) | `src/agent/graph.py` (perceive→respond), `state.py`, `checkpoint.py` |
-| Cách đọc Jira/GitHub | `src/tools/<tool>_read.py` (Phase 1 — chưa có); adapter ở `src/adapters/` |
+| Flow agent (graph) | `src/agent/report_graph.py` (perceive→analyze→compose_report→deliver, injectable ReportDeps); legacy hello-graph ở `src/agent/graph.py`. State: `src/agent/state.py`, checkpoint: `src/agent/checkpoint.py` |
+| Cách đọc Jira | `src/tools/jira_read.py` (get_open_issues, parse_issue); adapter MCP ở `src/adapters/mcp_adapter.py` (langchain-mcp-adapters 0.3.0, spawn stdio subprocess) |
+| Cách đọc GitHub | `src/tools/github_read.py` (get_open_prs, get_recent_ci, parse_pr, parse_ci staleness); adapter CLI ở `src/adapters/cli_adapter.py` (run_gh subprocess + JSON parse) |
+| Models (Issue/PR/Risk) | `src/tools/models.py` (dataclass Issue, PullRequest, CiRun, Risk) |
+| Risk phát hiện | `src/agent/risk_analyzer.py` (pure analyze: overdue/blocker/stale_pr/ci_failure) |
+| Config reporting | `src/config/reporting_config.py` (McpServerSpec, ReportingConfig: project/repo/channel + risk thresholds) |
 | Cách agent ghi/post | `src/actions/action_gateway.py` (mọi mutation qua đây) |
+| Post Slack | `src/actions/slack_write.py` (deliver_report via gateway) |
 | Guardrail allow/deny | `src/actions/hard_block.py` (allowlist + Lớp A hard-deny) |
 | Phát hiện/redact secret | `src/actions/secret_patterns.py` (shared: gateway + audit dùng chung) |
+| Report prompt | `src/llm/report_prompt.py` |
 | Budget cap LLM | `src/llm/budget_tracker.py` ($50/tháng, hard-stop) |
 | Gọi LLM (OpenRouter) | `src/llm/client.py` + `cost.py` |
 | Config/env | `src/config/settings.py` |
 | Audit log | `src/audit/audit_log.py` (JSONL append-only) |
-| Chạy thế nào | `src/entrypoints/cli.py` + `deployment-guide.md` |
+| Chạy thế nào | `src/entrypoints/cli.py` ("report" command) + `deployment-guide.md` |
 
 ## Mô hình guardrail (CHỐT 2026-06-21, sau 2 vòng review)
 

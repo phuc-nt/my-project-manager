@@ -73,7 +73,7 @@ START
 
 **CHỐT 2026-06-21**: Agent KHÔNG gọi SDK Python trực tiếp tới Jira/Confluence/Slack. Mọi giao tiếp công cụ đi qua **2 kiểu integration**, gom về 2 adapter:
 
-- **MCP adapter** — Jira, Confluence, Slack qua các **MCP server có sẵn** (Node/TS, stdio-default). Agent là **MCP client** (dùng `langchain-mcp-adapters` để expose tool MCP cho LangGraph). Server **chạy sẵn, agent connect** (không agent-spawn). 3 server tại:
+- **MCP adapter** — Jira, Confluence, Slack qua các **MCP server có sẵn** (Node/TS, **stdio-only, KHÔNG có HTTP**). Agent là **MCP client** (`langchain-mcp-adapters==0.3.0`). **CHỐT lại 2026-06-21 (Phase 1)**: vì stdio-only, agent **SPAWN từng server làm subprocess** (`node dist/index.js` + env token), KHÔNG phải "server chạy sẵn rồi connect" (giả định Phase 0 sai). API adapter là async → bridge sang CLI sync bằng `asyncio.run`; mỗi lần gọi mở `async with client.session()` để tắt subprocess sau (chống leak node). Code: `src/adapters/mcp_adapter.py`. 3 server tại:
   - `~/workspace/jira-cloud-mcp-server` (`mcp-jira-cloud-server` v4.x, 46 tool, modular core/agile/dashboard/search — load chọn lọc được).
   - `~/workspace/confluence-cloud-mcp-server` (v1.x, 11 tool: create/get/update/delete page, getSpaces, searchPages CQL, version history, comments).
   - `~/workspace/slack-browser-mcp-server` (v1.x, 12 tool: post/update/delete message, Block Kit, search, channel/user list — **browser-token auth**).

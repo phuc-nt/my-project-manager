@@ -177,7 +177,13 @@ def _hard_deny_mcp(action: dict[str, Any]) -> BlockVerdict | None:
     tool = str(action.get("tool", "")).lower()
     args = action.get("args", {})
 
+    # Scan args AND any sibling string fields (e.g. dedup_hint) so a secret can
+    # never ride along in a non-args key. The whole action is the credential surface.
     cred = _credential_verdict(args)
+    if cred:
+        return cred
+    siblings = {k: v for k, v in action.items() if k not in ("type", "server", "tool", "args")}
+    cred = _credential_verdict(siblings)
     if cred:
         return cred
 

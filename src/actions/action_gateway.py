@@ -68,7 +68,19 @@ class GatewayResult:
 
 
 def _action_dedup_key(action: dict[str, Any]) -> str:
-    """Stable hash of an action for idempotency (PDR §7.6)."""
+    """Stable idempotency key for an action (PDR §7.6).
+
+    If the action carries an explicit `dedup_hint`, use it — this lets callers
+    dedup on a semantic identity (e.g. one report per day+channel) rather than
+    on volatile content like LLM-generated text that changes every run. Falls
+    back to hashing the whole action when no hint is given.
+    """
+    hint = action.get("dedup_hint")
+    if isinstance(hint, str) and hint:
+        # Namespace the hint by the action's tool identity so a hint can only
+        # dedup within the same tool — two different tools sharing a hint string
+        # must not collide and silently drop one mutation.
+        return f"hint:{_label(action)}:{hint}"
     canonical = json.dumps(action, sort_keys=True, ensure_ascii=False, default=str)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 

@@ -5,6 +5,7 @@ description = "Autonomous LangGraph agent that automates PM/SM/Team-Lead work ac
 requires-python = ">=3.12"
 dependencies = [
     "langchain-core>=1.4.8",
+    "langchain-mcp-adapters==0.3.0",
     "langgraph>=1.2.6",
     "langgraph-checkpoint-sqlite>=3.1.0",
     "openai>=2.43.0",

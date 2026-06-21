@@ -29,3 +29,29 @@ def test_coerce_message_plain_content():
 
 def test_coerce_already_dict():
     assert _coerce_result({"k": "v"}) == {"k": "v"}
+
+
+# --- MCP content-block shape: what real servers return (verified 2026-06-21) ---
+
+
+def test_coerce_content_block_single_json():
+    # [{"type": "text", "text": "<json>"}] -> parsed object
+    raw = [{"type": "text", "text": '{"issues": [{"key": "AB-1"}]}'}]
+    assert _coerce_result(raw) == {"issues": [{"key": "AB-1"}]}
+
+
+def test_coerce_content_block_single_plain_text():
+    raw = [{"type": "text", "text": "just text"}]
+    assert _coerce_result(raw) == "just text"
+
+
+def test_coerce_content_block_multiple():
+    raw = [{"type": "text", "text": '{"a": 1}'}, {"type": "text", "text": '{"b": 2}'}]
+    assert _coerce_result(raw) == [{"a": 1}, {"b": 2}]
+
+
+def test_coerce_toolmessage_with_content_block():
+    class Msg:
+        content = [{"type": "text", "text": '{"ok": true}'}]
+
+    assert _coerce_result(Msg()) == {"ok": True}

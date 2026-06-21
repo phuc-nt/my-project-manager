@@ -60,20 +60,42 @@ async def _acall_tool(spec: McpServerSpec, tool_name: str, args: dict[str, Any])
         return await tool.ainvoke(args)
 
 
+def _maybe_json(value: Any) -> Any:
+    """Parse a JSON string into an object; pass non-JSON strings through."""
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            return value
+    return value
+
+
 def _coerce_result(raw: Any) -> Any:
     """Normalize a tool result to a Python object.
 
-    MCP tools often return their payload as a JSON string (or a ToolMessage whose
-    `.content` is one). Parse JSON when possible; otherwise return as-is so the
-    caller's `tools/` layer can normalize.
+    Handles the shapes seen from real MCP servers (verified 2026-06-21):
+      - a ToolMessage whose `.content` is a JSON string;
+      - MCP content blocks: ``[{"type": "text", "text": "<json>"}]`` — unwrap the
+        text and parse it (langchain-mcp-adapters surfaces results this way);
+      - a plain JSON string;
+      - an already-parsed dict/list.
+    Non-JSON strings pass through so the `tools/` layer can normalize.
     """
     content = getattr(raw, "content", raw)
-    if isinstance(content, str):
-        try:
-            return json.loads(content)
-        except json.JSONDecodeError:
-            return content
-    return content
+
+    # MCP content-block list: [{"type": "text", "text": "..."}].
+    if (
+        isinstance(content, list)
+        and content
+        and isinstance(content[0], dict)
+        and content[0].get("type") == "text"
+        and "text" in content[0]
+    ):
+        if len(content) == 1:
+            return _maybe_json(content[0]["text"])
+        return [_maybe_json(block.get("text", block)) for block in content]
+
+    return _maybe_json(content)
 
 
 def call_tool(spec: McpServerSpec, tool_name: str, args: dict[str, Any]) -> Any:

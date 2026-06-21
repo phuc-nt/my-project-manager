@@ -21,7 +21,16 @@
 - Code review (2 vòng quen thuộc) tìm: `dedup_hint` có thể va chéo tool, `classify` chỉ quét `args` (bỏ sót sibling field), `parse_pr` int() crash input xấu. Đã vá (M1 namespace hint theo tool, M2 quét cả sibling field cho credential, L1 `_safe_int`) + test.
 - Bài học: mỗi field MỚI thêm vào action dict phải nằm trong credential-surface của Lớp A, không chỉ `args`.
 
+## E2E xong (2026-06-21)
+- `cli report` chạy thật trọn vòng: Jira MCP đọc 4 issue (SCRUM-1..4) + GitHub `gh` (0 PR) → LLM compose (OpenRouter, $0.000467) → **post thật Slack #report** qua gateway (audit `verdict:allow tool:slack:post_message`, budget cộng dồn). No orphan node → **M3 (leak) đã verify sạch** cho Jira+Slack.
+- Bug runtime sửa khi verify với server thật:
+  - `_coerce_result` — bóc MCP content-block `[{"type":"text","text":<json>}]` (agent đoán sai output shape).
+  - `parse_issue` — server trả shape **phẳng** (status/assignee top-level), không phải `fields.*`; thêm fallback + test cả 2 shape.
+  - 2 MCP server (jira `logger.ts`, slack winston) log ra **stdout** → sửa sang **stderr** (MCP stdout chỉ cho JSON-RPC). Sửa ở repo server riêng.
+- Bài học: output shape + tên tool MCP CHỈ chắc khi gọi server thật — training data lệch. Verify integration sớm.
+- Cấu hình thật: `JIRA_PROJECT_KEY=SCRUM`; Slack browser-token khóa cứng workspace (xoxc segment) → phải lấy token đúng workspace, `SLACK_TEAM_DOMAIN` chỉ phụ.
+
 ## Mở / sang slice sau
-- **E2E pending**: build dist/ (jira+slack server) + token (`ATLASSIAN_*`, `SLACK_XOXC/XOXD`, `SLACK_TEAM_DOMAIN`) + `gh auth login` + `DRY_RUN=false` → `cli report`. Checklist: `pgrep -f index.js` sau run để chắc không leak node (M3 chưa verify được từ code).
 - Gateway dedup in-memory → re-arm sau restart (L3) — xử lý khi có cron/retry (Phase 2).
 - Slice 2+: Confluence write, template daily/weekly, cron.
+- `.env` mặc định `DRY_RUN=true` (an toàn); post thật bật explicit.

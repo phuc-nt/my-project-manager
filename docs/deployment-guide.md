@@ -9,7 +9,7 @@
 - `uv` (khuyến nghị) hoặc `pip`
 - **Node.js** — chạy 3 MCP server (Jira/Confluence/Slack, đều Node/TS stdio). Build `dist/` trước (`npm install && npm run build` trong mỗi repo server).
 - **`gh` CLI** — GitHub integration (auth: `gh auth login`, scoped — xem §3). Tương lai: **GWS CLI**.
-- Token: Atlassian (Jira+Confluence chung site) + Slack **browser-token** → cấp cho **MCP server** (không cho agent Python). GitHub auth qua `gh`.
+- Token: Atlassian (Jira+Confluence chung site) + Slack **browser-token** → để ở **`.env` của agent**; agent **inject xuống env subprocess** khi spawn MCP server (server đọc từ process env lúc startup). GitHub auth qua `gh`.
 - **OpenRouter API key** — provider LLM (instance thật, không mock). Model mặc định `minimax/minimax-m2.7`, fallback `qwen/qwen-3.7`.
 
 > **Integration (CHỐT 2026-06-21)**: agent KHÔNG gọi SDK Python tới Jira/Confluence/Slack. Agent **SPAWNS** 3 MCP server làm subprocess (stdio-only via `langchain-mcp-adapters==0.3.0`): `~/workspace/{jira,confluence,slack-browser}-*-mcp-server` + GitHub via `gh` CLI. Xem `system-architecture.md §4`. Mỗi MCP spawn tắt subprocess sau gọi (chống leak node).
@@ -38,7 +38,7 @@ DRY_RUN=false python -m src.entrypoints.cli "..."
 
 Mỗi token cấp quyền **tối thiểu** cần (PDR §7.4). KHÔNG dùng token full-admin.
 
-Token Atlassian/Slack cấp cho **MCP server** (đặt ở env của server), GitHub auth qua **`gh`**. Agent Python chỉ giữ `OPENROUTER_API_KEY` + cấu hình kết nối MCP. Mỗi quyền **tối thiểu** (PDR §7.4). KHÔNG token full-admin.
+**Mô hình token (CHỐT 2026-06-21):** Tất cả token sống **1 chỗ duy nhất — `.env` của agent**. Agent (MCP client) đọc từ `.env`, rồi **inject vào env của subprocess** khi spawn MCP server (`reporting_config.py` build env → `mcp_adapter.py` truyền qua `MultiServerMCPClient`). Server đọc env lúc startup. KHÔNG có file `.env` riêng cho từng server; KHÔNG có chuyện token nằm 2 nơi. (MCP protocol không truyền credential qua message với 3 server stdio này → bắt buộc env-at-spawn; đây là giới hạn của *server*, không phải lựa chọn.) GitHub auth qua `gh` (CLI tự quản, không qua `.env`). Mỗi quyền **tối thiểu** (PDR §7.4). KHÔNG token full-admin.
 
 | Công cụ | Integration | Token / auth | Scope tối thiểu (MVP) |
 |---|---|---|---|
@@ -48,14 +48,14 @@ Token Atlassian/Slack cấp cho **MCP server** (đặt ở env của server), Gi
 | Slack | MCP server | **browser-token** (session) | ⚠️ rộng quyền — siết: chỉ post channel cho phép; gateway hard-block public/credential |
 | OpenRouter | agent Python | API key (`sk-or-...`) | gọi model; set `HTTP-Referer` + `X-Title` header |
 
-**Token MCP server** (để ở env của từng server, không ở agent .env):
+**Token MCP server** (để ở `.env` AGENT; agent inject vào subprocess lúc spawn):
 - **Jira**: `ATLASSIAN_SITE_NAME`, `ATLASSIAN_USER_EMAIL`, `ATLASSIAN_API_TOKEN`
 - **Slack**: `SLACK_XOXC_TOKEN`, `SLACK_XOXD_TOKEN`, `SLACK_TEAM_DOMAIN`
-- **GitHub**: `gh auth login` (không .env, CLI-managed)
+- **GitHub**: `gh auth login` (không `.env`, CLI tự quản)
 
-Agent `.env` chỉ chứa OpenRouter + config report (project/repo/channel + risk thresholds): `JIRA_PROJECT_KEY`, `GITHUB_REPO`, `SLACK_REPORT_CHANNEL`, `PR_STALE_DAYS=7`, `BLOCKER_LABEL_SUBSTRING=block`. Liệt kê đầy đủ ở `config.example.env` (commit, không giá trị thật).
+Toàn bộ ở **1 file `.env` của agent** cùng OpenRouter + config report (`JIRA_PROJECT_KEY`, `GITHUB_REPO`, `SLACK_REPORT_CHANNEL`, `PR_STALE_DAYS`, `BLOCKER_LABEL_SUBSTRING`). Liệt kê đầy đủ ở `config.example.env` (commit, không giá trị thật). `.env` gitignored.
 
-**Atlassian Cloud lưu ý**: Jira + Confluence chung 1 site (`https://<org>.atlassian.net`) → **1 API token dùng chung** (email + token). Lấy tại id.atlassian.com → Security → API tokens. Token này cấp cho **MCP server**, không cho agent.
+**Atlassian Cloud lưu ý**: Jira + Confluence chung 1 site (`https://<org>.atlassian.net`) → **1 API token dùng chung** (email + token). Lấy tại id.atlassian.com → Security → API tokens. Để token vào `.env` agent (agent inject xuống MCP server lúc spawn).
 
 **⚠️ Slack browser-token**: `slack-browser-mcp-server` auth bằng session cookie/browser-token (không cần app/admin approve) → quyền **rộng hơn** bot-token scoped. Đây là rủi ro credential cao hơn → guardrail Lớp A siết kỹ, và chỉ cho post vào channel whitelist.
 

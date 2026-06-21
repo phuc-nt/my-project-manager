@@ -42,23 +42,42 @@ def parse_issue(raw: dict[str, Any]) -> Issue:
     key = raw.get("key")
     if not key:
         raise ValueError(f"Jira issue missing 'key': {raw!r:.120}")
+
+    # The Jira MCP server returns a FLAT, pre-normalized shape (verified 2026-06-21):
+    # status/assignee/summary/labels/duedate at top level. Fall back to raw Jira
+    # REST `fields.*` so we still work if the server changes its output.
     fields = raw.get("fields") or {}
 
-    status_obj = fields.get("status") or {}
-    assignee_obj = fields.get("assignee") or {}
-    labels = tuple(fields.get("labels") or ())
-    # Jira "flagged" is often an Impediment via a custom field or a label.
+    def pick(name: str):
+        val = raw.get(name)
+        return val if val is not None else fields.get(name)
+
+    labels = tuple(pick("labels") or ())
     flagged = any("flag" in str(label).lower() for label in labels)
 
     return Issue(
         key=str(key),
-        summary=str(fields.get("summary") or ""),
-        status=str(status_obj.get("name") or "Unknown"),
-        assignee=(assignee_obj.get("displayName") if assignee_obj else None),
-        due_date=_parse_due(fields.get("duedate")),
+        summary=str(pick("summary") or ""),
+        status=_status_name(pick("status")),
+        assignee=_assignee_name(pick("assignee")),
+        due_date=_parse_due(pick("duedate") or pick("dueDate")),
         labels=labels,
         flagged=flagged,
     )
+
+
+def _status_name(status: Any) -> str:
+    """Status may be a dict ({'name': ...}) or a plain string."""
+    if isinstance(status, dict):
+        return str(status.get("name") or "Unknown")
+    return str(status) if status else "Unknown"
+
+
+def _assignee_name(assignee: Any) -> str | None:
+    """Assignee may be a dict (displayName/name), a plain string, or None."""
+    if isinstance(assignee, dict):
+        return assignee.get("displayName") or assignee.get("name")
+    return str(assignee) if assignee else None
 
 
 def is_done(issue: Issue) -> bool:

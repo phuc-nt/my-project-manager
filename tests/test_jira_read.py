@@ -56,3 +56,34 @@ def test_is_done():
 def test_flagged_via_label():
     issue = parse_issue({"key": "F-1", "fields": {"labels": ["Flagged"]}})
     assert issue.flagged is True
+
+
+# --- Flat shape: what the Jira MCP server actually returns (verified 2026-06-21) ---
+# status/assignee/summary/labels live at top level, NOT under `fields`.
+
+
+def test_parse_flat_shape_from_mcp_server():
+    raw = {
+        "key": "SCRUM-3",
+        "summary": "Subtask 2.1",
+        "status": {"name": "In Progress", "category": "In Progress"},
+        "assignee": None,
+        "labels": [],
+    }
+    issue = parse_issue(raw)
+    assert issue.key == "SCRUM-3"
+    assert issue.status == "In Progress"  # read from top-level, not fields.*
+    assert issue.assignee is None
+    assert issue.labels == ()
+
+
+def test_parse_flat_assignee_object():
+    raw = {"key": "X-1", "assignee": {"displayName": "Phuc"}, "status": "To Do"}
+    issue = parse_issue(raw)
+    assert issue.assignee == "Phuc"
+    assert issue.status == "To Do"  # status as a plain string
+
+
+def test_parse_flat_assignee_string():
+    issue = parse_issue({"key": "X-2", "assignee": "phuc", "status": {"name": "Done"}})
+    assert issue.assignee == "phuc"

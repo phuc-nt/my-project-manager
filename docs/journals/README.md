@@ -9,6 +9,7 @@ Dòng thời gian phát triển kiến trúc + tính năng (repo vừa-làm-vừ
 | Phase | Ngày | Trạng thái | Mốc chính |
 |---|---|---|---|
 | [0](phase-0.md) | 2026-06-21 | ✅ Done | Scaffold + hello-agent (LangGraph) + guardrail core. Chốt: tool qua MCP+CLI; guardrail allowlist + Lớp A hard-deny (sau 2 vòng review). E2E OpenRouter thật OK. |
+| [1](phase-1.md) | 2026-06-21 | 🟡 Slice 1 | Reporting Jira+GitHub→Slack qua gateway. Chốt: agent SPAWN MCP server subprocess (stdio-only, không connect); gateway dedup theo (channel,ngày). 114 UT. E2E pending dist+token. |
 
 ## Template entry (`phase-N.md`)
 

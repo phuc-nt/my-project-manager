@@ -12,7 +12,7 @@
 - Token: Atlassian (Jira+Confluence chung site) + Slack **browser-token** → cấp cho **MCP server** (không cho agent Python). GitHub auth qua `gh`.
 - **OpenRouter API key** — provider LLM (instance thật, không mock). Model mặc định `minimax/minimax-m2.7`, fallback `qwen/qwen-3.7`.
 
-> **Integration (CHỐT 2026-06-21)**: agent KHÔNG gọi SDK Python tới Jira/Confluence/Slack. Đi qua MCP server có sẵn (`~/workspace/{jira,confluence,slack-browser}-*-mcp-server`) + `gh` CLI. Xem `system-architecture.md §4`. MCP server chạy sẵn, agent connect (`langchain-mcp-adapters`).
+> **Integration (CHỐT 2026-06-21)**: agent KHÔNG gọi SDK Python tới Jira/Confluence/Slack. Agent **SPAWNS** 3 MCP server làm subprocess (stdio-only via `langchain-mcp-adapters==0.3.0`): `~/workspace/{jira,confluence,slack-browser}-*-mcp-server` + GitHub via `gh` CLI. Xem `system-architecture.md §4`. Mỗi MCP spawn tắt subprocess sau gọi (chống leak node).
 
 > Tất cả instance là **THẬT** (Atlassian Cloud + Slack + GitHub thật). Build/test trực tiếp, không mock — cẩn trọng với write (xem kill switch §4 + dry-run trước khi chạy thật).
 
@@ -48,7 +48,12 @@ Token Atlassian/Slack cấp cho **MCP server** (đặt ở env của server), Gi
 | Slack | MCP server | **browser-token** (session) | ⚠️ rộng quyền — siết: chỉ post channel cho phép; gateway hard-block public/credential |
 | OpenRouter | agent Python | API key (`sk-or-...`) | gọi model; set `HTTP-Referer` + `X-Title` header |
 
-Token MCP server lưu ở env **của server đó** (xem README mỗi repo `~/workspace/*-mcp-server`). Agent: `.env` chỉ chứa OpenRouter + config kết nối MCP (host/port/transport). Liệt kê biến ở `config.example.env` (commit, không giá trị thật).
+**Token MCP server** (để ở env của từng server, không ở agent .env):
+- **Jira**: `ATLASSIAN_SITE_NAME`, `ATLASSIAN_USER_EMAIL`, `ATLASSIAN_API_TOKEN`
+- **Slack**: `SLACK_XOXC_TOKEN`, `SLACK_XOXD_TOKEN`, `SLACK_TEAM_DOMAIN`
+- **GitHub**: `gh auth login` (không .env, CLI-managed)
+
+Agent `.env` chỉ chứa OpenRouter + config report (project/repo/channel + risk thresholds): `JIRA_PROJECT_KEY`, `GITHUB_REPO`, `SLACK_REPORT_CHANNEL`, `PR_STALE_DAYS=7`, `BLOCKER_LABEL_SUBSTRING=block`. Liệt kê đầy đủ ở `config.example.env` (commit, không giá trị thật).
 
 **Atlassian Cloud lưu ý**: Jira + Confluence chung 1 site (`https://<org>.atlassian.net`) → **1 API token dùng chung** (email + token). Lấy tại id.atlassian.com → Security → API tokens. Token này cấp cho **MCP server**, không cho agent.
 
@@ -56,15 +61,25 @@ Token MCP server lưu ở env **của server đó** (xem README mỗi repo `~/wo
 
 **⚠️ Known residual risk — Atlassian token không có prefix cố định (CHỐT chấp nhận 2026-06-21)**: bộ phát hiện secret (`src/actions/secret_patterns.py`) bắt token theo regex prefix (xox*, sk-or-, ghp_, AKIA…). Atlassian API token (`ATATT…` không ổn định) → **không bắt được khi nằm trong free-text**; chỉ bị redact/chặn khi đặt dưới key tên secret (`token`, `api_token`…). Nguyên tắc vận hành: KHÔNG đưa Atlassian token vào field free-text. Sẽ siết thêm khi wire MCP thật ở Phase 1 (token nằm ở env của MCP server, agent không cầm token trực tiếp nên rủi ro thực tế thấp).
 
-**Biến env agent dự kiến** (tên chính xác chốt ở `config.example.env`):
+**Biến env agent** (chốt ở `config.example.env`):
 ```
+# LLM
 OPENROUTER_API_KEY=
 OPENROUTER_MODEL=minimax/minimax-m2.7        # fallback: qwen/qwen-3.7
-# Kết nối MCP server (chạy sẵn, agent connect) — host/port/transport chốt Phase 1
-# Token Atlassian/Slack đặt ở env của từng MCP server, KHÔNG ở đây
+
+# Report config
+JIRA_PROJECT_KEY=
+GITHUB_REPO=
+SLACK_REPORT_CHANNEL=
+PR_STALE_DAYS=7
+BLOCKER_LABEL_SUBSTRING=block
+
+# Guardrail
 DRY_RUN=true
 AGENT_WRITE_DISABLED=false
 MONTHLY_BUDGET_USD=50
+
+# MCP server — KHÔNG để token ở đây; token Atlassian/Slack ở env của từng server
 ```
 
 ## 4. Kill switch (PDR §7.3)

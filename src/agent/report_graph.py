@@ -59,7 +59,7 @@ def default_report_deps(
         nonlocal llm
         if llm is None:
             llm = LlmClient()
-        messages = build_report_messages(risks, period_label="hôm nay")
+        messages = build_report_messages(risks, report_date=_today_utc().isoformat())
         result = llm.complete(messages)
         return result.content, result.cost_usd
 

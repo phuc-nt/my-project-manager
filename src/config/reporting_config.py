@@ -75,6 +75,12 @@ class ReportingConfig:
     pr_stale_days: int
     blocker_label_substring: str  # an issue label containing this => blocker
 
+    # Phase 3: OKR tracking. The OKR table lives on this Confluence page; an
+    # Objective rolling up below `okr_behind_threshold` (fraction 0..1) is flagged
+    # "at risk". Both optional — OKR features no-op cleanly when the page is unset.
+    okr_confluence_page_id: str | None
+    okr_behind_threshold: float
+
     jira_server: McpServerSpec
     slack_server: McpServerSpec
     confluence_server: McpServerSpec
@@ -134,6 +140,8 @@ def get_reporting_config() -> ReportingConfig:
         atlassian_site_name=os.getenv("ATLASSIAN_SITE_NAME") or None,
         pr_stale_days=int(os.getenv("PR_STALE_DAYS", "7")),
         blocker_label_substring=os.getenv("BLOCKER_LABEL_SUBSTRING", "block"),
+        okr_confluence_page_id=os.getenv("OKR_CONFLUENCE_PAGE_ID") or None,
+        okr_behind_threshold=float(os.getenv("OKR_BEHIND_THRESHOLD", "0.5")),
         jira_server=jira_server,
         slack_server=slack_server,
         confluence_server=confluence_server,

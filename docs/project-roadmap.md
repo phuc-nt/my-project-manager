@@ -1,7 +1,7 @@
 # Project Roadmap — my-project-manager
 
 > Lộ trình + milestone. Status sống, cập nhật khi phase đổi trạng thái.
-> Status hiện tại: **Phase 1 (MVP Reporting) HOÀN TẤT (2026-06-22) — daily/weekly + Confluence/Slack + cron. Sẵn sàng Phase 2.**
+> Status hiện tại: **Phase 3 (OKR Tracking) HOÀN TẤT (2026-06-22) — OKR read + analyzer + report (CLI + weekly embed) + Slack delivery. Sẵn sàng Phase 4.**
 
 ## Trạng thái tổng
 
@@ -10,7 +10,7 @@
 | 0 | Khởi tạo docs + scaffold | ✅ Done | Bộ docs + cấu trúc repo + setup LangGraph chạy được |
 | 1 | MVP Reporting + Monitoring | ✅ Done | Đọc Jira/GitHub → report (daily/weekly) → đăng Slack/Confluence + cron |
 | 2 | Guardrail hardening | ✅ Done | Dedup bền + audit query + Lớp B interrupt (queue+approve) |
-| 3 | OKR / objective | ⬜ Chưa | Đặt + track OKR, map xuống Jira epic |
+| 3 | OKR / objective | ✅ Done | Đặt + track OKR, map xuống Jira epic |
 | 4 | Resource + Cost | ⬜ Chưa | Capacity, allocation, budget alert |
 | 5 | Stakeholder + scale | ⬜ Chưa | Report theo audience; lên service + Slack UI; multi-user |
 
@@ -67,9 +67,26 @@ Trọng tâm: ROI rõ, rủi ro thấp. Đọc nhiều, write chỉ là *post re
 
 > Review (DONE_WITH_CONCERNS → fixed): skip_interrupt private; external-channel Slack = Lớp B; dedup atomic reserve; approval store redact secret; reject audited; double-approve CAS. Red line (Lớp A) verified không bypass được.
 
-## Phase 3–5 — tóm tắt
+## Phase 3 — OKR Tracking (✅ DONE 2026-06-22, 202 UT, ruff clean, code-reviewed)
 
-- **P3 OKR**: agent hỗ trợ đặt OKR, map xuống Jira epic, track tiến độ OKR theo thời gian.
+- [x] `confluence_read.py` — `get_page_content` (getPageContent tool) + parsers: `parse_okr_table` (html.parser, nested-table-safe), `parse_epic_keys` (validates PROJECT-123, blocks JQL inject), `parse_weight`.
+- [x] `okr_read.py` — epic progress from Jira children: `compute_epic_progress` (pure), `get_epic_progress` (JQL `parent = <epic>`, fallback `"Epic Link"`), `get_epic_progress_map` (memoized).
+- [x] `okr_analyzer.py` — pure `build_objectives` + `OkrRollup` (weighted rollup, any-blank⇒equal weighting, child-count multi-epic, at-risk, problems).
+- [x] `okr_report_prompt.py` — deterministic XHTML table + Slack short + overall progress pct + LLM-only prose (no number injection).
+- [x] `okr_report_graph.py` — standalone `build_okr_graph` + `OkrReportDeps`.
+- [x] `okr_weekly_section.py` — fault-isolated `weekly_okr_section` / `weekly_okr_slack_line`.
+- [x] Models: EpicProgress, KeyResult, Objective, OkrProblem dataclasses (`src/tools/models.py`).
+- [x] Config: okr_confluence_page_id, okr_behind_threshold (`src/config/reporting_config.py`).
+- [x] CLI: `cli report --okr` flag; precedence: okr>weekly>daily (`src/entrypoints/cli.py`).
+- [x] Weekly embed: OKR section appended to weekly report (native rollup + Slack line).
+- [x] **E2E verified**: 3 Jira epics + OKR Confluence page; real write: page 557057 "OKR Status 2026-06-22" + Slack post, dedup confirmed re-run.
+
+**Exit Phase 3**: ✅ ĐẠT. Agent reads external OKR table (Confluence), maps to Jira epics, rolls up weighted progress, delivers via `cli report --okr` + weekly embed + Slack with NO new MCP write authority.
+
+> **Bug found + fixed (integration verification)**: Jira MCP `enhancedSearchIssues` omitted `duedate` field → overdue_task risk never fired (Phase-1 regression). Fixed in MCP server repo (commit 41a6a30): added `duedate` to defaultFields. After fix, daily report flags 6 overdue tasks. Reinforce: **verify integration early**.
+
+## Phase 4–5 — tóm tắt
+
 - **P4 Resource+Cost**: capacity/allocation; cost monitor + budget alert.
 - **P5 Stakeholder+Scale**: report tách audience (nội bộ vs stakeholder external); lên service backend + Slack bot UI; multi-user/multi-project.
 

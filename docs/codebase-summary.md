@@ -1,7 +1,7 @@
 # Codebase Summary — my-project-manager
 
 > Bản đồ codebase, cập nhật khi code hình thành. Đọc để biết "cái gì ở đâu" nhanh.
-> Status: **2026-06-22 — Phase 0 + Phase 1 (MVP Reporting) HOÀN TẤT (136 UT, ruff clean, E2E thật).** `cli report --daily|--weekly` → đọc Jira (MCP) + GitHub (gh) + sprint → risk_analyzer → LLM compose → **Confluence detail page + Slack short+link** qua Action Gateway. Cron qua launchd (`deploy/launchd/`).
+> Status: **2026-06-22 — Phase 0 + Phase 1 + Phase 3 (OKR Tracking) HOÀN TẤT (202 UT, ruff clean, E2E thật).** `cli report --daily|--weekly|--okr` → đọc Jira (MCP) + GitHub (gh) + Confluence OKR → risk_analyzer + okr_analyzer → LLM compose → **Confluence detail page + Slack short+link + weekly OKR section** qua Action Gateway. Cron qua launchd (`deploy/launchd/`).
 
 ## Trạng thái hiện tại
 
@@ -43,11 +43,17 @@ src/
 | Xem audit | `cli audit [--tool/--verdict/--since/--limit]` (`audit_log.query`) |
 | Phát hiện/redact secret | `src/actions/secret_patterns.py` (shared: gateway + audit) |
 | Report prompt | `src/llm/report_prompt.py` (build_detail_messages daily/weekly XHTML, build_slack_short mrkdwn) |
+| OKR Confluence read | `src/tools/confluence_read.py` (get_page_content, parse_okr_table, parse_epic_keys, parse_weight) |
+| OKR epic progress | `src/tools/okr_read.py` (compute_epic_progress, get_epic_progress, get_epic_progress_map) |
+| OKR analyzer | `src/agent/okr_analyzer.py` (build_objectives, OkrRollup with weighted rollup + at-risk detection) |
+| OKR report prompt | `src/llm/okr_report_prompt.py` (render_okr_table_xhtml, build_okr_slack_short, build_okr_narrative_messages) |
+| OKR standalone report | `src/agent/okr_report_graph.py` (build_okr_graph, OkrReportDeps) |
+| OKR weekly section | `src/agent/okr_weekly_section.py` (weekly_okr_section, weekly_okr_slack_line, fault-isolated) |
 | Budget cap LLM | `src/llm/budget_tracker.py` ($50/tháng, hard-stop) |
 | Gọi LLM (OpenRouter) | `src/llm/client.py` + `cost.py` |
 | Config/env | `src/config/settings.py` |
 | Audit log | `src/audit/audit_log.py` (JSONL append-only) |
-| Chạy thế nào | `src/entrypoints/cli.py` (`report --daily\|--weekly`), `cron.py` (launchd) + `deployment-guide.md §5` |
+| Chạy thế nào | `src/entrypoints/cli.py` (`report --daily\|--weekly\|--okr`), `cron.py` (launchd) + `deployment-guide.md §5` |
 | Cron / lịch chạy | `src/entrypoints/cron.py` + `deploy/launchd/` (2 plist + run-report.sh) |
 
 ## Mô hình guardrail (CHỐT 2026-06-21, sau 2 vòng review)
@@ -57,6 +63,10 @@ src/
 2. **Default-DENY allowlist** — chỉ (server,tool) / gh-subcommand được liệt kê mới qua. Còn lại deny.
 
 Lý do đổi từ denylist: denylist cho qua mọi thứ chưa liệt kê → không an toàn cho red line. Secret detection dùng chung `secret_patterns.py` để gateway-chặn = audit-redact (không lệch).
+
+## Ghi chú tích hợp (Integration Reality)
+
+- **Jira MCP `enhancedSearchIssues` omitted `duedate` field** (Phase-3 E2E discovered): caused `overdue_task` risk to never fire during Phase 1. Fixed in MCP server repo (commit 41a6a30): added `duedate` to defaultFields + mapper. After fix, daily report correctly flags overdue tasks. **Lesson**: verify integration early, don't assume tool output shape matches SDK docs.
 
 ## Quy ước đọc
 

@@ -94,14 +94,22 @@ def default_report_deps(
         nonlocal llm
         if llm is None:
             llm = LlmClient()
+        today = _today_utc().isoformat()
         messages = build_detail_messages(
             risks,
-            report_date=_today_utc().isoformat(),
+            report_date=today,
             kind=report_kind,
             sprint_context=_sprint_context(),
         )
         result = llm.complete(messages)
-        return result.content, result.cost_usd
+        body = result.content
+        # Weekly review also carries an OKR status section when OKR is configured.
+        # Fault-isolated + deterministic numbers (see okr_report_graph).
+        if report_kind == "weekly":
+            from src.agent.okr_weekly_section import weekly_okr_section
+
+            body += weekly_okr_section(today)
+        return body, result.cost_usd
 
     def _deliver(risks: list[Risk], detail_body: str) -> tuple[bool, str]:
         today = _today_utc().isoformat()
@@ -117,6 +125,10 @@ def default_report_deps(
         detail_url = page.url if page else None
         # 2) Slack short message + link (through the gateway), derived from risks.
         short = build_slack_short(risks, report_date=today, detail_url=detail_url)
+        if report_kind == "weekly":
+            from src.agent.okr_weekly_section import weekly_okr_slack_line
+
+            short += weekly_okr_slack_line()
         slack_result = deliver_report(
             short,
             gateway=gw,

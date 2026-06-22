@@ -47,6 +47,70 @@ class BlockVerdict:
 _ALLOW = BlockVerdict(blocked=False)
 
 
+# --- Lớp B (PDR §7.9): reversible-but-sensitive actions that require a human OK ---
+# These are NOT auto-executed even when autonomous; the gateway queues them for
+# approval instead. Distinct from Lớp A (never allowed) — these are "ask first".
+# Matched by MCP tool name (substring) or gh argv prefix.
+_LOP_B_MCP_TOOL_MARKERS = (
+    "closeissue",
+    "close_issue",
+    "transitionissue",  # moving an issue's status is a real workflow change
+    "assignissue",
+    "reassign",
+)
+_LOP_B_GH_PREFIXES: tuple[tuple[str, ...], ...] = (
+    ("pr", "merge"),
+    ("pr", "close"),
+    ("pr", "ready"),
+)
+
+
+@dataclass(frozen=True)
+class InterruptVerdict:
+    """Result of the Lớp B check. `interrupt=True` => queue for human approval."""
+
+    interrupt: bool
+    reason: str = ""
+
+
+_NO_INTERRUPT = InterruptVerdict(interrupt=False)
+
+
+def needs_interrupt(
+    action: dict[str, Any], *, external_channels: frozenset[str] = frozenset()
+) -> InterruptVerdict:
+    """Lớp B: does this action need human approval before executing?
+
+    Run by the gateway AFTER Lớp A (hard-deny) passes. Reversible-but-sensitive
+    actions (close/merge PR, close/transition/reassign issue) return
+    interrupt=True so the gateway queues them.
+
+    Slack posts to an INTERNAL channel are auto-OK (the report flow); a post to a
+    channel in `external_channels` (PDR §7.9 "message tới stakeholder external")
+    is Lớp B. The gateway passes the configured external set.
+    """
+    if not isinstance(action, dict):
+        return _NO_INTERRUPT
+    atype = str(action.get("type", "")).lower()
+    if atype == "mcp_tool":
+        tool = str(action.get("tool", "")).lower()
+        if any(m in tool for m in _LOP_B_MCP_TOOL_MARKERS):
+            return InterruptVerdict(True, f"Lớp B: {tool!r} cần người duyệt")
+        # Slack message to an external/stakeholder channel needs approval.
+        if "post_message" in tool or "post_message_blocks" in tool:
+            channel = str((action.get("args") or {}).get("channel", ""))
+            if channel and channel in external_channels:
+                return InterruptVerdict(
+                    True, f"Lớp B: post tới channel external {channel!r} cần người duyệt"
+                )
+    elif atype == "gh_cli":
+        argv = [str(a).lower() for a in action.get("argv", [])]
+        for prefix in _LOP_B_GH_PREFIXES:
+            if argv[: len(prefix)] == list(prefix):
+                return InterruptVerdict(True, f"Lớp B: gh {' '.join(prefix)} cần người duyệt")
+    return _NO_INTERRUPT
+
+
 # ---------------------------------------------------------------------------
 # Allowlist (Phase 0 — the safe, reversible writes the agent may perform).
 # Phase 1 widens this deliberately as real handlers land. Anything not here is

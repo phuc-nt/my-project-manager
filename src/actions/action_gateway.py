@@ -3,17 +3,17 @@
 No module may call a write API (MCP write tool, `gh` mutating command) directly.
 Everything goes through `ActionGateway.execute()`, which runs this chain:
 
-    hard-block (Lớp A) -> kill-switch -> dry-run -> rate-limit -> idempotency
-        -> execute handler -> audit -> return
+    Lớp A hard-deny -> Lớp B interrupt (queue for approval) -> deny-if-blocked
+        -> kill-switch -> dry-run -> rate-limit -> idempotency -> execute -> audit
 
 Each stage can short-circuit. Every outcome is audited. This is the invariant
 that makes "full autonomous write" safe: autonomous in speed, never in
 accountability.
 
-Phase 0 scope: the guard chain is complete, but there are no real write handlers
-yet (Phase 1). `execute()` accepts an optional handler; with none, it records a
-"skipped (no handler)" outcome. Lớp B (ask-human interrupt) is a Phase 1/2 hook,
-intentionally not faked here.
+Lớp B (sensitive-but-reversible: merge/close PR, close/transition/assign issue)
+is queued via the approval store and only run later through `approve()` — never
+auto-executed. Lớp A (data-loss/credential/security) is never overridable, even
+by `approve()`.
 """
 
 from __future__ import annotations
@@ -26,7 +26,9 @@ from collections import deque
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from src.actions.hard_block import classify
+from src.actions.approval_store import ApprovalStore
+from src.actions.dedup_store import DedupStore
+from src.actions.hard_block import BlockCategory, classify, needs_interrupt
 from src.audit.audit_log import AuditEntry, AuditLog
 from src.config.settings import Settings, get_settings
 
@@ -62,9 +64,11 @@ class Handler(Protocol):
 class GatewayResult:
     """Outcome of a gateway call."""
 
-    status: str  # "executed" | "dry_run" | "skipped" | "deduplicated"
+    # "executed" | "dry_run" | "skipped" | "deduplicated" | "pending_approval"
+    status: str
     summary: str
     audited: bool = True
+    approval_id: int | None = None  # set when status == "pending_approval"
 
 
 def _action_dedup_key(action: dict[str, Any]) -> str:
@@ -96,6 +100,16 @@ def _label(action: dict[str, Any]) -> str:
     return str(atype)
 
 
+def _load_external_channels() -> frozenset[str]:
+    """Read external Slack channels from reporting config; empty on any failure."""
+    try:
+        from src.config.reporting_config import get_reporting_config
+
+        return get_reporting_config().slack_external_channels
+    except Exception:
+        return frozenset()
+
+
 class ActionGateway:
     """The one place mutations are authorized, executed, and audited."""
 
@@ -103,11 +117,28 @@ class ActionGateway:
         self,
         settings: Settings | None = None,
         audit_log: AuditLog | None = None,
+        dedup_store: DedupStore | None = None,
+        approval_store: ApprovalStore | None = None,
+        external_channels: frozenset[str] | None = None,
     ) -> None:
         self._settings = settings or get_settings()
         self._audit = audit_log or AuditLog()
         self._recent_calls: deque[float] = deque()
-        self._seen_keys: set[str] = set()
+        self._external_channels = (
+            external_channels if external_channels is not None else _load_external_channels()
+        )
+        # Persistent dedup + approval queue: paths follow this gateway's settings
+        # so tests stay isolated to their tmp dir; both survive restarts.
+        self._dedup = (
+            dedup_store
+            if dedup_store is not None
+            else DedupStore(self._settings.data_dir / "dedup.db")
+        )
+        self._approvals = (
+            approval_store
+            if approval_store is not None
+            else ApprovalStore(self._settings.data_dir / "approvals.db")
+        )
 
     def execute(
         self,
@@ -116,7 +147,27 @@ class ActionGateway:
         handler: Handler | None = None,
         rationale: str = "",
     ) -> GatewayResult:
-        """Run one action through the full guard chain. Audits every outcome."""
+        """Run one action through the full guard chain. Audits every outcome.
+
+        Public entry: a Lớp B action is queued for approval, never auto-run. The
+        approval-bypass is NOT exposed here — only `approve()` can run a queued
+        Lớp B action (and only past a NOT_ALLOWLISTED block, never past Lớp A).
+        """
+        return self._execute(action, handler=handler, rationale=rationale, approved=False)
+
+    def _execute(
+        self,
+        action: dict[str, Any],
+        *,
+        handler: Handler | None = None,
+        rationale: str = "",
+        approved: bool = False,
+    ) -> GatewayResult:
+        """Internal guard chain. `approved=True` (only from `approve()`) skips the
+        Lớp B enqueue and lets the action past a NOT_ALLOWLISTED block. Lớp A
+        hard-deny + audit + dry-run + kill-switch always apply.
+        """
+        skip_interrupt = approved
         if not isinstance(action, dict):
             raise ValueError(
                 f"action must be a dict, got {type(action).__name__}; refused un-run."
@@ -132,12 +183,39 @@ class ActionGateway:
 
         # 1. Hard-block (Lớp A) — denied in code, before anything else.
         verdict = classify(action)
+
+        # 1b. Interrupt (Lớp B) — sensitive-but-reversible: queue for human approval.
+        # Checked BEFORE the allowlist default-deny: a Lớp B action is "allowed but
+        # needs a human", not "forbidden". But it can NEVER override a Lớp A hard-deny
+        # (data-loss/credential/security), so only consider it when the block, if any,
+        # is merely NOT_ALLOWLISTED. Skipped when running an already-approved action.
+        if not skip_interrupt:
+            interrupt = needs_interrupt(action, external_channels=self._external_channels)
+            is_hard_deny = verdict.blocked and verdict.category != BlockCategory.NOT_ALLOWLISTED
+            if interrupt.interrupt and not is_hard_deny:
+                approval_id = self._approvals.enqueue(
+                    action, reason=interrupt.reason, rationale=rationale
+                )
+                self._record(
+                    action_type, tool, "pending", interrupt.reason, action, rationale
+                )
+                return GatewayResult(
+                    status="pending_approval",
+                    summary=f"{tool} queued for approval (id={approval_id}): {interrupt.reason}",
+                    approval_id=approval_id,
+                )
+
+        # Deny on any block, EXCEPT: an approved Lớp B action (skip_interrupt) is
+        # allowed past a mere NOT_ALLOWLISTED block — the human approval is the
+        # authorization. A real Lớp A hard-deny is never overridable.
         if verdict.blocked:
-            self._record(action_type, tool, "deny", verdict.reason, action, rationale)
-            raise HardBlockedError(
-                f"Lớp A hard-block ({verdict.category.value if verdict.category else '?'}): "
-                f"{verdict.reason}"
-            )
+            approved_lop_b = skip_interrupt and verdict.category == BlockCategory.NOT_ALLOWLISTED
+            if not approved_lop_b:
+                self._record(action_type, tool, "deny", verdict.reason, action, rationale)
+                raise HardBlockedError(
+                    f"Lớp A hard-block ({verdict.category.value if verdict.category else '?'}): "
+                    f"{verdict.reason}"
+                )
 
         # 2. Kill switch — global write off.
         if self._settings.write_disabled:
@@ -156,14 +234,19 @@ class ActionGateway:
         # 4. Rate limit — blast-radius cap.
         self._check_rate_limit(action_type, tool, action, rationale)
 
-        # 5. Idempotency — skip exact re-runs.
+        # 5. Idempotency — atomically RESERVE the key before executing. claim()
+        # is INSERT-OR-IGNORE; if it returns False the key was already taken (by a
+        # prior run OR a concurrent process), so this is a duplicate. Reserving
+        # before execute closes the two-process double-execute window. If the
+        # handler then fails, we release the reservation so a retry can run.
         key = _action_dedup_key(action)
-        if key in self._seen_keys:
+        if not self._dedup.claim(key):
             self._record(action_type, tool, "skipped", "duplicate action", action, rationale)
             return GatewayResult(status="deduplicated", summary=f"duplicate {tool} skipped")
 
         # 6. Execute.
         if handler is None:
+            self._dedup.release(key)  # nothing ran; don't hold the reservation
             self._record(
                 action_type, tool, "skipped", "no handler (Phase 0)", action, rationale
             )
@@ -172,14 +255,56 @@ class ActionGateway:
         try:
             summary = handler(action)
         except Exception as exc:  # explicit: audit the failure, then re-raise with context
+            self._dedup.release(key)  # release so a retry can run after a failure
             self._record(action_type, tool, "deny", f"handler error: {exc}", action, rationale)
             raise RuntimeError(f"Handler for {tool} failed: {exc}") from exc
 
-        self._seen_keys.add(key)
         self._record(
             action_type, tool, "allow", "executed", action, rationale, result=summary
         )
         return GatewayResult(status="executed", summary=summary)
+
+    def pending_approvals(self):
+        """List Lớp B actions awaiting human approval."""
+        return self._approvals.list_pending()
+
+    def approve(self, approval_id: int, *, handler: Handler) -> GatewayResult:
+        """Execute a previously-queued Lớp B action after human approval.
+
+        Runs the stored action through the gateway with the interrupt check
+        skipped (the human IS the approval), but Lớp A hard-deny + audit still
+        apply. Marks the approval consumed. Raises if the id is unknown or not
+        pending.
+        """
+        pending = self._approvals.get(approval_id)
+        if pending is None:
+            raise ValueError(f"No approval with id={approval_id}.")
+        # Atomically claim the transition pending->approved BEFORE executing, so two
+        # concurrent approves of the same id can't both run the action.
+        if not self._approvals.transition_if_pending(approval_id, "approved"):
+            raise ValueError(f"Approval id={approval_id} is already {pending.status!r}.")
+        try:
+            return self._execute(
+                pending.action,
+                handler=handler,
+                rationale=f"approved (id={approval_id})",
+                approved=True,
+            )
+        except Exception:
+            # Execution failed — revert so the human can retry the approval.
+            self._approvals.set_status(approval_id, "pending")
+            raise
+
+    def reject(self, approval_id: int) -> None:
+        """Mark a pending approval as rejected (not executed) and audit the decision."""
+        pending = self._approvals.get(approval_id)
+        self._approvals.set_status(approval_id, "rejected")
+        if pending is not None:
+            action_type = str(pending.action.get("type", "")).lower()
+            self._record(
+                action_type, _label(pending.action), "reject",
+                f"rejected approval id={approval_id}", pending.action, "",
+            )
 
     def _check_rate_limit(
         self, action_type: str, tool: str, action: dict[str, Any], rationale: str

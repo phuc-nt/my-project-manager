@@ -67,3 +67,40 @@ class AuditLog:
         line = json.dumps(payload, ensure_ascii=False)
         with self._path.open("a", encoding="utf-8") as fh:
             fh.write(line + "\n")
+
+    def query(
+        self,
+        *,
+        tool: str | None = None,
+        verdict: str | None = None,
+        since: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """Read audit entries, newest first, with optional filters.
+
+        Filters: `tool` (substring, case-insensitive), `verdict` (exact),
+        `since` (ISO date/datetime prefix — entries with timestamp >= it).
+        `limit` caps the result count. Returns already-redacted records (they
+        were redacted at write time).
+        """
+        if not self._path.exists():
+            return []
+        out: list[dict[str, Any]] = []
+        with self._path.open(encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue  # skip a corrupt line rather than fail the whole query
+                if tool and tool.lower() not in str(entry.get("tool", "")).lower():
+                    continue
+                if verdict and entry.get("verdict") != verdict:
+                    continue
+                if since and str(entry.get("timestamp", "")) < since:
+                    continue
+                out.append(entry)
+        out.reverse()  # newest first
+        return out[:limit] if limit else out

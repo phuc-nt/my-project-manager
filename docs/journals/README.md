@@ -12,6 +12,7 @@ Dòng thời gian phát triển kiến trúc + tính năng (repo vừa-làm-vừ
 | 2026-06-21 | [Phase 1 Slice 1 — Reporting](260621-phase-1-slice-1-reporting.md) | ✅ Done | Jira+GitHub→Slack qua gateway. Agent SPAWN MCP subprocess (stdio-only). E2E post Slack thật. |
 | 2026-06-22 | [Phase 1 Slice 2 — Confluence](260622-phase-1-slice-2-confluence-report.md) | ✅ Done | Report detail→Confluence + short+link→Slack. E2E thật cả 2. State chỉ primitive (fix checkpoint). |
 | 2026-06-22 | [Phase 1 Slice 3 — Daily/Weekly + Cron](260622-phase-1-slice-3-daily-weekly-cron.md) | ✅ Done | `report --daily\|--weekly` (weekly + sprint data) + cron launchd. Phase 1 HOÀN TẤT. |
+| 2026-06-22 | [Phase 2 — Guardrail Hardening](260622-phase-2-guardrail-hardening.md) | ✅ Done | Dedup bền + audit query + Lớp B interrupt (queue/approve). Reviewed, red-line verified. |
 
 ## Template entry (`YYMMDD-<slug>.md`)
 

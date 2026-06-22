@@ -58,6 +58,25 @@ def test_execute_then_dedup(settings_factory, tmp_path):
     assert r2.status == "deduplicated"
 
 
+def test_dedup_persists_across_restart(settings_factory, tmp_path):
+    # A fresh gateway (simulating a process restart) sharing the same data dir
+    # must still see a previously-executed action as a duplicate.
+    gw1 = _gateway(settings_factory, tmp_path, dry_run=False)
+    assert gw1.execute(POST, handler=lambda a: "POSTED").status == "executed"
+
+    gw2 = _gateway(settings_factory, tmp_path, dry_run=False)  # "restart"
+    assert gw2.execute(POST, handler=lambda a: "POSTED").status == "deduplicated"
+
+
+def test_dedup_not_claimed_on_handler_failure(settings_factory, tmp_path):
+    # A failed handler must NOT claim the dedup key, so a retry can run.
+    gw = _gateway(settings_factory, tmp_path, dry_run=False)
+    with pytest.raises(RuntimeError):
+        gw.execute(POST, handler=lambda a: (_ for _ in ()).throw(ValueError("boom")))
+    # retry with a working handler succeeds (key was not claimed).
+    assert gw.execute(POST, handler=lambda a: "POSTED").status == "executed"
+
+
 def test_no_handler_skips(settings_factory, tmp_path):
     gw = _gateway(settings_factory, tmp_path, dry_run=False)
     assert gw.execute(POST).status == "skipped"

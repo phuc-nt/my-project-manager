@@ -1,0 +1,150 @@
+"""Phase 3 OKR reporting graph: perceive → analyze → compose → deliver.
+
+Mirrors `report_graph` but for OKR: perceive reads the OKR Confluence table +
+each mapped epic's progress from Jira, analyze rolls up weighted Objective
+progress, compose renders a deterministic XHTML table (with an optional LLM
+narrative paragraph above it), and deliver creates a Confluence page + posts a
+short Slack link — all through the SAME Action Gateway path (create page, then
+post), so no new write authority is introduced.
+
+Dependencies are injected via `OkrReportDeps` so the graph runs in tests with
+fakes (no network, no key, no subprocess). State holds only primitives.
+"""
+
+from __future__ import annotations
+
+import logging
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import UTC, date, datetime
+
+from langgraph.checkpoint.sqlite import SqliteSaver
+from langgraph.graph import END, START, StateGraph
+from langgraph.graph.state import CompiledStateGraph
+
+from src.actions.action_gateway import ActionGateway
+from src.agent.okr_analyzer import OkrRollup
+from src.agent.okr_weekly_section import build_okr_rollup
+from src.agent.state import ReportState
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class OkrReportDeps:
+    """Injectable collaborators for the OKR report flow (real or fake)."""
+
+    fetch_rollup: Callable[[], OkrRollup]
+    compose: Callable[[OkrRollup], tuple[str, float | None]]
+    deliver: Callable[[OkrRollup, str], tuple[bool, str]]
+
+
+def _today_utc() -> date:
+    return datetime.now(UTC).date()
+
+
+def default_okr_deps(*, gateway: ActionGateway | None = None) -> OkrReportDeps:
+    """Wire the real OKR implementations. Lazy imports keep graph-build network-free."""
+    from src.actions.confluence_write import create_report_page
+    from src.actions.slack_write import deliver_report
+    from src.llm.client import LlmClient
+    from src.llm.okr_report_prompt import (
+        build_okr_narrative_messages,
+        build_okr_slack_short,
+        fallback_okr_narrative,
+        render_okr_table_xhtml,
+    )
+    from src.llm.report_prompt import REPORT_TITLES
+
+    gw = gateway or ActionGateway()
+    llm_box: dict[str, object] = {}
+
+    def _compose(rollup: OkrRollup) -> tuple[str, float | None]:
+        report_date = _today_utc().isoformat()
+        table = render_okr_table_xhtml(rollup, report_date=report_date)
+        narrative, cost = _narrate(rollup, report_date)
+        return narrative + table, cost
+
+    def _narrate(rollup: OkrRollup, report_date: str) -> tuple[str, float | None]:
+        """LLM 1-paragraph narrative; fall back to a templated line without a key."""
+        try:
+            llm = llm_box.get("llm")
+            if llm is None:
+                llm = LlmClient()
+                llm_box["llm"] = llm
+            result = llm.complete(build_okr_narrative_messages(rollup, report_date=report_date))
+            return result.content, result.cost_usd
+        except Exception as exc:  # no key / LLM error → narrative is optional
+            logger.warning("OKR narrative skipped (LLM unavailable): %s", exc)
+            return fallback_okr_narrative(rollup, report_date=report_date), None
+
+    def _deliver(rollup: OkrRollup, body: str) -> tuple[bool, str]:
+        today = _today_utc().isoformat()
+        title = f"{REPORT_TITLES['okr']} {today}"
+        conf_result, page = create_report_page(
+            title, body, gateway=gw, report_date=f"okr-{today}",
+            rationale="scheduled OKR status report (detail)",
+        )
+        detail_url = page.url if page else None
+        short = build_okr_slack_short(rollup, report_date=today, detail_url=detail_url)
+        slack_result = deliver_report(
+            short, gateway=gw, report_date=f"okr-{today}",
+            rationale="OKR status report (short + link)",
+        )
+        ok = (
+            conf_result.status in {"executed", "dry_run"}
+            and slack_result.status in {"executed", "dry_run", "deduplicated"}
+        )
+        return ok, f"confluence={conf_result.status} slack={slack_result.status} url={detail_url}"
+
+    return OkrReportDeps(fetch_rollup=build_okr_rollup, compose=_compose, deliver=_deliver)
+
+
+def _make_okr_nodes(deps: OkrReportDeps):
+    box: dict[str, OkrRollup] = {}
+
+    def perceive(_state: ReportState) -> dict:
+        box["rollup"] = deps.fetch_rollup()
+        return {}
+
+    def analyze_node(_state: ReportState) -> dict:
+        rollup = box.get("rollup")
+        # Serialize a primitive summary for state; the rollup stays in the box.
+        return {"risks": _problems_to_dicts(rollup)}
+
+    def compose_report(_state: ReportState) -> dict:
+        text, cost = deps.compose(box["rollup"])
+        return {"report_text": text, "cost_usd": cost}
+
+    def deliver(state: ReportState) -> dict:
+        delivered, summary = deps.deliver(box["rollup"], state.get("report_text", ""))
+        return {"delivered": delivered, "delivery_summary": summary}
+
+    return perceive, analyze_node, compose_report, deliver
+
+
+def _problems_to_dicts(rollup: OkrRollup | None) -> list[dict]:
+    """Primitive view of OKR problems for checkpoint-safe state."""
+    if rollup is None:
+        return []
+    return [{"row": p.row, "reason": p.reason} for p in rollup.problems]
+
+
+def build_okr_graph(
+    checkpointer: SqliteSaver | None = None, *, deps: OkrReportDeps | None = None
+) -> CompiledStateGraph:
+    """Build + compile the OKR reporting graph. `deps` defaults to real wiring."""
+    resolved = deps or default_okr_deps()
+    perceive, analyze_node, compose_report, deliver = _make_okr_nodes(resolved)
+
+    builder = StateGraph(ReportState)
+    builder.add_node("perceive", perceive)
+    builder.add_node("analyze", analyze_node)
+    builder.add_node("compose_report", compose_report)
+    builder.add_node("deliver", deliver)
+    builder.add_edge(START, "perceive")
+    builder.add_edge("perceive", "analyze")
+    builder.add_edge("analyze", "compose_report")
+    builder.add_edge("compose_report", "deliver")
+    builder.add_edge("deliver", END)
+    return builder.compile(checkpointer=checkpointer)

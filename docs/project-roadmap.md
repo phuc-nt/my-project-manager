@@ -9,7 +9,7 @@
 |---|---|---|---|
 | 0 | Khởi tạo docs + scaffold | ✅ Done | Bộ docs + cấu trúc repo + setup LangGraph chạy được |
 | 1 | MVP Reporting + Monitoring | ✅ Done | Đọc Jira/GitHub → report (daily/weekly) → đăng Slack/Confluence + cron |
-| 2 | Guardrail hardening | ⬜ Chưa | Audit/dry-run/kill-switch/idempotency vững trước khi mở write rộng |
+| 2 | Guardrail hardening | ✅ Done | Dedup bền + audit query + Lớp B interrupt (queue+approve) |
 | 3 | OKR / objective | ⬜ Chưa | Đặt + track OKR, map xuống Jira epic |
 | 4 | Resource + Cost | ⬜ Chưa | Capacity, allocation, budget alert |
 | 5 | Stakeholder + scale | ⬜ Chưa | Report theo audience; lên service + Slack UI; multi-user |
@@ -57,15 +57,15 @@ Trọng tâm: ROI rõ, rủi ro thấp. Đọc nhiều, write chỉ là *post re
 
 **Exit Phase 1**: ✅ ĐẠT. Agent tự sinh + đăng report tiến độ (Slack + Confluence), daily/weekly có sprint data, chạy tự động qua cron. Số liệu sát Jira/GitHub, không cần người viết tay.
 
-## Phase 2 — Guardrail hardening
+## Phase 2 — Guardrail hardening (✅ DONE 2026-06-22, 156 UT, reviewed)
 
-Trước khi mở autonomous write sang việc nhạy cảm hơn (Phase 3+):
+- [x] Audit log query được (`audit_log.query` + `cli audit --tool/--verdict/--since/--limit`).
+- [x] Kill switch + rate limit + idempotency có test (Phase 0 + bổ sung).
+- [x] **Dedup bền qua restart** (`dedup_store.py` SQLite, reserve-before-execute).
+- [x] **Lớp B interrupt** (`hard_block.needs_interrupt` + `approval_store.py` + gateway queue + `cli approvals/approve/reject`). Danh sách: merge/close PR, close/transition/assign issue, post Slack channel external. Order: Lớp A > Lớp B > allowlist.
+- [ ] Scoped token review (để sau — token ở MCP server, agent không cầm trực tiếp).
 
-- [ ] Audit log bất biến hoàn chỉnh, query được.
-- [ ] Kill switch test thật (tắt write tức thì).
-- [ ] Rate limit + idempotency có test case (re-run không tạo trùng).
-- [ ] Scoped token review (mỗi công cụ quyền tối thiểu).
-- [ ] Danh sách hành động "cần xác nhận dù autonomous" (interrupt node) — chốt với chủ dự án.
+> Review (DONE_WITH_CONCERNS → fixed): skip_interrupt private; external-channel Slack = Lớp B; dedup atomic reserve; approval store redact secret; reject audited; double-approve CAS. Red line (Lớp A) verified không bypass được.
 
 ## Phase 3–5 — tóm tắt
 

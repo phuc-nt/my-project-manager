@@ -63,6 +63,8 @@ class ReportingConfig:
     jira_project_key: str | None
     github_repo: str | None  # "owner/repo"
     slack_report_channel: str | None
+    # Channels treated as external/stakeholder → posting needs human approval (Lớp B).
+    slack_external_channels: frozenset[str]
 
     # Confluence target for the detail report (Slice 2).
     confluence_space_key: str | None
@@ -124,6 +126,9 @@ def get_reporting_config() -> ReportingConfig:
         jira_project_key=os.getenv("JIRA_PROJECT_KEY") or None,
         github_repo=os.getenv("GITHUB_REPO") or None,
         slack_report_channel=os.getenv("SLACK_REPORT_CHANNEL") or None,
+        slack_external_channels=frozenset(
+            c.strip() for c in os.getenv("SLACK_EXTERNAL_CHANNELS", "").split(",") if c.strip()
+        ),
         confluence_space_key=os.getenv("CONFLUENCE_SPACE_KEY") or None,
         confluence_space_id=os.getenv("CONFLUENCE_SPACE_ID") or None,
         atlassian_site_name=os.getenv("ATLASSIAN_SITE_NAME") or None,

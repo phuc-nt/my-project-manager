@@ -37,7 +37,10 @@ src/
 | Cách agent ghi/post | `src/actions/action_gateway.py` (MỌI mutation qua đây; dedup_hint per kind+ngày) |
 | Post Slack | `src/actions/slack_write.py` (deliver_report + build_slack_short link) |
 | Tạo page Confluence | `src/actions/confluence_write.py` (create_report_page via gateway, parse page id/URL từ text-block) |
-| Guardrail allow/deny | `src/actions/hard_block.py` (allowlist + Lớp A hard-deny) |
+| Guardrail allow/deny | `src/actions/hard_block.py` (allowlist + Lớp A hard-deny + Lớp B `needs_interrupt`) |
+| Lớp B duyệt người | `src/actions/approval_store.py` (queue SQLite) + gateway `approve/reject` + `cli approvals/approve/reject` |
+| Dedup bền (chống post trùng) | `src/actions/dedup_store.py` (SQLite, reserve-before-execute) |
+| Xem audit | `cli audit [--tool/--verdict/--since/--limit]` (`audit_log.query`) |
 | Phát hiện/redact secret | `src/actions/secret_patterns.py` (shared: gateway + audit) |
 | Report prompt | `src/llm/report_prompt.py` (build_detail_messages daily/weekly XHTML, build_slack_short mrkdwn) |
 | Budget cap LLM | `src/llm/budget_tracker.py` ($50/tháng, hard-stop) |

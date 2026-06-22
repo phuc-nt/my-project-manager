@@ -97,11 +97,17 @@ Mỗi adapter/module: retry/timeout bounded, trả lỗi tường minh (không n
 
 Mọi mutation BẮT BUỘC qua đây. Không module nào gọi API write trực tiếp.
 
-### 5.1 Mỗi write request đi qua chuỗi:
+### 5.1 Mỗi write request đi qua chuỗi (CHỐT — `action_gateway.py`):
 ```
-request → [kill-switch check] → [dry-run?] → [rate-limit] → [idempotency dedup]
-        → [scoped-token exec] → [audit log ghi kết quả] → return
+request → [Lớp A hard-deny] → [Lớp B interrupt? → queue chờ approve, KHÔNG chạy]
+        → [deny nếu blocked] → [kill-switch] → [dry-run?] → [rate-limit]
+        → [idempotency dedup bền (SQLite, reserve-before-execute)]
+        → [execute handler] → [audit log] → return
 ```
+Lớp B (merge/close PR, close/transition/assign issue, post channel external) →
+ghi `approval_store` (SQLite) + audit verdict `pending`, người duyệt qua
+`cli approve <id>` (chạy qua gateway, skip Lớp B nhưng VẪN qua Lớp A + audit).
+Lớp A KHÔNG bao giờ bị override kể cả khi approve.
 
 ### 5.2 Phân loại hành động (CHỐT — xem PDR §7.9):
 

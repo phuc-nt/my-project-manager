@@ -65,15 +65,107 @@ def _parse_report_kind(args: list[str]) -> str:
     return "daily"
 
 
+def _flag_value(args: list[str], flag: str) -> str | None:
+    """Return the value after `--flag` in args, or None."""
+    if flag in args:
+        i = args.index(flag)
+        if i + 1 < len(args):
+            return args[i + 1]
+    return None
+
+
+def _run_approvals() -> int:
+    """`approvals` — list Lớp B actions waiting for human approval."""
+    from src.actions.action_gateway import ActionGateway
+
+    pending = ActionGateway().pending_approvals()
+    if not pending:
+        print("(no pending approvals)")
+        return 0
+    for p in pending:
+        print(f"#{p.id}  {p.created_at[:19]}  {p.reason}")
+        print(f"      action: {p.action}")
+    return 0
+
+
+def _run_approve(args: list[str]) -> int:
+    """`approve <id>` / `reject <id>` — act on a queued Lớp B action."""
+    if not args or not args[0].isdigit():
+        print("usage: approve <id> | reject <id>", file=sys.stderr)
+        return 2
+    approval_id = int(args[0])
+    from src.actions.action_gateway import ActionGateway
+
+    gw = ActionGateway()
+    # No per-tool write handlers exist yet for arbitrary Lớp B actions, so the
+    # approved action is logged as authorized rather than dispatched to a live
+    # API. Real handlers land when a Lớp B action actually enters a flow.
+    def _approved_handler(action: dict) -> str:
+        label = action.get("tool") or action.get("argv")
+        return f"approved + authorized (no live handler yet): {label}"
+
+    try:
+        result = gw.approve(approval_id, handler=_approved_handler)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"approved #{approval_id}: {result.summary}")
+    return 0
+
+
+def _run_reject(args: list[str]) -> int:
+    if not args or not args[0].isdigit():
+        print("usage: reject <id>", file=sys.stderr)
+        return 2
+    from src.actions.action_gateway import ActionGateway
+
+    ActionGateway().reject(int(args[0]))
+    print(f"rejected #{args[0]}")
+    return 0
+
+
+def _run_audit(args: list[str]) -> int:
+    """`audit [--tool X] [--verdict V] [--since ISO] [--limit N]` — print audit log."""
+    from src.audit.audit_log import AuditLog
+
+    limit_raw = _flag_value(args, "--limit")
+    entries = AuditLog().query(
+        tool=_flag_value(args, "--tool"),
+        verdict=_flag_value(args, "--verdict"),
+        since=_flag_value(args, "--since"),
+        limit=int(limit_raw) if limit_raw else 20,
+    )
+    if not entries:
+        print("(no audit entries match)")
+        return 0
+    for e in entries:
+        print(
+            f"{e.get('timestamp', '?')[:19]}  {e.get('verdict', '?'):10}  "
+            f"{e.get('tool', '?'):28}  {e.get('reason', '')[:50]}"
+        )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     args = argv if argv is not None else sys.argv[1:]
     if not args:
         print(
-            'usage: python -m src.entrypoints.cli "your message" | report [--daily|--weekly]',
+            "usage: python -m src.entrypoints.cli "
+            '"your message" | report [--daily|--weekly] | audit [filters]',
             file=sys.stderr,
         )
         return 2
+
+    # Commands that do NOT need an OpenRouter key (audit + approval management).
+    if args[0] == "audit":
+        return _run_audit(args[1:])
+    if args[0] == "approvals":
+        return _run_approvals()
+    if args[0] == "approve":
+        return _run_approve(args[1:])
+    if args[0] == "reject":
+        return _run_reject(args[1:])
 
     if not _require_key():
         return 1

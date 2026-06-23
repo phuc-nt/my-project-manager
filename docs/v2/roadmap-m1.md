@@ -26,7 +26,7 @@
 - **Risks**: lan rộng (21 file) nhưng **logic graph không đổi** — chỉ plumbing. Risk = bỏ sót call site → runtime `NameError`. Mitigation: grep-driven, acceptance = 0 hit.
 - **BREAKING**: ✅ v1 CLI signature đổi (`build_*_graph` thêm `config=`, `settings=`). Backward-compat KHÔNG yêu cầu (user xác nhận).
 
-### P2 — Profile system (thư mục 4 file + persona/project/memory + `default` profile)
+### P2 — Profile system (thư mục 4 file + persona/project/memory + `default` profile) ✅ DONE (2026-06-24)
 
 - **Goal**: parse thư mục `profiles/<id>/` (4 file) → config object (P1's `ReportingConfig`+`Settings`) + persona + project-context + memory; inject vào prompt/analysis; ship một `default` profile migrate y hệt hành vi v1.
 - **Key changes**:

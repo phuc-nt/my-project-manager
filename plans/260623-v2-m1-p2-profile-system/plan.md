@@ -1,12 +1,13 @@
 ---
 title: "v2 M1-P2 — Profile system (4-file profile dir + persona/project/memory + default profile)"
 description: "Parse profiles/<id>/ (profile.yaml + SOUL/PROJECT/MEMORY.md) into P1's from_dict config + 3 context strings, inject persona/project/memory into the prompt seam (empty ⇒ v1 byte-identical), and ship a `default` profile that reproduces v1 exactly. Entrypoints take --profile (default=default). BREAKING of prompt + entrypoint signatures accepted."
-status: pending
+status: completed
 priority: P2
 effort: 9h
 branch: main
 tags: [v2, m1, p2, profile-system, persona, project-context, memory-injection, yaml-loader, default-profile, breaking]
 created: 2026-06-23
+completed: 2026-06-24
 ---
 
 # v2 M1-P2 — Profile system
@@ -203,11 +204,19 @@ resolution.)
 
 ## Slices (ordered, each independently testable + committable)
 
-| # | Slice | Phase file | Depends on |
-|---|-------|-----------|-----------|
-| 1 | **Loader + `default` profile + .gitignore + PyYAML.** New `src/profile/loader.py` (+ helpers if >200 LOC): parse `profiles/<id>/`, build the two dicts, resolve `token_env`/`OPENROUTER_API_KEY` from env, call P1 `from_dict`; read SOUL/PROJECT/MEMORY.md into strings (missing ⇒ `""`). Ship `profiles/default/{profile.yaml,SOUL.md,PROJECT.md,MEMORY.md}` reproducing `config.example.env` (3 md empty). Add `profiles/*` + `!profiles/default/` to `.gitignore`. **Golden test: load `profiles/default/` ⇒ config field-equal to `build_*_from_env()`.** | [phase-01-loader-default-profile.md](phase-01-loader-default-profile.md) | P1 (done) |
-| 2 | **Context injection.** Persona/project/memory string params on every `build_*_messages` in `report_prompt.py` / `okr_report_prompt.py` / `resource_report_prompt.py` (default `""`; empty ⇒ byte-identical). Thread them through the 3 graph factories (`default_*_deps`) which receive the 3 strings from a new `ProfileContext` arg. New `src/profile/context.py` holds the prepend helper + the 3-string container. **External-PII guardrail test** + byte-identical tests. | [phase-02-context-injection.md](phase-02-context-injection.md) | 1 |
-| 3 | **Entrypoints take `--profile`.** `cli.py` + `cron.py` parse `--profile <id>` (default `default`), call the loader, build graphs with the loaded config + context. DELETE the direct `build_*_from_env()` calls in the entrypoints. **Anchor: `cli report --daily` via `default` profile == v1 output.** | [phase-03-entrypoints-profile-flag.md](phase-03-entrypoints-profile-flag.md) | 1, 2 |
+All 3 slices DONE + committed (2026-06-24). Phase COMPLETE — 317 tests pass, ruff clean,
+`default` profile golden-equal to v1, external-PII guardrail strengthened, E2E verified.
+
+| # | Slice | Phase file | Status | Commit | Depends on |
+|---|-------|-----------|--------|--------|-----------|
+| 1 | **Loader + `default` profile + .gitignore + PyYAML.** New `src/profile/loader.py` (+ `loader_mapping.py`): parse `profiles/<id>/`, build the two dicts via the env-fallback rule, resolve `token_env`/`OPENROUTER_API_KEY` from env, call P1 `from_dict`; read SOUL/PROJECT/MEMORY.md verbatim. Ship `profiles/default/` reproducing v1 (3 md empty). `.gitignore` commits only `default`. **Golden test: `default` config field-equal to `build_*_from_env()`.** | [phase-01-loader-default-profile.md](phase-01-loader-default-profile.md) | DONE | `37433be` | P1 (done) |
+| 2 | **Context injection.** Persona/project/memory params on every `build_*_messages` (default `""` ⇒ byte-identical), threaded through the 3 graph factories via a new `ProfileContext`. New `src/profile/context.py`. External path takes NOTHING from the profile (persona dropped from system, project/memory from user — strengthened after review). | [phase-02-context-injection.md](phase-02-context-injection.md) | DONE | `0b4f3a2` | 1 |
+| 3 | **Entrypoints take `--profile`.** `cli.py`/`cron.py` load `profiles/<id>/` (default `default`) instead of `build_*_from_env`; pass config + `ProfileContext` to the graphs. Bad id / misconfigured profile ⇒ clean error, non-zero exit (no traceback) — preserves the Slice-D audit-tolerance. Loader `load_dotenv`s `.env` (bug fix found via smoke). **Anchor: `cli report --daily` via `default` == v1.** | [phase-03-entrypoints-profile-flag.md](phase-03-entrypoints-profile-flag.md) | DONE | `dd04271` | 1, 2 |
+
+### Accepted deviations (whole phase)
+
+- **External-PII rule TIGHTENED vs the original plan** (Slice 2 review): the external path now takes NOTHING from the profile (persona AND project/memory dropped), not "persona prepends both audiences". A hostile SOUL.md cannot reach a stakeholder report. See phase-02.
+- **Pre-existing >200-LOC files** (`cli.py` 278, `resource_report_prompt.py` 250, `resource_report_graph.py`) — P2 added only a few param lines; not introduced by P2 (P1 precedent), modularization deferred.
 
 **Dependency graph: 1 → 2 → 3.** Slice 1 is self-contained (loader + template +
 test) and commits alone. Slice 2 changes prompt + graph signatures (file-disjoint

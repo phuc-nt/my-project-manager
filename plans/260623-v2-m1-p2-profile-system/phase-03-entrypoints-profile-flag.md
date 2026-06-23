@@ -1,6 +1,6 @@
 # Phase 3 — Entrypoints take `--profile` (default = `default`)
 
-> Slice 3 of [plan.md](plan.md). Wires the loader + context into `cli.py` / `cron.py`
+> Status: DONE (dd04271). Slice 3 of [plan.md](plan.md). Wires the loader + context into `cli.py` / `cron.py`
 > behind `--profile <id>` (default `default` = v1-equivalent). Closing slice.
 > Depends on Slices 1 + 2.
 

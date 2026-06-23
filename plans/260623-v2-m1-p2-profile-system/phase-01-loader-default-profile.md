@@ -1,6 +1,6 @@
 # Phase 1 — Loader + `default` profile + .gitignore + PyYAML
 
-> Slice 1 of [plan.md](plan.md). Self-contained, commits alone. Delivers
+> Status: DONE (37433be). Slice 1 of [plan.md](plan.md). Self-contained, commits alone. Delivers
 > `src/profile/loader.py`, the committed `profiles/default/` template, the
 > `.gitignore` rules, the PyYAML dep, and the byte-identical golden test.
 

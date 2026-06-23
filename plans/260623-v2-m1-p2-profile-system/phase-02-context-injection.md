@@ -1,6 +1,6 @@
 # Phase 2 — Context injection (persona / project / memory → prompts)
 
-> Slice 2 of [plan.md](plan.md). Adds the 3 context strings to the prompt seam and
+> Status: DONE (0b4f3a2). Slice 2 of [plan.md](plan.md). Adds the 3 context strings to the prompt seam and
 > threads them through the graph factories. **The external-PII guardrail is the
 > highest-risk item in P2 and is anchored here.** Depends on Slice 1.
 

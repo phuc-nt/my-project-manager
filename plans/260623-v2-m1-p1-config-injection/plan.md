@@ -135,14 +135,14 @@ override + a server-env block):
 
 ## Slices (ordered, each independently testable + committable)
 
-All four slices DONE + committed (2026-06-23). Phase COMPLETE — grep-0-hits gate closed; 282 tests pass; ruff clean.
+All four slices DONE + committed (2026-06-23). Phase COMPLETE — grep-0-hits gate closed; 282 tests pass; ruff clean. **E2E verified with real data + real writes** (2026-06-23): `report --daily` + `--okr` through the new config-injection path created 2 real Confluence pages (851969, 884737) and posted to Slack after Lớp B approval; dedup blocked duplicate page on re-run; tokens never reached audit/queue; no NameError after singleton deletion — strongest evidence for acceptance #2 (output unchanged vs v1) + #5 (graph/guardrail logic unchanged).
 
 | # | Slice | File | Status | Commit | Depends on |
 |---|-------|------|--------|--------|-----------|
 | A | Config builders: add `build_settings_from_dict/from_env` + `build_reporting_config_from_dict/from_env` (validation moves into from_dict). KEEP the old singletons (re-expressed as `from_env` wrappers) so nothing breaks yet. Unit-test: from_env == old singleton byte-identical + from_dict defaults + from_dict stakeholder-channel raise. Purely additive + safe. | [phase-01-config-builders.md](phase-01-config-builders.md) | DONE | `031a543` | — |
 | B | Thread config through storage (4) + budget/llm (2) + action layer (3). Remove singleton fallbacks; require injected config/settings/path. Update their direct callers + the tests that constructed them. | [phase-02-thread-storage-budget-action.md](phase-02-thread-storage-budget-action.md) | DONE | `8bafe54` | A |
 | C | Thread config through graph/section factories (5) + tool fetchers (4): `default_*_deps(config, settings, ...)`, section helpers gain config params, tool fetchers gain `config=`. Build the per-flow `ActionGateway` WITH injected config. | [phase-03-thread-graphs-tools.md](phase-03-thread-graphs-tools.md) | DONE | `8aba547` | A, B |
-| D | Entrypoints (cli.py, cron.py) build-from-env-and-inject; DELETE the old `get_settings`/`get_reporting_config` singletons; migrate ALL remaining test fixtures; acceptance grep = 0 hits; full suite green + ruff clean. | [phase-04-entrypoints-delete-singletons.md](phase-04-entrypoints-delete-singletons.md) | DONE | (this commit) | A, B, C |
+| D | Entrypoints (cli.py, cron.py) build-from-env-and-inject; DELETE the old `get_settings`/`get_reporting_config` singletons; migrate ALL remaining test fixtures; acceptance grep = 0 hits; full suite green + ruff clean. | [phase-04-entrypoints-delete-singletons.md](phase-04-entrypoints-delete-singletons.md) | DONE | `e1a39b8` | A, B, C |
 
 ### Accepted deviation (whole phase)
 

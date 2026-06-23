@@ -16,22 +16,21 @@ from pathlib import Path
 
 from langgraph.checkpoint.sqlite import SqliteSaver
 
-from src.config.settings import get_settings
-
 # Restrict checkpoint deserialization to plain data (no arbitrary code exec) if a
 # checkpoint DB is ever tampered with. Set before the saver is used.
 os.environ.setdefault("LANGGRAPH_STRICT_MSGPACK", "true")
 
 
-def get_checkpointer(db_path: Path | None = None) -> SqliteSaver:
+def get_checkpointer(db_path: Path) -> SqliteSaver:
     """Open (and set up) a SQLite checkpointer at the given path.
 
     Creates the parent dir and the checkpoint tables if missing. The connection
     uses check_same_thread=False so a CLI invocation can use it across the call.
+    The caller supplies the path (derived from the injected settings' data_dir);
+    in v2 this is per-agent (`.data/agents/<id>/checkpoints.db`).
     """
-    path = db_path or (get_settings().data_dir / "checkpoints.db")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(path), check_same_thread=False)
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(db_path), check_same_thread=False)
     saver = SqliteSaver(conn)
     saver.setup()
     return saver

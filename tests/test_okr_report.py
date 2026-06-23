@@ -127,12 +127,12 @@ def test_okr_deliver_uses_okr_dedup_namespace(settings_factory, tmp_path, monkey
     seen_dates: list[str] = []
 
     # Spy on the two gateway wrappers to capture the report_date (dedup namespace).
-    def fake_create_page(title, body, *, gateway, report_date, rationale=""):
+    def fake_create_page(title, body, *, gateway, config, report_date, rationale=""):
         seen_dates.append(report_date)
         return GatewayResult(status="dry_run", summary="", approval_id=None), \
             ConfluencePage(page_id=None, url=None)
 
-    def fake_deliver_report(text, *, gateway, report_date, rationale="", channel=None):
+    def fake_deliver_report(text, *, gateway, config, report_date, rationale="", channel=None):
         seen_dates.append(report_date)
         return GatewayResult(status="dry_run", summary="", approval_id=None)
 
@@ -171,7 +171,7 @@ def test_cli_report_okr_dispatch(monkeypatch):
                     "delivered": True, "delivery_summary": "s"}
 
     monkeypatch.setattr(cli, "get_settings", lambda: type("S", (), {"openrouter_api_key": "k"})())
-    monkeypatch.setattr(cli, "get_checkpointer", lambda: None)
+    monkeypatch.setattr(cli, "_checkpointer", lambda: None)
     monkeypatch.setattr(
         okr_graph_mod, "build_okr_graph", lambda cp, audience="internal": _FakeGraph()
     )

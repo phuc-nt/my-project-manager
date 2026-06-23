@@ -48,7 +48,7 @@ def build_resource_rollup() -> Snapshot:
     open_count = sum(load.open_count for load in resource.loads)
     cost = build_cost_summary(
         open_count,
-        llm_spent=BudgetTracker().spent_this_month(),
+        llm_spent=BudgetTracker(settings).spent_this_month(),
         llm_cap=settings.monthly_budget_usd,
         warn_ratio=settings.budget_warn_ratio,
         cost_per_issue=cfg.labor_cost_per_issue,

@@ -14,6 +14,13 @@ from src.audit.audit_log import AuditLog
 from src.tools.models import CiRun, Issue, PullRequest, Risk
 
 
+class _SlackCfg:
+    """Minimal ReportingConfig stub: only the fields deliver_report reads."""
+
+    slack_report_channel = "C-default"
+    slack_server = None
+
+
 def _gateway(settings_factory, tmp_path, **kw):
     return ActionGateway(
         settings=settings_factory(**kw), audit_log=AuditLog(tmp_path / "audit.jsonl")
@@ -27,19 +34,30 @@ def test_dedup_key_stable_per_day_channel():
 
 def test_deliver_report_dry_run_skips_post(settings_factory, tmp_path, monkeypatch):
     posted = []
-    monkeypatch.setattr(slack_write, "_slack_post_handler", lambda a: posted.append(a) or "ok")
+    monkeypatch.setattr(
+        slack_write, "make_slack_post_handler", lambda s: lambda a: posted.append(a) or "ok"
+    )
     gw = _gateway(settings_factory, tmp_path, dry_run=True)
-    result = deliver_report("hi", gateway=gw, channel="C1", report_date="2026-06-21")
+    result = deliver_report(
+        "hi", gateway=gw, config=_SlackCfg(), channel="C1", report_date="2026-06-21"
+    )
     assert result.status == "dry_run"
     assert posted == []  # handler not called under dry-run
 
 
 def test_deliver_report_dedup_same_day(settings_factory, tmp_path, monkeypatch):
     posted = []
-    monkeypatch.setattr(slack_write, "_slack_post_handler", lambda a: posted.append(a) or "ok")
+    monkeypatch.setattr(
+        slack_write, "make_slack_post_handler", lambda s: lambda a: posted.append(a) or "ok"
+    )
     gw = _gateway(settings_factory, tmp_path, dry_run=False)
-    r1 = deliver_report("report A", gateway=gw, channel="C1", report_date="2026-06-21")
-    r2 = deliver_report("report B different", gateway=gw, channel="C1", report_date="2026-06-21")
+    r1 = deliver_report(
+        "report A", gateway=gw, config=_SlackCfg(), channel="C1", report_date="2026-06-21"
+    )
+    r2 = deliver_report(
+        "report B different", gateway=gw, config=_SlackCfg(), channel="C1",
+        report_date="2026-06-21",
+    )
     assert r1.status == "executed"
     assert r2.status == "deduplicated"  # different text, same day -> not re-posted
     assert len(posted) == 1
@@ -48,7 +66,9 @@ def test_deliver_report_dedup_same_day(settings_factory, tmp_path, monkeypatch):
 def test_deliver_report_empty_text_raises(settings_factory, tmp_path):
     gw = _gateway(settings_factory, tmp_path)
     with pytest.raises(ValueError, match="empty"):
-        deliver_report("   ", gateway=gw, channel="C1", report_date="2026-06-21")
+        deliver_report(
+            "   ", gateway=gw, config=_SlackCfg(), channel="C1", report_date="2026-06-21"
+        )
 
 
 def test_dedup_hint_isolated_per_tool(settings_factory, tmp_path):

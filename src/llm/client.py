@@ -17,7 +17,7 @@ from dataclasses import dataclass
 
 from openai import APIConnectionError, APITimeoutError, OpenAI, RateLimitError
 
-from src.config.settings import OPENROUTER_BASE_URL, Settings, get_settings
+from src.config.settings import OPENROUTER_BASE_URL, Settings
 from src.llm.budget_tracker import BudgetTracker
 from src.llm.cost import extract_usage
 
@@ -48,10 +48,10 @@ class LlmClient:
 
     def __init__(
         self,
-        settings: Settings | None = None,
+        settings: Settings,
         budget: BudgetTracker | None = None,
     ) -> None:
-        self._settings = settings or get_settings()
+        self._settings = settings
         self._budget = budget or BudgetTracker(self._settings)
         self._client: OpenAI | None = None
 

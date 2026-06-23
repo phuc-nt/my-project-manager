@@ -30,7 +30,7 @@ from src.actions.approval_store import ApprovalStore
 from src.actions.dedup_store import DedupStore
 from src.actions.hard_block import BlockCategory, classify, needs_interrupt
 from src.audit.audit_log import AuditEntry, AuditLog
-from src.config.settings import Settings, get_settings
+from src.config.settings import Settings
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +101,13 @@ def _label(action: dict[str, Any]) -> str:
 
 
 def _load_external_channels() -> frozenset[str]:
-    """Read external Slack channels from reporting config; empty on any failure."""
+    """Read external Slack channels from reporting config; empty on any failure.
+
+    Last remaining singleton reader (only used when a gateway is built without an
+    explicit `external_channels`). Every gateway built from injected config passes
+    `external_channels` directly; this fallback is removed in M1-P1 Slice D once no
+    construction relies on it.
+    """
     try:
         from src.config.reporting_config import get_reporting_config
 
@@ -115,30 +121,23 @@ class ActionGateway:
 
     def __init__(
         self,
-        settings: Settings | None = None,
+        settings: Settings,
         audit_log: AuditLog | None = None,
         dedup_store: DedupStore | None = None,
         approval_store: ApprovalStore | None = None,
         external_channels: frozenset[str] | None = None,
     ) -> None:
-        self._settings = settings or get_settings()
-        self._audit = audit_log or AuditLog()
+        self._settings = settings
         self._recent_calls: deque[float] = deque()
         self._external_channels = (
             external_channels if external_channels is not None else _load_external_channels()
         )
-        # Persistent dedup + approval queue: paths follow this gateway's settings
-        # so tests stay isolated to their tmp dir; both survive restarts.
-        self._dedup = (
-            dedup_store
-            if dedup_store is not None
-            else DedupStore(self._settings.data_dir / "dedup.db")
-        )
-        self._approvals = (
-            approval_store
-            if approval_store is not None
-            else ApprovalStore(self._settings.data_dir / "approvals.db")
-        )
+        # Stores: paths follow this gateway's settings data_dir (per-agent in v2) so
+        # tests stay isolated to their tmp dir; dedup + approval survive restarts.
+        data_dir = self._settings.data_dir
+        self._audit = audit_log or AuditLog(data_dir / "audit" / "audit.jsonl")
+        self._dedup = dedup_store or DedupStore(data_dir / "dedup.db")
+        self._approvals = approval_store or ApprovalStore(data_dir / "approvals.db")
 
     def execute(
         self,

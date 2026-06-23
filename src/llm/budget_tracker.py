@@ -17,7 +17,7 @@ import logging
 from datetime import UTC, datetime
 from pathlib import Path
 
-from src.config.settings import Settings, get_settings
+from src.config.settings import Settings
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +34,8 @@ def _current_month() -> str:
 class BudgetTracker:
     """File-backed monthly cost accumulator."""
 
-    def __init__(self, settings: Settings | None = None) -> None:
-        self._settings = settings or get_settings()
+    def __init__(self, settings: Settings) -> None:
+        self._settings = settings
         self._budget_dir = self._settings.data_dir / "budget"
 
     def _path_for(self, month: str) -> Path:

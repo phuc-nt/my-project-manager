@@ -63,12 +63,14 @@ def default_report_deps(
     (routes through Lớp B). Lazy imports keep graph-build network-free.
     """
     from src.actions.confluence_write import create_report_page
+    from src.config.config_builders import build_settings_from_env
     from src.config.reporting_config import get_reporting_config
     from src.llm.report_prompt import REPORT_TITLES, build_detail_messages, build_slack_short
     from src.tools import github_read, jira_read
 
+    settings = build_settings_from_env()
     cfg = get_reporting_config()
-    gw = gateway or ActionGateway()
+    gw = gateway or ActionGateway(settings)
     llm = client
     sprint_box: dict[str, object] = {}
 
@@ -95,7 +97,7 @@ def default_report_deps(
     def _compose(risks: list[Risk]) -> tuple[str, float | None]:
         nonlocal llm
         if llm is None:
-            llm = LlmClient()
+            llm = LlmClient(settings)
         today = _today_utc().isoformat()
         messages = build_detail_messages(
             risks,
@@ -131,6 +133,7 @@ def default_report_deps(
             title,
             detail_body,
             gateway=gw,
+            config=cfg,
             report_date=date_hint,
             rationale=f"scheduled {report_kind} progress report (detail, {audience})",
         )
@@ -148,6 +151,7 @@ def default_report_deps(
         slack_result = deliver_report(
             short,
             gateway=gw,
+            config=cfg,
             channel=channel,
             report_date=date_hint,
             rationale=f"{report_kind} progress report (short + link, {audience})",

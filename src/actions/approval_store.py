@@ -18,8 +18,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from src.config.settings import get_settings
-
 
 @dataclass(frozen=True)
 class PendingApproval:
@@ -33,8 +31,8 @@ class PendingApproval:
 class ApprovalStore:
     """SQLite-backed queue of Lớp B actions awaiting human approval."""
 
-    def __init__(self, db_path: Path | None = None) -> None:
-        self._path = db_path or (get_settings().data_dir / "approvals.db")
+    def __init__(self, db_path: Path) -> None:
+        self._path = db_path
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(str(self._path), check_same_thread=False)
         self._conn.execute(

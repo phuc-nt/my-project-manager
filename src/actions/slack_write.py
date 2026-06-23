@@ -10,29 +10,38 @@ convenience wrapper.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from src.actions.action_gateway import ActionGateway, GatewayResult
 from src.adapters.mcp_adapter import call_tool
-from src.config.reporting_config import McpServerSpec, get_reporting_config
+from src.config.reporting_config import McpServerSpec, ReportingConfig
 
 logger = logging.getLogger(__name__)
 
+Handler = Callable[[dict[str, Any]], str]
 
-def _slack_post_handler(action: dict[str, Any]) -> str:
-    """Gateway Handler: actually post to Slack via the MCP server.
 
-    Invoked by the gateway ONLY after all guards pass (and never under dry-run).
-    Returns a short summary for the audit result.
+def make_slack_post_handler(server: McpServerSpec) -> Handler:
+    """Build a gateway handler bound to a Slack MCP server spec.
+
+    The spec is captured in the closure rather than placed on the action dict, so
+    the token-bearing server env never enters the audit log or the persisted
+    approval queue. Both the direct path (`deliver_report`) and the approve path
+    (CLI `_dispatch_approved_action`) build a handler this way from injected config.
     """
-    args = action.get("args", {})
-    spec: McpServerSpec = get_reporting_config().slack_server
-    result = call_tool(spec, "post_message", args)
-    if isinstance(result, dict):
-        ts = result.get("ts") or (result.get("message") or {}).get("ts")
-        channel = result.get("channel") or args.get("channel")
-        return f"posted to {channel} ts={ts}"
-    return "posted"
+
+    def _handler(action: dict[str, Any]) -> str:
+        """Invoked by the gateway ONLY after all guards pass (never under dry-run)."""
+        args = action.get("args", {})
+        result = call_tool(server, "post_message", args)
+        if isinstance(result, dict):
+            ts = result.get("ts") or (result.get("message") or {}).get("ts")
+            channel = result.get("channel") or args.get("channel")
+            return f"posted to {channel} ts={ts}"
+        return "posted"
+
+    return _handler
 
 
 def _dedup_key(channel: str, report_date: str) -> str:
@@ -48,6 +57,7 @@ def deliver_report(
     text: str,
     *,
     gateway: ActionGateway,
+    config: ReportingConfig,
     channel: str | None = None,
     report_date: str,
     rationale: str = "",
@@ -55,8 +65,10 @@ def deliver_report(
     """Post a report to Slack through the gateway. Returns the gateway result.
 
     `report_date` (YYYY-MM-DD) makes the action idempotent per day+channel.
+    `config` supplies the Slack server spec and default channel; it is injected
+    so this writer never reads a config singleton.
     """
-    target = channel or get_reporting_config().slack_report_channel
+    target = channel or config.slack_report_channel
     if not target:
         raise RuntimeError("SLACK_REPORT_CHANNEL is not set (in .env or passed explicitly).")
     if not text.strip():
@@ -70,4 +82,5 @@ def deliver_report(
         # Idempotency marker consumed by the gateway's dedup (stable per day).
         "dedup_hint": _dedup_key(target, report_date),
     }
-    return gateway.execute(action, handler=_slack_post_handler, rationale=rationale)
+    handler = make_slack_post_handler(config.slack_server)
+    return gateway.execute(action, handler=handler, rationale=rationale)

@@ -14,14 +14,17 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
 from src.actions.action_gateway import ActionGateway, GatewayResult
 from src.adapters.mcp_adapter import call_tool
-from src.config.reporting_config import get_reporting_config
+from src.config.reporting_config import ReportingConfig
 
 logger = logging.getLogger(__name__)
+
+Handler = Callable[[dict[str, Any]], str]
 
 _PAGE_ID_RE = re.compile(r"Page ID:\s*(\d+)")
 _VIEW_PATH_RE = re.compile(r"(/spaces/\S+)")
@@ -73,15 +76,27 @@ def parse_created_page(
     return ConfluencePage(page_id=page_id, url=url)
 
 
-def _create_page_handler(action: dict[str, Any]) -> str:
-    """Gateway Handler: create the Confluence page. Returns a short summary."""
-    cfg = get_reporting_config()
-    args = action.get("args", {})
-    result = call_tool(cfg.confluence_server, "createPage", args)
-    page = parse_created_page(
-        result, site_name=cfg.atlassian_site_name, space_key=cfg.confluence_space_key
-    )
-    return f"created page id={page.page_id} url={page.url}"
+def make_create_page_handler(config: ReportingConfig) -> Handler:
+    """Build a gateway handler bound to the Confluence config.
+
+    The server spec (with its token-bearing env), site name, and space key are
+    captured in the closure rather than placed on the action dict, so they never
+    enter the audit log or the persisted approval queue. The writer and the CLI
+    approve path each build a handler from injected config.
+    """
+
+    def _handler(action: dict[str, Any]) -> str:
+        """Create the Confluence page. Returns a short summary."""
+        args = action.get("args", {})
+        result = call_tool(config.confluence_server, "createPage", args)
+        page = parse_created_page(
+            result,
+            site_name=config.atlassian_site_name,
+            space_key=config.confluence_space_key,
+        )
+        return f"created page id={page.page_id} url={page.url}"
+
+    return _handler
 
 
 def create_report_page(
@@ -89,6 +104,7 @@ def create_report_page(
     body_storage: str,
     *,
     gateway: ActionGateway,
+    config: ReportingConfig,
     report_date: str,
     rationale: str = "",
 ) -> tuple[GatewayResult, ConfluencePage | None]:
@@ -96,9 +112,9 @@ def create_report_page(
 
     Returns the gateway result plus the parsed page (id + URL) when executed.
     Idempotent per (space, date) so a re-run the same day does not duplicate.
+    `config` is injected so this writer never reads a config singleton.
     """
-    cfg = get_reporting_config()
-    space_id = cfg.confluence_space_id
+    space_id = config.confluence_space_id
     if not space_id:
         raise RuntimeError("CONFLUENCE_SPACE_ID is not set (in .env).")
     if not body_storage.strip():
@@ -109,9 +125,10 @@ def create_report_page(
         "server": "confluence",
         "tool": "createPage",
         "args": {"spaceId": space_id, "title": title, "content": body_storage},
-        "dedup_hint": f"confluence-report:{cfg.confluence_space_key}:{report_date}",
+        "dedup_hint": f"confluence-report:{config.confluence_space_key}:{report_date}",
     }
-    result = gateway.execute(action, handler=_create_page_handler, rationale=rationale)
+    handler = make_create_page_handler(config)
+    result = gateway.execute(action, handler=handler, rationale=rationale)
 
     page = None
     if result.status == "executed":

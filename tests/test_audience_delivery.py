@@ -94,12 +94,12 @@ def _spy_writes(monkeypatch, slack_status, approval_id):
 
     seen: dict = {}
 
-    def fake_page(title, body, *, gateway, report_date, rationale=""):
+    def fake_page(title, body, *, gateway, config, report_date, rationale=""):
         seen["page_date"] = report_date
         return GatewayResult(status="dry_run", summary="", approval_id=None), \
             ConfluencePage(page_id=None, url=None)
 
-    def fake_deliver(text, *, gateway, report_date, rationale="", channel=None):
+    def fake_deliver(text, *, gateway, config, report_date, rationale="", channel=None):
         seen["slack_date"] = report_date
         seen["channel"] = channel
         return GatewayResult(status=slack_status, summary="", approval_id=approval_id)
@@ -151,12 +151,12 @@ def test_resource_external_short_omits_confluence_link(settings_factory, tmp_pat
     _patch_cfg(monkeypatch, "C_STAKE")
     posted: dict = {}
 
-    def fake_page(title, body, *, gateway, report_date, rationale=""):
+    def fake_page(title, body, *, gateway, config, report_date, rationale=""):
         # The page IS created with a real URL...
         return GatewayResult(status="dry_run", summary="", approval_id=None), \
             ConfluencePage(page_id="99", url="https://wiki/internal-page")
 
-    def fake_deliver(text, *, gateway, report_date, rationale="", channel=None):
+    def fake_deliver(text, *, gateway, config, report_date, rationale="", channel=None):
         posted["text"] = text
         return GatewayResult(status="pending_approval", summary="", approval_id=1)
 
@@ -201,14 +201,19 @@ def test_external_channel_routes_to_lop_b(settings_factory, tmp_path, monkeypatc
     from src.actions.action_gateway import ActionGateway
     from src.audit.audit_log import AuditLog
 
-    monkeypatch.setattr(slack_write, "_slack_post_handler", lambda a: "posted")
+    class _SlackCfg:
+        slack_report_channel = "C-default"
+        slack_server = None
+
+    monkeypatch.setattr(slack_write, "make_slack_post_handler", lambda s: lambda a: "posted")
     gw = ActionGateway(
         settings=settings_factory(dry_run=False),
         audit_log=AuditLog(tmp_path / "a.jsonl"),
         external_channels=frozenset({"C_STAKE"}),
     )
     result = slack_write.deliver_report(
-        "hi stakeholders", gateway=gw, channel="C_STAKE", report_date="daily-external-2026-06-22"
+        "hi stakeholders", gateway=gw, config=_SlackCfg(), channel="C_STAKE",
+        report_date="daily-external-2026-06-22",
     )
     assert result.status == "pending_approval"
     assert gw.pending_approvals()  # queued for human approval
@@ -239,11 +244,20 @@ def test_cron_audience():
 def test_approved_slack_action_dispatches_to_live_handler(monkeypatch):
     """approve <id> of an external report must POST (not just authorize)."""
     from src.actions import slack_write
+    from src.config import config_builders
     from src.entrypoints.cli import _dispatch_approved_action
 
     posted: dict = {}
+
+    class _SlackCfg:
+        slack_server = None
+
+    # The dispatch builds config from env then a handler from its slack_server;
+    # stub both so no .env is read and the post is captured.
+    monkeypatch.setattr(config_builders, "build_reporting_config_from_env", lambda: _SlackCfg())
     monkeypatch.setattr(
-        slack_write, "_slack_post_handler", lambda a: posted.update(a) or "posted ts=1"
+        slack_write, "make_slack_post_handler",
+        lambda s: lambda a: posted.update(a) or "posted ts=1",
     )
     action = {
         "type": "mcp_tool", "server": "slack", "tool": "post_message",

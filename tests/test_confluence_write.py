@@ -39,55 +39,51 @@ def test_parse_no_site_keeps_relative():
     assert page.url == "/spaces/MPM/pages/131273/X"
 
 
-def _reporting_cfg_stub(tmp_path, monkeypatch):
-    """Patch get_reporting_config so create_report_page has space/site without .env."""
-    from src.config import reporting_config as rc
+class _Cfg:
+    """Minimal ReportingConfig stub: only the fields create_report_page reads."""
 
-    class _Cfg:
-        confluence_space_id = "65846"
-        confluence_space_key = "MPM"
-        atlassian_site_name = "phucnt0.atlassian.net"
-        confluence_server = None
+    confluence_space_id = "65846"
+    confluence_space_key = "MPM"
+    atlassian_site_name = "phucnt0.atlassian.net"
+    confluence_server = None
 
-    monkeypatch.setattr(rc, "get_reporting_config", lambda: _Cfg())
-    monkeypatch.setattr(confluence_write, "get_reporting_config", lambda: _Cfg())
+
+def _gateway(settings_factory, tmp_path, **kw):
+    return ActionGateway(
+        settings=settings_factory(**kw), audit_log=AuditLog(tmp_path / "a.jsonl")
+    )
 
 
 def test_create_report_page_dry_run(settings_factory, tmp_path, monkeypatch):
-    _reporting_cfg_stub(tmp_path, monkeypatch)
     called = []
     monkeypatch.setattr(
-        confluence_write, "_create_page_handler", lambda a: called.append(a) or "x"
+        confluence_write, "make_create_page_handler", lambda c: lambda a: called.append(a) or "x"
     )
-    gw = ActionGateway(
-        settings=settings_factory(dry_run=True), audit_log=AuditLog(tmp_path / "a.jsonl")
-    )
+    gw = _gateway(settings_factory, tmp_path, dry_run=True)
     result, page = create_report_page(
-        "Báo cáo", "<p>body</p>", gateway=gw, report_date="2026-06-21"
+        "Báo cáo", "<p>body</p>", gateway=gw, config=_Cfg(), report_date="2026-06-21"
     )
     assert result.status == "dry_run"
     assert called == []  # handler not called under dry-run
     assert page is None
 
 
-def test_create_report_page_empty_body_raises(settings_factory, tmp_path, monkeypatch):
-    _reporting_cfg_stub(tmp_path, monkeypatch)
-    gw = ActionGateway(settings=settings_factory(), audit_log=AuditLog(tmp_path / "a.jsonl"))
+def test_create_report_page_empty_body_raises(settings_factory, tmp_path):
+    gw = _gateway(settings_factory, tmp_path)
     with pytest.raises(ValueError, match="empty"):
-        create_report_page("t", "   ", gateway=gw, report_date="2026-06-21")
+        create_report_page("t", "   ", gateway=gw, config=_Cfg(), report_date="2026-06-21")
 
 
 def test_create_report_page_executed_returns_url(settings_factory, tmp_path, monkeypatch):
-    _reporting_cfg_stub(tmp_path, monkeypatch)
     monkeypatch.setattr(
         confluence_write,
-        "_create_page_handler",
-        lambda a: "created page id=131273 url=https://site/wiki/spaces/MPM/pages/131273/X",
+        "make_create_page_handler",
+        lambda c: lambda a: "created page id=131273 url=https://site/wiki/spaces/MPM/pages/131273/X",
     )
-    gw = ActionGateway(
-        settings=settings_factory(dry_run=False), audit_log=AuditLog(tmp_path / "a.jsonl")
+    gw = _gateway(settings_factory, tmp_path, dry_run=False)
+    result, page = create_report_page(
+        "t", "<p>x</p>", gateway=gw, config=_Cfg(), report_date="2026-06-21"
     )
-    result, page = create_report_page("t", "<p>x</p>", gateway=gw, report_date="2026-06-21")
     assert result.status == "executed"
     assert page is not None
     assert page.page_id == "131273"

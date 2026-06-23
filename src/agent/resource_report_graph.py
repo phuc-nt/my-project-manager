@@ -60,6 +60,8 @@ def default_resource_deps(
         delivery_summary,
         resolve_audience_delivery,
     )
+    from src.config.config_builders import build_settings_from_env
+    from src.config.reporting_config import get_reporting_config
     from src.llm.client import LlmClient
     from src.llm.report_prompt import REPORT_TITLES
     from src.llm.resource_report_prompt import (
@@ -69,7 +71,9 @@ def default_resource_deps(
         render_resource_xhtml,
     )
 
-    gw = gateway or ActionGateway()
+    settings = build_settings_from_env()
+    cfg = get_reporting_config()
+    gw = gateway or ActionGateway(settings)
     llm_box: dict[str, object] = {}
 
     def _compose(resource: ResourceReport, cost: CostSummary) -> tuple[str, float | None]:
@@ -84,7 +88,7 @@ def default_resource_deps(
         try:
             llm = llm_box.get("llm")
             if llm is None:
-                llm = LlmClient()
+                llm = LlmClient(settings)
                 llm_box["llm"] = llm
             result = llm.complete(
                 build_resource_narrative_messages(
@@ -106,7 +110,7 @@ def default_resource_deps(
         channel, date_hint = resolve_audience_delivery(audience, "resource", today)
         title = f"{REPORT_TITLES['resource']} {today}"
         conf_result, page = create_report_page(
-            title, body, gateway=gw, report_date=date_hint,
+            title, body, gateway=gw, config=cfg, report_date=date_hint,
             rationale=f"scheduled resource & cost status report (detail, {audience})",
         )
         detail_url = page.url if page else None
@@ -118,7 +122,7 @@ def default_resource_deps(
             resource, cost, report_date=today, detail_url=short_url, audience=audience
         )
         slack_result = deliver_report(
-            short, gateway=gw, channel=channel, report_date=date_hint,
+            short, gateway=gw, config=cfg, channel=channel, report_date=date_hint,
             rationale=f"resource & cost status report (short + link, {audience})",
         )
         ok = (

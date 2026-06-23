@@ -4,7 +4,7 @@
 > **DeerFlow 2.0 (ByteDance)**, a separate third-party production LangGraph harness, kept here
 > as a learning reference for *patterns* (sub-agent execution, middleware, memory). It does
 > **not** describe `my-project-manager`'s own architecture — for that, see
-> [../system-architecture.md](../system-architecture.md). We studied these patterns; we did
+> [../system-architecture.md](../v1/system-architecture.md). We studied these patterns; we did
 > not copy the code. Any local filesystem paths below refer to the original author's machine.
 
 **Date**: 2026-06-20  

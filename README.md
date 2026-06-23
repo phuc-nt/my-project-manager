@@ -6,7 +6,7 @@ The interesting part isn't the reporting. It's that the agent has **full autonom
 
 > **The core idea, in one line:** *autonomous about speed, never about responsibility.* Permanent-data-loss and security are hard red lines the agent literally cannot cross, even if the LLM "wants" to.
 
-📖 **If you're here to learn how to build a guardrailed autonomous agent, start with [docs/action-gateway-explainer.md](docs/action-gateway-explainer.md)** — the standalone walkthrough of the safety model.
+📖 **If you're here to learn how to build a guardrailed autonomous agent, start with [docs/action-gateway-explainer.md](docs/v1/action-gateway-explainer.md)** — the standalone walkthrough of the safety model.
 
 ---
 
@@ -38,7 +38,7 @@ request → [Lớp A hard-deny] → [Lớp B interrupt? → queue for human appr
 - **Allowlist, not denylist:** unknown tools are denied by default (we switched after adversarial review found denylist bypasses — see [the Phase 0 journal](docs/journals/260621-phase-0-scaffold.md)).
 - Plus: append-only audit log with secret redaction, `DRY_RUN` default in dev, a kill switch, a $50/month OpenRouter budget cap with hard-stop, and persistent dedup so re-runs never double-post.
 
-Full walkthrough: **[docs/action-gateway-explainer.md](docs/action-gateway-explainer.md)**. Code: [`src/actions/action_gateway.py`](src/actions/action_gateway.py) + [`src/actions/hard_block.py`](src/actions/hard_block.py).
+Full walkthrough: **[docs/action-gateway-explainer.md](docs/v1/action-gateway-explainer.md)**. Code: [`src/actions/action_gateway.py`](src/actions/action_gateway.py) + [`src/actions/hard_block.py`](src/actions/hard_block.py).
 
 ## Quickstart
 
@@ -62,7 +62,7 @@ cp config.example.env .env
 uv run python -m src.entrypoints.cli report --daily
 ```
 
-To post for real, set `DRY_RUN=false` in `.env`. See [docs/deployment-guide.md](docs/deployment-guide.md) for secrets, scoped tokens, cron (launchd), and the kill switch.
+To post for real, set `DRY_RUN=false` in `.env`. See [docs/deployment-guide.md](docs/v1/deployment-guide.md) for secrets, scoped tokens, cron (launchd), and the kill switch.
 
 ### External dependency: 3 MCP servers
 
@@ -82,26 +82,26 @@ Point the agent at them with `JIRA_MCP_DIST` / `CONFLUENCE_MCP_DIST` / `SLACK_MC
 
 `perceive → analyze → compose → deliver`, an explicit graph (no hidden agentic loop). State is checkpointed (SQLite) and holds only primitives. Tools are a read layer (`src/tools/`); every mutation is a write layer behind the Action Gateway (`src/actions/`). Entry points (`src/entrypoints/`) are thin — the agent core knows nothing about CLI vs cron, so a service/bot frontend is additive later.
 
-Architecture: [docs/system-architecture.md](docs/system-architecture.md) · Code map: [docs/codebase-summary.md](docs/codebase-summary.md)
+Architecture: [docs/system-architecture.md](docs/v1/system-architecture.md) · Code map: [docs/codebase-summary.md](docs/v1/codebase-summary.md)
 
 ## Documentation
 
 | Read this to… | Doc |
 |---|---|
-| Understand the guardrail (the main lesson) | [action-gateway-explainer.md](docs/action-gateway-explainer.md) |
-| Understand the problem + vision | [project-overview-pdr.md](docs/project-overview-pdr.md) |
-| Understand the architecture | [system-architecture.md](docs/system-architecture.md) |
-| Find where any piece of code lives | [codebase-summary.md](docs/codebase-summary.md) |
-| Set up + run it | [deployment-guide.md](docs/deployment-guide.md) |
+| Understand the guardrail (the main lesson) | [action-gateway-explainer.md](docs/v1/action-gateway-explainer.md) |
+| Understand the problem + vision | [project-overview-pdr.md](docs/v1/project-overview-pdr.md) |
+| Understand the architecture | [system-architecture.md](docs/v1/system-architecture.md) |
+| Find where any piece of code lives | [codebase-summary.md](docs/v1/codebase-summary.md) |
+| Set up + run it | [deployment-guide.md](docs/v1/deployment-guide.md) |
 | See how it compares to other agent harnesses | [architecture-comparison.md](docs/architecture-comparison.md) — vs DeerFlow 2.0, Hermes, OpenClaw/Pi.dev |
-| See where it's headed next | [v2-vision-roadmap.md](docs/v2-vision-roadmap.md) — multi-agent platform: profiles, registry/workers, web dashboard (draft) |
+| See where it's headed next | [v2-vision-roadmap.md](docs/v2/v2-vision-roadmap.md) — multi-agent platform: profiles, registry/workers, web dashboard (draft) |
 | **Follow the build, decision by decision** | [journals/](docs/journals/) — a phase-by-phase narrative with *what we decided & why* and *what broke & what we learned* |
 
 The [journals](docs/journals/) are the best learning material here: each phase records the real decisions and the bugs adversarial review caught (denylist→allowlist, a JQL-injection surface, a privacy leak via a linked artifact). Build narratives like this are rare — that's the point of sharing this repo.
 
 ## Status
 
-**Phases 0–5 complete** (2026-06-22) — reporting, guardrail hardening, OKR, resource/cost, and audience-split, all E2E-verified against real Jira/GitHub/Slack/Confluence. 269 tests, ruff clean. See [docs/project-roadmap.md](docs/project-roadmap.md).
+**Phases 0–5 complete** (2026-06-22) — reporting, guardrail hardening, OKR, resource/cost, and audience-split, all E2E-verified against real Jira/GitHub/Slack/Confluence. 269 tests, ruff clean. See [docs/project-roadmap.md](docs/v1/project-roadmap.md).
 
 **Deferred (a separate, larger effort):** an HTTP service backend + a real Slack bot UI + multi-user. The current Slack MCP server is send-only (browser-token, no inbound events), so an interactive bot needs new infrastructure.
 

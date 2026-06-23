@@ -1,0 +1,53 @@
+# profiles/default/profile.yaml — the v1-equivalent agent.
+#
+# Thresholds / safety / budget are the shipped v1 defaults (from config.example.env).
+# Per-deployment fields (project_key, repo, channels, space ids, okr_page_id, and the
+# server-env site/email/domain) are EMPTY here: for an existing v1 user the loader
+# falls back to .env; for a new agent, fill them here (a profile value wins over env).
+# token_env holds env-var NAMES, never tokens.
+name: default                 # parsed; consumed in P3 (registry)
+enabled: true                 # parsed; consumed in P3 (registry)
+
+model: minimax/minimax-m2.7   # OPENROUTER_MODEL
+
+budget:
+  monthly_usd: 50             # MONTHLY_BUDGET_USD
+  warn_ratio: 0.8             # BUDGET_WARN_RATIO
+
+safety:
+  dry_run: true               # DRY_RUN  (v1 default true)
+  write_disabled: false       # AGENT_WRITE_DISABLED
+
+thresholds:                   # all explicit (numeric 0 must win over fallback)
+  pr_stale_days: 7            # PR_STALE_DAYS
+  blocker_label_substring: block      # BLOCKER_LABEL_SUBSTRING
+  okr_behind_threshold: 0.5   # OKR_BEHIND_THRESHOLD
+  resource_overload_ratio: 1.5        # RESOURCE_OVERLOAD_RATIO
+  labor_cost_per_issue: 0     # LABOR_COST_PER_ISSUE (0 = labor estimate omitted)
+
+bindings:
+  jira:
+    project_key: ""           # JIRA_PROJECT_KEY  (empty ⇒ falls back to .env)
+    token_env: ATLASSIAN_API_TOKEN
+    # mcp_dist: ""            # optional; omit ⇒ JIRA_MCP_DIST env or built-in default
+  confluence:
+    space_key: ""             # CONFLUENCE_SPACE_KEY
+    space_id: ""              # CONFLUENCE_SPACE_ID
+    okr_page_id: ""           # OKR_CONFLUENCE_PAGE_ID
+    token_env: ATLASSIAN_API_TOKEN   # SAME as jira (one shared Atlassian token in M1)
+  github:
+    repo: ""                  # GITHUB_REPO  (github auth via `gh`; no token_env)
+  slack:
+    report_channel: ""        # SLACK_REPORT_CHANNEL
+    stakeholder_channel: ""   # SLACK_STAKEHOLDER_CHANNEL (must be in external_channels)
+    external_channels: []     # SLACK_EXTERNAL_CHANNELS (comma list → frozenset)
+    # Slack needs two tokens; P2 reads SLACK_XOXC_TOKEN + SLACK_XOXD_TOKEN from the
+    # FIXED env names (not from token_env). Listed for clarity; resolution is P3.
+    token_env_xoxc: SLACK_XOXC_TOKEN   # documentary in P2; consumed in P3
+    token_env_xoxd: SLACK_XOXD_TOKEN   # documentary in P2; consumed in P3
+
+# Server-env read from FIXED v1 env names by the loader (not per-agent in M1):
+#   ATLASSIAN_SITE_NAME, ATLASSIAN_USER_EMAIL, SLACK_TEAM_DOMAIN.
+
+schedule: {}                  # parsed; consumed in P3 (scheduler)
+reports: []                   # parsed; consumed in P3 (kind gate)

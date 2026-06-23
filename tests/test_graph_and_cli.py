@@ -54,10 +54,13 @@ def test_cli_no_key_returns_one(monkeypatch, tmp_path):
 
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     # Also clear stakeholder/external channel vars so a CI runner that exports a
-    # mismatched pair can't make the now-always-on config build error here.
+    # mismatched pair can't make config build error here.
     monkeypatch.delenv("SLACK_STAKEHOLDER_CHANNEL", raising=False)
     monkeypatch.delenv("SLACK_EXTERNAL_CHANNELS", raising=False)
     monkeypatch.setattr(settings_mod, "REPO_ROOT", tmp_path)
+    # The profile loader load_dotenv's the real .env; block it so the deleted key
+    # stays absent and _require_key returns 1.
+    monkeypatch.setattr("src.profile.loader.load_dotenv", lambda *a, **k: None)
     assert cli_main(["hello"]) == 1
 
 

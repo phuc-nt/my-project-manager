@@ -15,15 +15,41 @@ import sys
 
 from src.agent.checkpoint import get_checkpointer
 from src.agent.graph import build_graph
-from src.config.config_builders import (
-    build_reporting_config_from_env,
-    build_settings_from_env,
-)
+from src.profile.context import ProfileContext
+from src.profile.loader import load_profile
+
+_DEFAULT_PROFILE = "default"
 
 
 def _checkpointer(settings):
     """Open the checkpointer at the injected settings' data dir."""
     return get_checkpointer(settings.data_dir / "checkpoints.db")
+
+
+def _parse_profile(args: list[str]) -> str:
+    """`--profile <id>` → id; default `default` (the v1-equivalent agent)."""
+    return _flag_value(args, "--profile") or _DEFAULT_PROFILE
+
+
+def _load_or_exit(args: list[str]):
+    """Load `profiles/<--profile>/`. Returns the LoadedProfile, or None on failure.
+
+    A bad `--profile` id (FileNotFoundError) OR a config error in the profile
+    (RuntimeError — e.g. the stakeholder channel not in the external set) prints a
+    clear one-line error and returns None; the caller exits non-zero. Catching the
+    config error here keeps diagnostic commands (`audit`) from crashing with a
+    traceback when a profile is misconfigured.
+    """
+    try:
+        return load_profile(_parse_profile(args))
+    except (FileNotFoundError, RuntimeError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return None
+
+
+def _context_of(loaded) -> ProfileContext:
+    """Build the prompt context (persona/project/memory) from a loaded profile."""
+    return ProfileContext(persona=loaded.soul, project=loaded.project, memory=loaded.memory)
 
 
 def _require_key(settings) -> bool:
@@ -48,22 +74,31 @@ def _run_hello(message: str, settings) -> int:
     return 0
 
 
-def _run_report(report_kind: str, audience: str, settings, config) -> int:
+def _run_report(report_kind: str, audience: str, settings, config, context) -> int:
     # Imported here so the hello path (and tests) don't pull in MCP/report deps.
     cp = _checkpointer(settings)
     if report_kind == "resource":
         from src.agent.resource_report_graph import build_resource_graph
 
-        graph = build_resource_graph(cp, config=config, settings=settings, audience=audience)
+        graph = build_resource_graph(
+            cp, config=config, settings=settings, context=context, audience=audience
+        )
     elif report_kind == "okr":
         from src.agent.okr_report_graph import build_okr_graph
 
-        graph = build_okr_graph(cp, config=config, settings=settings, audience=audience)
+        graph = build_okr_graph(
+            cp, config=config, settings=settings, context=context, audience=audience
+        )
     else:
         from src.agent.report_graph import build_report_graph
 
         graph = build_report_graph(
-            cp, config=config, settings=settings, report_kind=report_kind, audience=audience
+            cp,
+            config=config,
+            settings=settings,
+            context=context,
+            report_kind=report_kind,
+            audience=audience,
         )
     thread = f"report-{report_kind}-{audience}"
     result = graph.invoke({}, config={"configurable": {"thread_id": thread}})
@@ -206,27 +241,30 @@ def main(argv: list[str] | None = None) -> int:
     args = argv if argv is not None else sys.argv[1:]
     if not args:
         print(
-            "usage: python -m src.entrypoints.cli "
+            "usage: python -m src.entrypoints.cli [--profile <id>] "
             '"your message" | report [--daily|--weekly|--okr|--resource] '
             "[--audience internal|external] | audit [filters]",
             file=sys.stderr,
         )
         return 2
 
-    # Settings is needed by every path; build it once. Reporting config is built
-    # lazily (only on paths that touch Slack/Confluence) so a diagnostic command
-    # like `audit` keeps working even when reporting config is misconfigured.
-    settings = build_settings_from_env()
+    # The profile (default `default` = v1) is the single config source: it yields
+    # settings + reporting config + the persona/project/memory context. A bad
+    # `--profile` id prints a clear error and exits non-zero.
+    loaded = _load_or_exit(args)
+    if loaded is None:
+        return 1
+    settings, config = loaded.settings, loaded.config
 
     # Commands that do NOT need an OpenRouter key (audit + approval management).
     if args[0] == "audit":
-        return _run_audit(args[1:], settings)  # no reporting config needed
+        return _run_audit(args[1:], settings)
     if args[0] == "approvals":
-        return _run_approvals(settings, build_reporting_config_from_env())
+        return _run_approvals(settings, config)
     if args[0] == "approve":
-        return _run_approve(args[1:], settings, build_reporting_config_from_env())
+        return _run_approve(args[1:], settings, config)
     if args[0] == "reject":
-        return _run_reject(args[1:], settings, build_reporting_config_from_env())
+        return _run_reject(args[1:], settings, config)
 
     if not _require_key(settings):
         return 1
@@ -236,9 +274,10 @@ def main(argv: list[str] | None = None) -> int:
             _parse_report_kind(args[1:]),
             _parse_audience(args[1:]),
             settings,
-            build_reporting_config_from_env(),
+            config,
+            _context_of(loaded),
         )
-    return _run_hello(" ".join(args), settings)  # hello: no reporting config needed
+    return _run_hello(" ".join(args), settings)  # hello: no profile context
 
 
 if __name__ == "__main__":

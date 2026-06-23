@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
+from dotenv import load_dotenv
 
 from src.config.config_builders import (
     build_reporting_config_from_dict,
@@ -72,6 +73,11 @@ def load_profile(profile_id: str, *, profiles_dir: Path | None = None) -> Loaded
             f"Profile {profile_id!r} not found: {yaml_path} is missing. "
             f"Expected a directory profiles/{profile_id}/ with a profile.yaml."
         )
+
+    # Load .env so the env-fallback (empty profile field → env) + token_env resolution
+    # see the user's secrets, exactly as v1's build_*_from_env did. Existing os.environ
+    # values win (load_dotenv does not override), so a caller-set env is respected.
+    load_dotenv(REPO_ROOT / ".env")
 
     yaml_doc = yaml.safe_load(yaml_path.read_text(encoding="utf-8")) or {}
     if not isinstance(yaml_doc, dict):

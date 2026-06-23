@@ -58,6 +58,8 @@ def default_okr_deps(
         delivery_summary,
         resolve_audience_delivery,
     )
+    from src.config.config_builders import build_settings_from_env
+    from src.config.reporting_config import get_reporting_config
     from src.llm.client import LlmClient
     from src.llm.okr_report_prompt import (
         build_okr_narrative_messages,
@@ -67,7 +69,9 @@ def default_okr_deps(
     )
     from src.llm.report_prompt import REPORT_TITLES
 
-    gw = gateway or ActionGateway()
+    settings = build_settings_from_env()
+    cfg = get_reporting_config()
+    gw = gateway or ActionGateway(settings)
     llm_box: dict[str, object] = {}
 
     def _compose(rollup: OkrRollup) -> tuple[str, float | None]:
@@ -81,7 +85,7 @@ def default_okr_deps(
         try:
             llm = llm_box.get("llm")
             if llm is None:
-                llm = LlmClient()
+                llm = LlmClient(settings)
                 llm_box["llm"] = llm
             result = llm.complete(
                 build_okr_narrative_messages(rollup, report_date=report_date, audience=audience)
@@ -96,7 +100,7 @@ def default_okr_deps(
         channel, date_hint = resolve_audience_delivery(audience, "okr", today)
         title = f"{REPORT_TITLES['okr']} {today}"
         conf_result, page = create_report_page(
-            title, body, gateway=gw, report_date=date_hint,
+            title, body, gateway=gw, config=cfg, report_date=date_hint,
             rationale=f"scheduled OKR status report (detail, {audience})",
         )
         detail_url = page.url if page else None
@@ -104,7 +108,7 @@ def default_okr_deps(
             rollup, report_date=today, detail_url=detail_url, audience=audience
         )
         slack_result = deliver_report(
-            short, gateway=gw, channel=channel, report_date=date_hint,
+            short, gateway=gw, config=cfg, channel=channel, report_date=date_hint,
             rationale=f"OKR status report (short + link, {audience})",
         )
         ok = (

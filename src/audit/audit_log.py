@@ -21,7 +21,6 @@ from pathlib import Path
 from typing import Any
 
 from src.actions.secret_patterns import redact
-from src.config.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -48,8 +47,8 @@ class AuditEntry:
 class AuditLog:
     """Append-only JSONL writer."""
 
-    def __init__(self, path: Path | None = None) -> None:
-        self._path = path or (get_settings().data_dir / "audit" / "audit.jsonl")
+    def __init__(self, path: Path) -> None:
+        self._path = path
 
     @property
     def path(self) -> Path:

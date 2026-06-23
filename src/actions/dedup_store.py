@@ -15,14 +15,12 @@ import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 
-from src.config.settings import get_settings
-
 
 class DedupStore:
     """SQLite-backed set of already-executed action keys."""
 
-    def __init__(self, db_path: Path | None = None) -> None:
-        self._path = db_path or (get_settings().data_dir / "dedup.db")
+    def __init__(self, db_path: Path) -> None:
+        self._path = db_path
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(str(self._path), check_same_thread=False)
         self._conn.execute(

@@ -33,7 +33,9 @@ def _make_respond(client: LlmClient | None):
     def _respond(state: AgentState) -> dict:
         # Lazy build so graph construction needs no API key.
         if "client" not in holder:
-            holder["client"] = LlmClient()
+            from src.config.config_builders import build_settings_from_env
+
+            holder["client"] = LlmClient(build_settings_from_env())
         result = holder["client"].complete(
             [{"role": "user", "content": state["user_input"]}]
         )

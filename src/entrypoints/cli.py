@@ -18,6 +18,18 @@ from src.agent.graph import build_graph
 from src.config.settings import get_settings
 
 
+def _checkpointer():
+    """Open the checkpointer at the env-configured data dir.
+
+    Entrypoint boundary: builds settings from env and derives the checkpoint path,
+    so `get_checkpointer` itself takes an explicit path (no config singleton).
+    """
+    from src.config.config_builders import build_settings_from_env
+
+    settings = build_settings_from_env()
+    return get_checkpointer(settings.data_dir / "checkpoints.db")
+
+
 def _require_key() -> bool:
     if not get_settings().openrouter_api_key:
         print(
@@ -29,7 +41,7 @@ def _require_key() -> bool:
 
 
 def _run_hello(message: str) -> int:
-    graph = build_graph(get_checkpointer())
+    graph = build_graph(_checkpointer())
     result = graph.invoke(
         {"user_input": message, "llm_response": "", "cost_usd": None},
         config={"configurable": {"thread_id": "cli"}},
@@ -45,16 +57,16 @@ def _run_report(report_kind: str, audience: str = "internal") -> int:
     if report_kind == "resource":
         from src.agent.resource_report_graph import build_resource_graph
 
-        graph = build_resource_graph(get_checkpointer(), audience=audience)
+        graph = build_resource_graph(_checkpointer(), audience=audience)
     elif report_kind == "okr":
         from src.agent.okr_report_graph import build_okr_graph
 
-        graph = build_okr_graph(get_checkpointer(), audience=audience)
+        graph = build_okr_graph(_checkpointer(), audience=audience)
     else:
         from src.agent.report_graph import build_report_graph
 
         graph = build_report_graph(
-            get_checkpointer(), report_kind=report_kind, audience=audience
+            _checkpointer(), report_kind=report_kind, audience=audience
         )
     thread = f"report-{report_kind}-{audience}"
     result = graph.invoke({}, config={"configurable": {"thread_id": thread}})
@@ -106,8 +118,9 @@ def _flag_value(args: list[str], flag: str) -> str | None:
 def _run_approvals() -> int:
     """`approvals` — list Lớp B actions waiting for human approval."""
     from src.actions.action_gateway import ActionGateway
+    from src.config.config_builders import build_settings_from_env
 
-    pending = ActionGateway().pending_approvals()
+    pending = ActionGateway(build_settings_from_env()).pending_approvals()
     if not pending:
         print("(no pending approvals)")
         return 0
@@ -124,8 +137,9 @@ def _run_approve(args: list[str]) -> int:
         return 2
     approval_id = int(args[0])
     from src.actions.action_gateway import ActionGateway
+    from src.config.config_builders import build_settings_from_env
 
-    gw = ActionGateway()
+    gw = ActionGateway(build_settings_from_env())
     try:
         result = gw.approve(approval_id, handler=_dispatch_approved_action)
     except ValueError as exc:
@@ -145,9 +159,11 @@ def _dispatch_approved_action(action: dict) -> str:
     approved into nothing).
     """
     if action.get("type") == "mcp_tool" and action.get("server") == "slack":
-        from src.actions.slack_write import _slack_post_handler
+        from src.actions.slack_write import make_slack_post_handler
+        from src.config.config_builders import build_reporting_config_from_env
 
-        return _slack_post_handler(action)
+        config = build_reporting_config_from_env()
+        return make_slack_post_handler(config.slack_server)(action)
     label = action.get("tool") or action.get("argv") or action.get("type")
     raise RuntimeError(f"No live handler wired for approved action: {label!r}")
 
@@ -157,8 +173,9 @@ def _run_reject(args: list[str]) -> int:
         print("usage: reject <id>", file=sys.stderr)
         return 2
     from src.actions.action_gateway import ActionGateway
+    from src.config.config_builders import build_settings_from_env
 
-    ActionGateway().reject(int(args[0]))
+    ActionGateway(build_settings_from_env()).reject(int(args[0]))
     print(f"rejected #{args[0]}")
     return 0
 
@@ -166,9 +183,11 @@ def _run_reject(args: list[str]) -> int:
 def _run_audit(args: list[str]) -> int:
     """`audit [--tool X] [--verdict V] [--since ISO] [--limit N]` — print audit log."""
     from src.audit.audit_log import AuditLog
+    from src.config.config_builders import build_settings_from_env
 
+    settings = build_settings_from_env()
     limit_raw = _flag_value(args, "--limit")
-    entries = AuditLog().query(
+    entries = AuditLog(settings.data_dir / "audit" / "audit.jsonl").query(
         tool=_flag_value(args, "--tool"),
         verdict=_flag_value(args, "--verdict"),
         since=_flag_value(args, "--since"),

@@ -1,6 +1,6 @@
 # Slice C — Thread config through graph/section factories + tool fetchers
 
-> Status: pending · Depends on: A, B · Owns the 6 agent files + 4 tool files + 5 test
+> Status: DONE (8aba547) · Depends on: A, B · Owns the 6 agent files + 4 tool files + 5 test
 > files in the ownership table for C. Builds the per-flow `ActionGateway` WITH
 > injected config (the gateway B made injectable). Does NOT touch entrypoints (D) or
 > delete the singletons (D).

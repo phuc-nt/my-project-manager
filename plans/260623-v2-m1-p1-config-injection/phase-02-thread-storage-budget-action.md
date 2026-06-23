@@ -1,6 +1,6 @@
 # Slice B — Thread config through storage + budget/llm + action layers
 
-> Status: pending · Depends on: A · Owns the 9 source files + 4 test files in the
+> Status: DONE (8bafe54) · Depends on: A · Owns the 9 source files + 4 test files in the
 > ownership table for B. Does NOT touch the graph/section factories or tool fetchers
 > (Slice C) or the entrypoints (Slice D).
 

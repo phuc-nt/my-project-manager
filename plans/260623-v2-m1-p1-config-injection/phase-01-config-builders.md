@@ -1,6 +1,6 @@
 # Slice A — Config builders (from_dict core + from_env wrapper)
 
-> Status: pending · Depends on: — · Owns: `src/config/config_builders.py` (new),
+> Status: DONE (031a543) · Depends on: — · Owns: `src/config/config_builders.py` (new),
 > `tests/test_config_builders.py` (new), `src/config/settings.py`,
 > `src/config/reporting_config.py`
 

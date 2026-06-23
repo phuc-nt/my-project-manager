@@ -1,12 +1,13 @@
 ---
 title: "v2 M1-P1 — Config-injection refactor (kill the config singletons)"
 description: "Replace the two @lru_cache config singletons (get_settings / get_reporting_config) with from_dict-core + from_env-wrapper builders, then thread ReportingConfig + Settings as explicit params through 19 caller files. from_env stays byte-identical to v1 (backward-compat anchor); from_dict is the contract P2's profile loader plugs into. BREAKING of the singleton accepted."
-status: pending
+status: completed
 priority: P1
 effort: 11h
 branch: main
 tags: [v2, m1, p1, config-injection, kill-singletons, dependency-injection, from-dict, breaking]
 created: 2026-06-23
+completed: 2026-06-23
 ---
 
 # v2 M1-P1 — Config-injection refactor (kill the config singletons)
@@ -134,12 +135,22 @@ override + a server-env block):
 
 ## Slices (ordered, each independently testable + committable)
 
-| # | Slice | File | Status | Depends on |
-|---|-------|------|--------|-----------|
-| A | Config builders: add `build_settings_from_dict/from_env` + `build_reporting_config_from_dict/from_env` (validation moves into from_dict). KEEP the old singletons (re-expressed as `from_env` wrappers) so nothing breaks yet. Unit-test: from_env == old singleton byte-identical + from_dict defaults + from_dict stakeholder-channel raise. Purely additive + safe. | [phase-01-config-builders.md](phase-01-config-builders.md) | — |
-| B | Thread config through storage (4) + budget/llm (2) + action layer (3). Remove singleton fallbacks; require injected config/settings/path. Update their direct callers + the tests that constructed them. | [phase-02-thread-storage-budget-action.md](phase-02-thread-storage-budget-action.md) | A |
-| C | Thread config through graph/section factories (5) + tool fetchers (4): `default_*_deps(config, settings, ...)`, section helpers gain config params, tool fetchers gain `config=`. Build the per-flow `ActionGateway` WITH injected config. | [phase-03-thread-graphs-tools.md](phase-03-thread-graphs-tools.md) | A, B |
-| D | Entrypoints (cli.py, cron.py) build-from-env-and-inject; DELETE the old `get_settings`/`get_reporting_config` singletons; migrate ALL remaining test fixtures; acceptance grep = 0 hits; full suite green + ruff clean. | [phase-04-entrypoints-delete-singletons.md](phase-04-entrypoints-delete-singletons.md) | A, B, C |
+All four slices DONE + committed (2026-06-23). Phase COMPLETE — grep-0-hits gate closed; 282 tests pass; ruff clean.
+
+| # | Slice | File | Status | Commit | Depends on |
+|---|-------|------|--------|--------|-----------|
+| A | Config builders: add `build_settings_from_dict/from_env` + `build_reporting_config_from_dict/from_env` (validation moves into from_dict). KEEP the old singletons (re-expressed as `from_env` wrappers) so nothing breaks yet. Unit-test: from_env == old singleton byte-identical + from_dict defaults + from_dict stakeholder-channel raise. Purely additive + safe. | [phase-01-config-builders.md](phase-01-config-builders.md) | DONE | `031a543` | — |
+| B | Thread config through storage (4) + budget/llm (2) + action layer (3). Remove singleton fallbacks; require injected config/settings/path. Update their direct callers + the tests that constructed them. | [phase-02-thread-storage-budget-action.md](phase-02-thread-storage-budget-action.md) | DONE | `8bafe54` | A |
+| C | Thread config through graph/section factories (5) + tool fetchers (4): `default_*_deps(config, settings, ...)`, section helpers gain config params, tool fetchers gain `config=`. Build the per-flow `ActionGateway` WITH injected config. | [phase-03-thread-graphs-tools.md](phase-03-thread-graphs-tools.md) | DONE | `8aba547` | A, B |
+| D | Entrypoints (cli.py, cron.py) build-from-env-and-inject; DELETE the old `get_settings`/`get_reporting_config` singletons; migrate ALL remaining test fixtures; acceptance grep = 0 hits; full suite green + ruff clean. | [phase-04-entrypoints-delete-singletons.md](phase-04-entrypoints-delete-singletons.md) | DONE | (this commit) | A, B, C |
+
+### Accepted deviation (whole phase)
+
+Acceptance #4 stated "no source file exceeds 200 LOC". Several PRE-EXISTING files
+remain over (hard_block 436, action_gateway 331, report_graph 259, cli 241,
+confluence_read 217, resource_report_prompt 237, resource_report_graph 206). P1 did
+NOT introduce these — they predate the refactor and are established modules. P1 is
+plumbing-only (net-neutral LOC); modularizing them is out of P1 scope, deferred.
 
 **Dependency graph: A → B → C → D.** A is purely additive (the builders exist, the
 singletons still work as wrappers, nothing else changes — safe to commit alone). B

@@ -1,6 +1,6 @@
 # Slice D — Entrypoints build-and-inject + delete the singletons (closing slice)
 
-> Status: pending · Depends on: A, B, C · Owns: `src/entrypoints/cli.py`,
+> Status: DONE · Depends on: A, B, C · Owns: `src/entrypoints/cli.py`,
 > `src/entrypoints/cron.py`, the DELETION of `get_settings` / `get_reporting_config`
 > from the two config files, `tests/conftest.py`, and the 4 remaining entrypoint
 > test files. This is the ONLY slice where the grep-0-hits gate can close.

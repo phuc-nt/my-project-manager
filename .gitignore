@@ -16,6 +16,12 @@ __pycache__/
 # Runtime data: audit log, checkpoints, budget (see plan .data/ decision)
 .data/
 
+# Per-agent profiles: only the `default` template is committed (holds no secrets,
+# only token_env NAMES). Real per-agent profiles stay local.
+profiles/*
+!profiles/default/
+!profiles/default/**
+
 # Agent tooling / instructions — not part of the published project
 .claude/
 AGENTS.md

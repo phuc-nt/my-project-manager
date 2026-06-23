@@ -4,9 +4,14 @@
 > đặt cạnh 3 harness tham khảo: **DeerFlow 2.0**, **Hermes-agent**, **OpenClaw / Pi.dev**.
 > Mục tiêu: định vị trung thực — repo này MẠNH chỗ nào, NHẸ chỗ nào, và *vì sao* khác biệt.
 >
-> Phương pháp: DeerFlow + Hermes khảo sát ở mức **code** (đọc source); OpenClaw/Pi.dev chỉ có
-> **docs/notes** trên máy (không có source engine) → đánh giá ở mức *khái niệm*, ghi rõ giới hạn.
-> Số liệu của repo này verify trực tiếp từ `src/` (2026-06-23).
+> Phương pháp: cả 3 harness tham khảo khảo sát ở mức **code/source thật**. OpenClaw/Pi.dev là npm
+> package cài trên máy (`/opt/homebrew/lib/node_modules/openclaw` v2026.6.1) — đọc được `dist/` +
+> `.d.ts` type declarations + runtime `~/.openclaw/`. Số liệu của repo này verify trực tiếp từ `src/`.
+>
+> **⚠️ Đính chính (2026-06-23):** bản đầu của báo cáo này đánh giá OpenClaw "chỉ qua docs" và kết luận
+> *"persona-prompt, không harness-enforce"* — **SAI**. Khi tìm thấy source thật (cài qua npm global, không
+> phải `~/workspace`), OpenClaw hoá ra có **safety harness-enforced rất tinh vi** (exec-approval đa mode,
+> SSRF guard, fs-safe, command-secret gateway). Toàn bộ phần OpenClaw đã viết lại theo source.
 
 ---
 
@@ -14,23 +19,27 @@
 
 | | **my-project-manager** | **DeerFlow 2.0** | **Hermes-agent** | **OpenClaw / Pi.dev** |
 |---|---|---|---|---|
-| Thể loại | PM agent dọc (vertical), MVP local-first | General multi-agent harness, production | General personal agent, production | Personal agent platform (Telegram-first) |
-| Core size | **~5.2k LOC / 47 file** | ~40.5k LOC core | ~25–40k LOC core | (no source — docs only) |
-| Orchestration | **LangGraph StateGraph tường minh** (perceive→analyze→compose→deliver) | LangGraph + 23-lớp middleware + `create_agent` loop | ReAct while-loop (không graph) | Custom harness (Pi.dev), gateway+session loop |
-| Multi-agent | **Không** (single graph, có chủ đích) | Có (subagent executor, ≤3 concurrent) | Có (delegate, ≤3, blocking) | Có (delegate, ≤3, blocking) |
-| **Safety model** | **Gate-each-action: Action Gateway = 1 choke-point, policy theo từng action** | Sandbox-first + optional policy middleware + observability | OS-isolation + in-process heuristics (không phải boundary) | **Persona-prompt (SOUL.md), KHÔNG harness-enforce** |
-| Hard-deny red line | **✅ Lớp A hard-coded, không bao giờ tới LLM** | ⚠️ Không có blocklist mặc định; allowlist qua config | ⚠️ 12 hardline pattern (rm /, mkfs…) + 47 denylist regex | ❌ Không (chỉ prompt) |
-| Human-in-the-loop | **✅ Lớp B queue + approve, execute thật** | ⚠️ Clarification interrupt (hỏi lại), không phải approval-to-execute | ⚠️ Approval gate (configurable, không bắt buộc) | ⚠️ Manual draft→"ok" (prompt-level) |
-| Audit log | **✅ JSONL append-only + redact secret** | ✅ RunEventStore (SQL) | ❌ Không audit; lưu full transcript không redact | ⚠️ "verified actions" = test thủ công, không phải log |
-| Budget cap | **✅ $50/tháng hard-stop** | ⚠️ Token usage track, không hard cap | ⚠️ Per-turn iteration budget | — |
-| Dedup / idempotency | **✅ reserve-before-execute (SQLite)** | ❌ (dựa checkpointer retry) | ❌ | — |
-| Sandbox | **❌ không** (đánh đổi có chủ đích) | ✅ per-thread FS + Docker option | ✅ OS-level (container/VM) là boundary chính | ⚠️ "varies by project" |
+| Thể loại | PM agent dọc (vertical), MVP local-first | General multi-agent harness, production | General personal agent, production | General personal-agent platform (multi-channel), production |
+| Core size | **~5.2k LOC / 47 file** | ~40.5k LOC core | ~25–40k LOC core | Rất lớn (npm package ~30 channel ext + plugin SDK) |
+| Orchestration | **LangGraph StateGraph tường minh** (perceive→analyze→compose→deliver) | LangGraph + 23-lớp middleware + `create_agent` loop | ReAct while-loop (không graph) | Custom harness (Pi.dev) + plugin/channel-contract SDK |
+| Multi-agent | **Không** (single graph, có chủ đích) | Có (subagent executor, ≤3 concurrent) | Có (delegate, ≤3, blocking) | Có (delegate) |
+| **Safety model** | **Gate-each-action: Action Gateway = 1 choke-point, policy theo từng action** | Sandbox-first + optional policy middleware + observability | OS-isolation + in-process heuristics (không phải boundary) | **Harness-enforced: exec-approval đa mode + SSRF guard + fs-safe + secret gateway** |
+| Hard-deny red line | **✅ Lớp A hard-coded, không bao giờ tới LLM** | ⚠️ Không có blocklist mặc định; allowlist qua config | ⚠️ 12 hardline pattern (rm /, mkfs…) + 47 denylist regex | ✅ `SafeBinProfile` per-binary policy + `policyBlocked` + chặn wrapper-chain (sh -c) |
+| Human-in-the-loop | **✅ Lớp B queue + approve, execute thật** | ⚠️ Clarification interrupt (hỏi lại), không phải approval-to-execute | ⚠️ Approval gate (configurable, không bắt buộc) | ✅ `ExecMode: deny\|allowlist\|ask\|auto\|full` + allowlist bền (`exec-approvals.json`) |
+| Audit log | **✅ JSONL append-only + redact secret** | ✅ RunEventStore (SQL) | ❌ Không audit; lưu full transcript không redact | ✅ approval/exec runtime ghi state; command-secret gateway redact |
+| Budget cap | **✅ $50/tháng hard-stop** | ⚠️ Token usage track, không hard cap | ⚠️ Per-turn iteration budget | (chưa khảo sát rõ) |
+| Dedup / idempotency | **✅ reserve-before-execute (SQLite)** | ❌ (dựa checkpointer retry) | ❌ | (chưa khảo sát rõ) |
+| Network/FS guard | ❌ không (phạm vi hẹp, không cần) | ⚠️ sandbox FS | ⚠️ OS sandbox | ✅ `fetchWithSsrFGuard` (SSRF) + `@openclaw/fs-safe` (symlink/traversal/owner) |
+| Sandbox | **❌ không** (đánh đổi có chủ đích) | ✅ per-thread FS + Docker option | ✅ OS-level (container/VM) là boundary chính | ⚠️ `openshell` ext + fs-safe (in-process safety, không phải full sandbox) |
 | Checkpointer | SQLite (state chỉ primitive) | SQLite→Postgres, per-thread | git-style snapshot (không resume giữa turn) | `.jsonl` session + auto-compact |
 
-**Một câu:** Repo này là **MVP nhỏ nhất nhưng có mô hình kiểm soát write CHẶT NHẤT** trong 4 cái. Ba
-harness kia lớn hơn nhiều và mạnh hơn về *năng lực tổng quát* (sub-agent, sandbox, multi-channel,
-memory), nhưng **không cái nào đặt "mọi mutation qua 1 cổng policy-gated với red line hard-coded"** làm
-trục kiến trúc. Đó vừa là điểm khác biệt, vừa là điểm đánh đổi.
+**Một câu:** Repo này là **MVP nhỏ nhất** nhưng đặt "mọi mutation qua 1 cổng policy-gated với red line
+hard-coded trước LLM" làm **trục kiến trúc trung tâm**. Đáng chú ý: **OpenClaw cũng có safety
+harness-enforced rất mạnh** (exec-approval đa mode, SSRF/fs guard) — thậm chí *tinh vi hơn repo này ở mặt
+shell/exec* — nhưng nó gate ở tầng **exec/command/network**, không phải một "Action Gateway" hợp nhất cho
+*mọi* mutation tool. DeerFlow/Hermes thì dựa **sandbox/OS-isolation** là chính. Tức là: repo này không phải
+cái duy nhất "có guardrail thật" (nhận định cũ sai); nó là cái đặt guardrail thành **một choke-point hợp
+nhất + red-line hard-coded** trong phạm vi action hẹp — gọn nhất, dễ dạy nhất, nhưng cũng hẹp nhất.
 
 ---
 
@@ -41,10 +50,13 @@ Phải nói thẳng để so cho công bằng: **không cùng hạng cân.**
 - **my-project-manager** là agent **dọc** (làm 1 việc: PM reporting), **local-first MVP**, single-agent.
 - **DeerFlow / Hermes** là harness **ngang** (general-purpose, chạy mọi loại task), production, multi-agent,
   multi-channel. To gấp ~5–8 lần về code.
-- **OpenClaw / Pi.dev** là platform personal-agent, engine đóng (chỉ đánh giá qua docs).
+- **OpenClaw / Pi.dev** là platform personal-agent đa kênh (Telegram/Slack/Discord/WhatsApp/Feishu… ~30
+  channel), production, có plugin SDK. Engine đóng nhưng **cài qua npm → đọc được source/dist** (v2026.6.1).
 
-→ Vì vậy so **năng lực tổng quát** thì repo này *kém* (đúng — nó không định làm general). So **mô hình an
-toàn cho autonomous write** thì repo này có cái 3 harness kia *không có*. Phần dưới tách rõ 2 trục bạn chọn.
+→ Vì vậy so **năng lực tổng quát** thì repo này *kém xa* (đúng — nó không định làm general). So **mô hình an
+toàn cho autonomous write**: repo này có cái DeerFlow/Hermes không nhấn (red-line hard-coded trước LLM +
+choke-point hợp nhất), nhưng **OpenClaw cũng có guardrail harness-enforced mạnh** ở mặt exec/network/fs —
+không nên nói repo này "độc nhất có guardrail". Phần dưới tách rõ 2 trục.
 
 ---
 
@@ -57,7 +69,7 @@ toàn cho autonomous write** thì repo này có cái 3 harness kia *không có*.
 | **my-project-manager** | **Gate-each-action by policy.** Mọi mutation qua `ActionGateway.execute`. Chuỗi: Lớp A hard-deny → Lớp B approve → kill-switch → dry-run → rate-limit → dedup → execute → audit. Red line (data-loss/credential/security) **hard-coded, không tới LLM**. |
 | **DeerFlow 2.0** | **Sandbox-first + optional policy + observability.** Cô lập filesystem per-thread (+ Docker option). `GuardrailMiddleware` là *tùy chọn* (bật qua config), provider pluggable (allowlist/denylist). Không có blocklist nguy hiểm mặc định. `SafetyFinishReasonMiddleware` bắt tín hiệu safety của *provider* (content_filter/refusal) rồi chặn tool call. |
 | **Hermes-agent** | **OS-isolation là boundary, in-process chỉ là heuristic.** SECURITY.md nói thẳng: chỉ container/VM mới là ranh giới thật; approval pattern + loop-detection KHÔNG phải containment, "một LLM đối kháng hoặc nội dung bị inject có thể vượt qua hết". Có 12 hardline pattern chặn cứng (rm /, mkfs, reboot…) + 47 denylist regex. |
-| **OpenClaw / Pi.dev** | **Persona-prompt, không harness-enforce.** An toàn nằm ở SOUL.md/MEMORY.md ("luôn show draft trước khi post", "hỏi trước khi gửi email"). Pi.dev harness **không gate tool call**. "Verified actions" = đã test thật thủ công, không phải pre-action gating. |
+| **OpenClaw / Pi.dev** | **Harness-enforced exec/network/fs guards** (verify từ source `dist/` + `.d.ts`). Exec-approval đa mode `ExecMode: deny\|allowlist\|ask\|auto\|full` + allowlist bền (`~/.openclaw/exec-approvals.json`) + `SafeBinProfile` per-binary (flag được/cấm, số arg) + resolve executable path & chặn wrapper-chain (`policyBlocked`, `blockedWrapper` — chống lách qua `sh -c`). Thêm `fetchWithSsrFGuard` (SSRF) + `@openclaw/fs-safe` (symlink/traversal/owner/outside-workspace) + `command-secret-gateway` (resolve secret cho command, mode enforce/read-only). SOUL.md/persona là *thêm* tầng prompt, KHÔNG phải tầng duy nhất. |
 
 ### 2.2 Khác biệt then chốt: choke-point vs middleware vs prompt
 
@@ -68,18 +80,26 @@ toàn cho autonomous write** thì repo này có cái 3 harness kia *không có*.
   fail-closed; yếu ở chỗ "secure-by-default" không phải mặc định.
 - **Hermes**: guardrail là **regex denylist trên shell command** + OS sandbox. Hermes tự thừa nhận denylist
   trên shell (Turing-complete) là "structurally incomplete". Triết lý: đừng tin in-process, hãy cô lập OS.
-- **OpenClaw**: **không có tầng enforce** — an toàn là chất lượng prompt (SOUL.md).
+- **OpenClaw**: **có tầng enforce thật** (không phải prompt). Guardrail là một *cụm* gate ở tầng infra:
+  `exec-approvals` (per-command, đa mode) + `fetch-guard` (SSRF) + `fs-safe` + `command-secret-gateway`,
+  cộng `account-action-gate` (per-account capability). Khác repo này ở chỗ: nó gate theo **loại tài nguyên**
+  (exec / net / fs / secret) thay vì một choke-point hợp nhất cho mọi mutation-tool; SOUL.md là tầng prompt
+  *phụ thêm*, không thay thế các gate này.
 
-### 2.3 Cái repo này có mà 3 harness kia KHÔNG (hoặc yếu hơn)
+### 2.3 Cái repo này có mà các harness kia KHÔNG nhấn (hoặc yếu hơn)
 
-1. **Lớp A red-line hard-coded, không bao giờ tới LLM.** DeerFlow không có blocklist mặc định; Hermes có
-   hardline nhưng chỉ cho *shell*, không cho mọi tool; OpenClaw không có. → Repo này là cái duy nhất mà
-   "xóa branch / lộ token / public hóa repo" bị chặn ở *kiến trúc*, không phải ở *chỉ dẫn cho LLM*.
-2. **Allowlist-default-deny cho MỌI tool** (không chỉ shell). Chuyển từ denylist sau khi review đối kháng tìm
-   bypass thật (xem journal Phase 0). DeerFlow allowlist là opt-in; Hermes là denylist.
+1. **Lớp A red-line hard-coded, không bao giờ tới LLM, áp cho MỌI mutation-tool.** DeerFlow không có blocklist
+   mặc định; Hermes có hardline nhưng chỉ cho *shell*; **OpenClaw có policy enforce mạnh nhưng tập trung ở
+   exec/net/fs** (không phải một red-line thống nhất cho mọi tool MCP/API). → Repo này độc đáo ở chỗ "xóa
+   branch / lộ token / public hóa repo" bị chặn ở *kiến trúc, trước LLM*, qua **cùng một** cổng cho mọi loại
+   mutation — không phải ở chỗ "có guardrail" (cả OpenClaw cũng có).
+2. **Allowlist-default-deny cho MỌI tool** (không chỉ shell/exec). Chuyển từ denylist sau khi review đối kháng
+   tìm bypass thật (xem journal Phase 0). DeerFlow allowlist là opt-in; Hermes là denylist; OpenClaw allowlist
+   ở tầng exec (`ExecMode=allowlist` + `SafeBinProfile`) — rất mạnh cho shell, nhưng không phủ tool-API chung.
 3. **Lớp B approve-to-EXECUTE.** DeerFlow `ClarificationMiddleware` chỉ *hỏi lại rồi END*; Hermes approval
-   *configurable, không bắt buộc*; OpenClaw là draft-rồi-người-gõ-"ok" ở mức prompt. Repo này: action bị
-   queue, người `approve <id>`, rồi **gateway thật sự execute** action đã duyệt (vẫn qua Lớp A + audit).
+   *configurable, không bắt buộc*; **OpenClaw CÓ approve-to-execute thật** (`ExecMode=ask` + allowlist bền
+   `exec-approvals.json` — giống Lớp B của repo này, và phong phú mode hơn). → Đây là chỗ OpenClaw *ngang
+   hoặc hơn* repo này, không phải kém. (Nhận định cũ "OpenClaw chỉ draft-prompt" là SAI.)
 4. **Secret redaction dùng CHUNG** cho gateway-block = audit-redact = approval-store (1 nguồn, không lệch).
    Hermes lưu full transcript không redact; DeerFlow không có tầng redact global.
 5. **Budget hard-stop + dedup reserve-before-execute.** DeerFlow track token nhưng không hard cap; cả 3 đều
@@ -96,18 +116,26 @@ toàn cho autonomous write** thì repo này có cái 3 harness kia *không có*.
    — nhưng tầng *action* thì red-line hard-coded chặn được (LLM không chọn được việc xóa branch). Phòng thủ
    của repo này là "phạm vi action hẹp + allowlist", không phải "cô lập kẻ tấn công".
 3. **Provider safety-signal handling.** DeerFlow bắt content_filter/refusal của provider; repo này không.
+4. **Network/FS guard tinh vi.** OpenClaw có `fetchWithSsrFGuard` (chống agent gọi internal/metadata URL) +
+   `@openclaw/fs-safe` (chặn symlink-escape, path-traversal, ghi ngoài workspace, file không owner) — repo
+   này **không có** (không cần, vì không exec/fetch tùy ý). Nếu mở scope, đây là thứ phải mượn từ OpenClaw.
 
 ### 2.5 Kết luận trục 1
 
 > Về **kiểm soát autonomous write cho một agent dọc, phạm vi hẹp**, mô hình Action Gateway của repo này
-> **chặt và tường minh hơn** cả ba — nó là cái duy nhất biến red line thành bất biến *kiến trúc* (hard-coded,
-> trước LLM) thay vì *chính sách tùy chọn* (DeerFlow), *heuristic shell* (Hermes), hay *prompt* (OpenClaw).
+> **gọn và tường minh nhất**: nó biến red line thành bất biến *kiến trúc* (hard-coded, trước LLM) qua **một
+> choke-point hợp nhất cho mọi mutation-tool** — khác *chính sách tùy chọn* (DeerFlow) và *heuristic shell*
+> (Hermes). NHƯNG **không phải "cái duy nhất có guardrail thật"**: OpenClaw có safety harness-enforced *tinh
+> vi hơn* ở mặt exec/net/fs (per-binary policy, SSRF guard, fs-safe, approve-to-execute đa mode) — chỉ là nó
+> gate theo *loại tài nguyên* thay vì hợp nhất một cổng. (Đây là điểm bản đầu báo cáo nhận định sai.)
 >
-> Nhưng đây là an toàn **theo chiều sâu hẹp**: nó mạnh vì agent chỉ làm vài việc đã allowlist. Ba harness kia
-> giải bài toán **rộng** (chạy code/shell tùy ý) nên buộc phải dựa vào **sandbox/OS-isolation** — thứ repo
-> này cố tình không làm (YAGNI cho MVP local). Hai cách tiếp cận trả lời hai câu hỏi khác nhau:
-> *"làm sao agent không vượt red line?"* (gateway) vs *"làm sao cô lập agent khỏi hệ thống?"* (sandbox).
-> Một agent general production cần **cả hai**.
+> Khác biệt thật sự còn lại sau khi đính chính:
+> - **Hợp nhất vs phân tán**: repo này = *một* cổng cho mọi mutation (dễ audit "mọi write ở đâu"); OpenClaw =
+>   *cụm* gate theo tài nguyên (mạnh hơn cho shell/net/fs, nhưng không có khái niệm "một điểm cho mọi write").
+> - **Bề rộng**: repo này hẹp (post Slack/Confluence) nên *không cần* sandbox/SSRF/fs-safe; OpenClaw rộng
+>   (shell, fetch, fs) nên *bắt buộc* phải có. DeerFlow/Hermes rộng hơn nữa nên dựa **sandbox/OS-isolation**.
+> - Hai câu hỏi khác nhau: *"agent không vượt red line?"* (gateway hợp nhất, repo này) vs *"cô lập agent +
+>   gate từng tài nguyên nguy hiểm?"* (OpenClaw/DeerFlow/Hermes). Agent general production cần **cả hai**.
 
 ---
 
@@ -120,7 +148,7 @@ toàn cho autonomous write** thì repo này có cái 3 harness kia *không có*.
 | **my-project-manager** | LangGraph StateGraph **tường minh**: `perceive→analyze→compose→deliver`, node cố định, không có agentic-loop ẩn. | Mọi bước agent quyết định *nhìn thấy được trong graph*. Dễ test, dễ audit, dễ resume. Đánh đổi: kém linh hoạt cho task mở (agent không "tự nghĩ ra bước"). Hợp với agent dọc, lịch trình. |
 | **DeerFlow** | LangGraph + `create_agent` (tool-calling loop) + 23 lớp middleware có thứ tự. | Loop linh hoạt (agent tự chọn tool tới khi xong) + middleware tách concern (sandbox, memory, guardrail, summarize…). Mạnh, nhưng nặng: thứ tự 23 lớp là một API mặt phải hiểu. |
 | **Hermes** | ReAct while-loop thuần (không graph). | Đơn giản về cấu trúc, nhưng `conversation_loop.py` ~3,900 dòng — logic dồn vào một loop lớn. Không resume-giữa-turn. |
-| **OpenClaw/Pi.dev** | Gateway HTTP + session loop, harness đóng. | Telegram-first, session `.jsonl` auto-compact. Khó đánh giá sâu (không source). |
+| **OpenClaw/Pi.dev** | Custom harness (Pi.dev) + plugin/channel-contract SDK; session `.jsonl` auto-compact. | Đa kênh thật (~30 channel ext) qua một channel-contract SDK + plugin SDK có contract-testing → kiến trúc extension hoá rất mạnh. Trục là "harness + plugin", không phải graph tường minh. |
 
 **Nhận xét:** Repo này chọn **graph tường minh** đúng cho bài toán của nó (report theo lịch, các bước cố
 định, cần audit + resume). DeerFlow chọn **loop + middleware** vì phải xử lý task mở. Đây không phải "ai
@@ -178,24 +206,33 @@ không vỡ serialize — một lỗi DeerFlow phải xử lý bằng custom red
    audit/test/resume. Nếu control-flow do LLM quyết (task mở) → loop+middleware như DeerFlow.
 4. **State chỉ primitive** là kỷ luật nhỏ tránh được lớp phức tạp (custom reducer) mà harness lớn phải gánh.
 5. **Approve-to-execute phải execute thật** — bài học Phase 5: một "approval" chỉ authorize mà không dispatch
-   là approval giả. Cả Hermes có approval-gate thật; OpenClaw chỉ dừng ở draft-prompt.
+   là approval giả. Hermes **và OpenClaw** đều có approval-gate thật (OpenClaw `ExecMode=ask` + allowlist bền
+   là tham chiếu tốt cho ai muốn làm phong phú hơn mô hình Lớp B 2-trạng-thái của repo này).
 
 ---
 
 ## 5. Định vị một dòng
 
-**`my-project-manager`** = *"agent dọc nhỏ nhất với mô hình kiểm soát write tường minh nhất"*. Nó không cạnh
+**`my-project-manager`** = *"agent dọc nhỏ nhất với guardrail-write HỢP NHẤT tường minh nhất"*. Nó không cạnh
 tranh bề rộng với DeerFlow/Hermes/OpenClaw — nó **chứng minh một luận điểm**: có thể cho LLM full autonomous
 write mà vẫn an toàn, **không cần sandbox**, nếu (a) phạm vi action hẹp + allowlist, (b) red line hard-coded
-trước LLM, (c) mọi write qua 1 cổng có audit. Ba harness kia mạnh hơn nhiều về năng lực, nhưng **không cái
-nào đặt luận điểm đó làm trục** — đó là lý do repo này đáng đọc như tài liệu học *về guardrail*, dù nhỏ.
+trước LLM, (c) **mọi write qua MỘT cổng có audit**. Điểm khác biệt sau khi đính chính không phải "có guardrail"
+(OpenClaw cũng có, còn tinh vi hơn ở exec/net/fs) mà là **sự HỢP NHẤT**: gom mọi mutation về một choke-point
+duy nhất với red-line bất biến — gọn nhất, dễ audit "mọi write ở đâu" nhất, dễ dạy nhất. Các harness kia gate
+mạnh hơn nhưng *phân tán theo tài nguyên* hoặc *dựa sandbox*. Đó là lý do repo này đáng đọc như tài liệu học
+*về một pattern guardrail cụ thể*, dù nhỏ — không phải vì nó "an toàn hơn", mà vì nó "hợp nhất + tường minh hơn".
 
 ---
 
 ## Unresolved / giới hạn của đánh giá này
 
-1. **OpenClaw/Pi.dev chỉ đánh giá qua docs** (không có source engine trên máy) — kết luận về nó là *as
-   documented*, có thể engine thật làm nhiều hơn docs ghi.
-2. **Chưa benchmark hiệu năng/độ tin cậy thực tế** giữa 4 — so sánh ở mức kiến trúc + cơ chế, không phải số
-   liệu chạy.
-3. **DeerFlow/Hermes liên tục phát triển** — số liệu (LOC, số middleware) là snapshot tại thời điểm khảo sát.
+1. **OpenClaw đánh giá từ `dist/` đã build + `.d.ts`** (không phải `src/` gốc — npm package chỉ ship
+   templates trong `src/`). Đủ để đọc chính xác *cơ chế* (tên symbol, type, mode) nhưng chưa đọc *luồng thực
+   thi đầy đủ*; ví dụ budget cap / rate-limit / dedup của OpenClaw chưa khảo sát rõ (đánh dấu "chưa rõ" trong
+   bảng, không kết luận là "không có").
+2. **Bài học lớn của chính báo cáo này:** bản đầu kết luận OpenClaw "no harness guardrail, persona-prompt only"
+   vì tìm source trượt (nó cài qua npm global, không phải `~/workspace`; `find ~` cho `*openclaw*` rỗng do
+   tên package không khớp). → *Khi không tìm thấy source, "không có source" KHÔNG đồng nghĩa "không có tính
+   năng"* — phải tìm cả npm/pip global, `/opt`, dotdir trước khi kết luận.
+3. **Chưa benchmark hiệu năng/độ tin cậy thực tế** giữa 4 — so ở mức kiến trúc + cơ chế, không phải số liệu chạy.
+4. **DeerFlow/Hermes/OpenClaw liên tục phát triển** — số liệu (LOC, mode, số middleware) là snapshot lúc khảo sát.

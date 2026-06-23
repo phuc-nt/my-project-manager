@@ -9,6 +9,7 @@
 - Thread `config: ReportingConfig` + `settings: Settings` làm tham số tường minh qua toàn bộ call graph: store (audit/dedup/approval nhận path), BudgetTracker/LlmClient/ActionGateway nhận Settings, 3 graph factory + tool fetcher + section helper nhận config+settings, entrypoint build 1 lần rồi inject xuống.
 - Handler Slack/Confluence dựng qua closure factory (`make_slack_post_handler`/`make_create_page_handler`) → server spec mang token KHÔNG vào audit log / approval queue.
 - 282 test xanh, ruff sạch ở mọi slice. Guardrail chain (Lớp A/B, audit, budget, dedup) không đổi — P1 chỉ là plumbing.
+- **E2E data thật** (2026-06-23): `report --daily` + `--okr` chạy hết luồng qua code config-injection mới — đọc Jira (21 issue) + Confluence OKR page (98466) + map epic thật, LLM thật, tạo **2 Confluence page thật** (851969 daily, 884737 okr), Slack post **thật** sau Lớp B approve (ts thật). Dedup chặn page trùng khi re-run. Token không rò vào audit/queue. 0 NameError sau xóa singleton.
 
 ## Quyết định & vì sao
 
@@ -26,6 +27,7 @@
 - **Rename `cfg`→`config` sót 2 chỗ** ở delivery path daily/weekly → `NameError`, test giả-writer che mất, **ruff bắt** (F821). Bài học: ruff là lưới chót cho rename khi test mock writer.
 - **`from_dict` rò `get_reporting_config()` chỉ trong docstring** vẫn làm grep-gate đỏ → phải sửa cả văn docstring, không chỉ code.
 - Review tìm 2 finding non-blocking (audit eager-build + test `*_no_key` không clear SLACK env) → vá luôn trong slice, không hoãn.
+- **E2E: `approve` kế thừa `DRY_RUN` từ `.env`.** Approve ở process riêng đọc lại `.env` (DRY_RUN=true) → lần approve đầu trả `[dry-run] would run`, KHÔNG post. Đúng behavior (dry-run là kill toàn cục cho write) nhưng dễ nhầm khi vận hành. Phải `DRY_RUN=false uv run ... approve <id>` mới post thật. v2 nên cảnh báo rõ hoặc tách dry-run khỏi approve path.
 
 ## Mở / sang sau
 

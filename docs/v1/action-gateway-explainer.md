@@ -98,7 +98,7 @@ adversarial code review found real bypasses — secrets leaking into the immutab
 free text, `gh api` doing implicit-POST writes, glued-verb commands sneaking past string matches.
 A denylist lets through everything you didn't think to forbid, which is exactly the wrong default
 for a red line. We switched to allowlist + Lớp-A-first. The full story is in
-[the Phase 0 journal](journals/260621-phase-0-scaffold.md) — it's a good lesson in why "secure by
+[the Phase 0 journal](../journals/260621-phase-0-scaffold.md) — it's a good lesson in why "secure by
 default" means *deny* by default.
 
 ## The supporting guarantees
@@ -132,7 +132,7 @@ These are the bugs adversarial review caught *after* the design looked done — 
   was clean, but it *linked* a Confluence page that still exposed per-person workload + cost. The leak
   was one click away. Sanitize the whole reachable surface, not just the immediate output.
 
-Each is written up in [the journals](journals/) under "Vấp & học được" (what broke → what we learned).
+Each is written up in [the journals](../journals/) under "Vấp & học được" (what broke → what we learned).
 
 ## How to read the code
 

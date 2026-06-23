@@ -16,10 +16,17 @@ import logging
 import sys
 
 from src.agent.checkpoint import get_checkpointer
-from src.config.config_builders import (
-    build_reporting_config_from_env,
-    build_settings_from_env,
-)
+from src.profile.context import ProfileContext
+from src.profile.loader import load_profile
+
+
+def _profile_id(args: list[str]) -> str:
+    """`--profile <id>` → id; default `default` (the v1-equivalent agent)."""
+    if "--profile" in args:
+        i = args.index("--profile")
+        if i + 1 < len(args):
+            return args[i + 1]
+    return "default"
 
 
 def _report_kind(args: list[str]) -> str:
@@ -42,21 +49,30 @@ def _audience(args: list[str]) -> str:
     return "internal"
 
 
-def _build_graph(report_kind: str, audience: str, settings, config):
+def _build_graph(report_kind: str, audience: str, settings, config, context):
     """Build the graph for a report kind (mirrors the CLI dispatch)."""
     cp = get_checkpointer(settings.data_dir / "checkpoints.db")
     if report_kind == "resource":
         from src.agent.resource_report_graph import build_resource_graph
 
-        return build_resource_graph(cp, config=config, settings=settings, audience=audience)
+        return build_resource_graph(
+            cp, config=config, settings=settings, context=context, audience=audience
+        )
     if report_kind == "okr":
         from src.agent.okr_report_graph import build_okr_graph
 
-        return build_okr_graph(cp, config=config, settings=settings, audience=audience)
+        return build_okr_graph(
+            cp, config=config, settings=settings, context=context, audience=audience
+        )
     from src.agent.report_graph import build_report_graph
 
     return build_report_graph(
-        cp, config=config, settings=settings, report_kind=report_kind, audience=audience
+        cp,
+        config=config,
+        settings=settings,
+        context=context,
+        report_kind=report_kind,
+        audience=audience,
     )
 
 
@@ -66,8 +82,16 @@ def main(argv: list[str] | None = None) -> int:
     report_kind = _report_kind(args)
     audience = _audience(args)
 
-    settings = build_settings_from_env()
-    config = build_reporting_config_from_env()
+    try:
+        loaded = load_profile(_profile_id(args))
+    except (FileNotFoundError, RuntimeError) as exc:
+        # Bad --profile id OR a config error in the profile → clean exit, no traceback.
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    settings, config = loaded.settings, loaded.config
+    context = ProfileContext(
+        persona=loaded.soul, project=loaded.project, memory=loaded.memory
+    )
 
     if not settings.openrouter_api_key:
         print("OPENROUTER_API_KEY is not set; cannot run scheduled report.", file=sys.stderr)
@@ -75,7 +99,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # An external cron → Lớp B → pending_approval → delivered=True (queued is success),
     # but NOT posted until a human approves: the correct guardrail for stakeholder updates.
-    graph = _build_graph(report_kind, audience, settings, config)
+    graph = _build_graph(report_kind, audience, settings, config, context)
     result = graph.invoke(
         {}, config={"configurable": {"thread_id": f"cron-{report_kind}-{audience}"}}
     )

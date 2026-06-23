@@ -162,6 +162,15 @@ def test_parse_report_kind_okr():
     assert _parse_report_kind(["--okr", "--weekly"]) == "okr"  # okr precedence
 
 
+def _fake_loaded(tmp_path, *, api_key):
+    """A minimal LoadedProfile stand-in for CLI dispatch tests (no real profile dir)."""
+    settings = type("S", (), {"openrouter_api_key": api_key, "data_dir": tmp_path})()
+    return type(
+        "LP", (),
+        {"settings": settings, "config": object(), "soul": "", "project": "", "memory": ""},
+    )()
+
+
 def test_cli_report_okr_dispatch(monkeypatch, tmp_path):
     """`report --okr` builds the OKR graph (not the daily/weekly one)."""
     import src.agent.okr_report_graph as okr_graph_mod
@@ -175,13 +184,11 @@ def test_cli_report_okr_dispatch(monkeypatch, tmp_path):
             return {"report_text": "<p>ok</p>", "cost_usd": None,
                     "delivered": True, "delivery_summary": "s"}
 
-    fake_settings = type("S", (), {"openrouter_api_key": "k", "data_dir": tmp_path})()
-    monkeypatch.setattr(cli, "build_settings_from_env", lambda: fake_settings)
-    monkeypatch.setattr(cli, "build_reporting_config_from_env", lambda: object())
+    monkeypatch.setattr(cli, "load_profile", lambda pid: _fake_loaded(tmp_path, api_key="k"))
     monkeypatch.setattr(cli, "_checkpointer", lambda settings: None)
     monkeypatch.setattr(
         okr_graph_mod, "build_okr_graph",
-        lambda cp, *, config=None, settings=None, audience="internal": _FakeGraph(),
+        lambda cp, *, config=None, settings=None, context=None, audience="internal": _FakeGraph(),
     )
 
     rc = cli.main(["report", "--okr"])
@@ -193,8 +200,6 @@ def test_audit_command_still_works_without_key(monkeypatch, tmp_path):
     """Regression: non-LLM commands must not require a key after the --okr change."""
     from src.entrypoints import cli
 
-    fake_settings = type("S", (), {"openrouter_api_key": None, "data_dir": tmp_path})()
-    monkeypatch.setattr(cli, "build_settings_from_env", lambda: fake_settings)
-    monkeypatch.setattr(cli, "build_reporting_config_from_env", lambda: object())
+    monkeypatch.setattr(cli, "load_profile", lambda pid: _fake_loaded(tmp_path, api_key=None))
     rc = cli.main(["audit", "--limit", "1"])
     assert rc == 0  # runs without a key

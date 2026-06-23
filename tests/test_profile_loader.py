@@ -31,6 +31,9 @@ def clean_env(monkeypatch):
     """Clear all builder-read env + block .env load so default == from_env is exact."""
     for k in _ALL_ENV:
         monkeypatch.delenv(k, raising=False)
+    # Block .env load in all three spots that call it (loader + both env builders), so
+    # the cleared process env is the only source and default == from_env is exact.
+    monkeypatch.setattr("src.profile.loader.load_dotenv", lambda *a, **k: None)
     monkeypatch.setattr("src.config.config_builders.load_dotenv", lambda *a, **k: None)
     monkeypatch.setattr("src.config.config_builders_reporting.load_dotenv", lambda *a, **k: None)
 

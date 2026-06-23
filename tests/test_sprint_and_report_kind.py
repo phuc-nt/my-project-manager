@@ -131,9 +131,11 @@ def test_cron_no_key_returns_one(monkeypatch, tmp_path):
 
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     # Also clear stakeholder/external channel vars so a CI runner that exports a
-    # mismatched pair can't make the always-on config build error before the key gate.
+    # mismatched pair can't make the config build error before the key gate.
     monkeypatch.delenv("SLACK_STAKEHOLDER_CHANNEL", raising=False)
     monkeypatch.delenv("SLACK_EXTERNAL_CHANNELS", raising=False)
     monkeypatch.setattr(settings_mod, "REPO_ROOT", tmp_path)  # empty dir -> no .env
+    # The profile loader load_dotenv's the real .env; block it so no key is seen.
+    monkeypatch.setattr("src.profile.loader.load_dotenv", lambda *a, **k: None)
     assert cron_main(["--weekly"]) == 1
     assert cron_main(["--daily"]) == 1

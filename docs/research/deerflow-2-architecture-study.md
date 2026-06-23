@@ -1,5 +1,12 @@
 # DeerFlow 2.0 Technical Architecture Report
 
+> ⚠️ **External study notes — NOT this project.** This is a read-only analysis of
+> **DeerFlow 2.0 (ByteDance)**, a separate third-party production LangGraph harness, kept here
+> as a learning reference for *patterns* (sub-agent execution, middleware, memory). It does
+> **not** describe `my-project-manager`'s own architecture — for that, see
+> [../system-architecture.md](../system-architecture.md). We studied these patterns; we did
+> not copy the code. Any local filesystem paths below refer to the original author's machine.
+
 **Date**: 2026-06-20  
 **Target**: DeerFlow 2.0 (ByteDance) ground-up rewrite  
 **Scope**: Read-only codebase analysis for multi-agent harness architects

@@ -21,6 +21,7 @@ import sys
 _USAGE = (
     "usage: python -m src.entrypoints.mpm agent "
     "list | register <id> | run <id> --report <kind> [--audience ...] [--dry-run] | "
+    "resume <id> <thread_id> --decision approve|reject | "
     "approvals <id> | approve <id> <approval-id> | reject <id> <approval-id> | audit <id> [filters]"
 )
 
@@ -54,6 +55,10 @@ def main(argv: list[str] | None = None) -> int:
         from src.entrypoints.mpm_run_cmd import run_agent
 
         return run_agent(rest)
+    if sub == "resume":
+        from src.entrypoints.mpm_resume_cmd import run_resume
+
+        return run_resume(rest)
     if sub in {"approvals", "approve", "reject", "audit"}:
         from src.entrypoints.mpm_manage_cmds import run_manage
 

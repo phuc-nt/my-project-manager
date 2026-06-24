@@ -1,0 +1,7 @@
+# Agent registry — the coordinating service reads this to know which agents exist.
+# IDs only (no secrets); committed. Path for each agent = profiles/<id>/.
+# enabled: false ⇒ the service skips the agent. An agent also needs profile.yaml
+# enabled: true to run (registry is the master switch, the profile is a second gate).
+agents:
+  - id: default
+    enabled: true

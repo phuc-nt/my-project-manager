@@ -14,7 +14,6 @@ untested wrapper over the unit-tested `run_tick`.
 
 from __future__ import annotations
 
-import json
 import logging
 import subprocess  # noqa: S404 — spawning the worker is the service's whole job
 import sys
@@ -23,8 +22,8 @@ from collections.abc import Callable
 from datetime import datetime
 
 from src.profile.loader import load_profile
-from src.runtime.agent_paths import agent_data_dir
 from src.runtime.registry import load_registry
+from src.runtime.run_event import read_last_run_event
 from src.runtime.scheduler import due_reports
 
 logger = logging.getLogger(__name__)
@@ -70,17 +69,13 @@ def _supervise(spawn: Spawn, argv: list[str], *, timeout: int) -> dict:
 
 
 def _last_run_event(agent_id: str) -> dict | None:
-    """Read the last line of the agent's runs.jsonl (the just-finished run's detail)."""
-    path = agent_data_dir(agent_id) / "runs.jsonl"
-    if not path.exists():
-        return None
-    lines = [ln for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
-    if not lines:
-        return None
-    try:
-        return json.loads(lines[-1])
-    except json.JSONDecodeError:
-        return None
+    """Read the last line of the agent's runs.jsonl (the just-finished run's detail).
+
+    Thin wrapper over the shared `run_event.read_last_run_event` (M2-P6 lifted the
+    body there so the web service does not import a service-private). Kept as a name
+    so existing callers/tests that patch `service._last_run_event` are unaffected.
+    """
+    return read_last_run_event(agent_id)
 
 
 class Service:

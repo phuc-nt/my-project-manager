@@ -5,6 +5,7 @@ description = "Autonomous LangGraph agent that automates PM/SM/Team-Lead work ac
 requires-python = ">=3.12"
 dependencies = [
     "croniter>=6.2.2",
+    "fastapi>=0.136",
     "langchain-core>=1.4.8",
     "langchain-mcp-adapters==0.3.0",
     "langgraph>=1.2.6",
@@ -13,6 +14,8 @@ dependencies = [
     "pydantic>=2.13.4",
     "python-dotenv>=1.2.2",
     "pyyaml>=6.0.3",
+    "sse-starlette>=2.1",
+    "uvicorn>=0.34",
 ]
 
 [build-system]

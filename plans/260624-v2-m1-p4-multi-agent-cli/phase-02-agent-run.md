@@ -1,6 +1,6 @@
 # Phase 2 — `agent run` (spawn the worker subprocess)
 
-> Status: pending. Slice 2 of [plan.md](plan.md). Depends on Slice 1 (`mpm.py` dispatch shell).
+> Status: DONE (ed2ed02). Slice 2 of [plan.md](plan.md). Depends on Slice 1 (`mpm.py` dispatch shell).
 > Adds `mpm agent run <id> --report <kind> [--audience …]` — spawns the P3 worker subprocess
 > (the SAME argv shape the coordinating service uses), waits, collects the exit code + the last
 > `runs.jsonl` line, prints the outcome. The spawn fn is **injectable** so the test asserts the

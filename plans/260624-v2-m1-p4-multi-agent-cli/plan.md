@@ -1,12 +1,13 @@
 ---
 title: "v2 M1-P4 — Multi-agent CLI (mpm agent ...)"
 description: "A thin multi-agent CLI surface over the P3 primitives — closing Milestone 1. Slice 1: `mpm.py` skeleton + dispatch + `agent list` (read registry + last run-event) + `agent register` (scaffold profiles/<id>/ from the default template + text-append registry block, idempotent). Slice 2: `agent run` (spawn the P3 worker subprocess via an injectable spawn fn, collect exit code + last runs.jsonl line). Slice 3: per-agent Lớp B management `agent approvals/approve/reject/audit` built at the agent's OWN .data/agents/<id>/ — the gap-closer cli.py left open — plus a one-line legacy pointer in cli.py. Almost no new business logic: argument parsing + dispatch + per-agent store access. Additive (cli.py/cron.py kept). Mode = auto, commit per slice."
-status: pending
+status: completed
 priority: P4
 effort: 8h
 branch: main
 tags: [v2, m1, p4, cli, multi-agent, mpm, registry, worker, subprocess, per-agent-isolation, lop-b, approvals, audit, register, scaffold, gap-closer, additive]
 created: 2026-06-24
+completed: 2026-06-24
 ---
 
 # v2 M1-P4 — Multi-agent CLI (`mpm agent ...`)
@@ -106,9 +107,9 @@ sequential commits don't conflict.
 
 | # | Slice | Phase file | Status | Commit | Depends on |
 |---|-------|-----------|--------|--------|-----------|
-| 1 | **Skeleton + `agent list` + `agent register`.** `src/entrypoints/mpm.py` (dispatch shell) + `src/entrypoints/mpm_registry_cmds.py` (`list` reads registry + last run-event; `register` scaffolds `profiles/<id>/` from the default template + text-appends a registry block, idempotent + id-validated). Read-only + scaffold — **provable fully offline, no worker spawn**. | [phase-01-skeleton-list-register.md](phase-01-skeleton-list-register.md) | pending | — | P1–P3 (done) |
-| 2 | **`agent run` (spawn the worker subprocess).** `src/entrypoints/mpm_run_cmd.py` — build the worker argv (the P3 service's shape), spawn via an **injectable** spawn fn, wait, collect exit code + last `runs.jsonl` line, print the outcome. Test asserts the exact argv + a fake exit/run-event — NO real process. Adds one router branch in `mpm.py`. | [phase-02-agent-run.md](phase-02-agent-run.md) | pending | — | 1 |
-| 3 | **Per-agent Lớp B management (the gap-closer) + cli.py legacy note.** `src/entrypoints/mpm_manage_cmds.py` — `approvals`/`approve`/`reject`/`audit` built at `agent_data_dir(<id>)` so they read the agent's OWN `approvals.db` / `audit.jsonl` (NOT the global one). Reuses `make_slack_post_handler` for approve dispatch. Adds the router branch in `mpm.py` + a one-line `mpm agent` pointer in `cli.py`'s usage. | [phase-03-per-agent-management.md](phase-03-per-agent-management.md) | pending | — | 1 |
+| 1 | **Skeleton + `agent list` + `agent register`.** `src/entrypoints/mpm.py` (dispatch shell) + `src/entrypoints/mpm_registry_cmds.py` (`list` reads registry + last run-event; `register` scaffolds `profiles/<id>/` from the default template + text-appends a registry block, idempotent + id-validated). Read-only + scaffold — **provable fully offline, no worker spawn**. | [phase-01-skeleton-list-register.md](phase-01-skeleton-list-register.md) | DONE | `94604b7` | P1–P3 (done) |
+| 2 | **`agent run` (spawn the worker subprocess).** `src/entrypoints/mpm_run_cmd.py` — build the worker argv (the P3 service's shape), spawn via an **injectable** spawn fn, wait, collect exit code + last `runs.jsonl` line, print the outcome. Test asserts the exact argv + a fake exit/run-event — NO real process. Adds one router branch in `mpm.py`. | [phase-02-agent-run.md](phase-02-agent-run.md) | DONE | `ed2ed02` | 1 |
+| 3 | **Per-agent Lớp B management (the gap-closer) + cli.py legacy note.** `src/entrypoints/mpm_manage_cmds.py` — `approvals`/`approve`/`reject`/`audit` built at `agent_data_dir(<id>)` so they read the agent's OWN `approvals.db` / `audit.jsonl` (NOT the global one). Reuses `make_slack_post_handler` for approve dispatch. Adds the router branch in `mpm.py` + a one-line `mpm agent` pointer in `cli.py`'s usage. | [phase-03-per-agent-management.md](phase-03-per-agent-management.md) | DONE | `8be3e71` | 1 |
 
 **Dependency graph: 1 → 2, 1 → 3** (2 and 3 both depend only on 1; they can land in either
 order — they touch disjoint files except the `mpm.py` router, which gets one distinct branch

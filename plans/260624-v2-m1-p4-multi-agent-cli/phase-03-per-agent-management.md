@@ -1,6 +1,6 @@
 # Phase 3 — Per-agent Lớp B management (`approvals/approve/reject/audit`) + cli.py note
 
-> Status: pending. Slice 3 of [plan.md](plan.md). Depends on Slice 1 (`mpm.py` dispatch shell).
+> Status: DONE (8be3e71). Slice 3 of [plan.md](plan.md). Depends on Slice 1 (`mpm.py` dispatch shell).
 > **The gap-closer:** `cli.py`'s approval/audit commands read the GLOBAL `.data/`; after the P3
 > migration that's stale. This slice adds the per-agent equivalents that build the gateway /
 > audit-log at `agent_data_dir(<id>)`, so Lớp B management + audit finally point at the migrated

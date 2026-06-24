@@ -1,6 +1,6 @@
 # Phase 1 — `mpm` skeleton + `agent list` + `agent register`
 
-> Status: pending. Slice 1 of [plan.md](plan.md). Depends on P1–P3 (done). Ships the new
+> Status: DONE (94604b7). Slice 1 of [plan.md](plan.md). Depends on P1–P3 (done). Ships the new
 > multi-agent entrypoint `python -m src.entrypoints.mpm` with its dispatch shell + the first
 > two read-only/scaffold commands. **Fully offline, no worker spawn** — provable with a tmp
 > profiles dir + a tmp registry + tmp per-agent data dirs. Additive: `cli.py`/`cron.py`

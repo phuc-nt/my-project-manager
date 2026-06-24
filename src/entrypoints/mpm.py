@@ -54,6 +54,10 @@ def main(argv: list[str] | None = None) -> int:
         from src.entrypoints.mpm_run_cmd import run_agent
 
         return run_agent(rest)
+    if sub in {"approvals", "approve", "reject", "audit"}:
+        from src.entrypoints.mpm_manage_cmds import run_manage
+
+        return run_manage(sub, rest)
 
     print(f"error: unknown subcommand {sub!r}.\n{_USAGE}", file=sys.stderr)
     return 2

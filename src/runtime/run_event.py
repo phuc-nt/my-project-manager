@@ -25,3 +25,24 @@ def append_run_event(data_dir: Path, event: dict[str, Any]) -> None:
     line = json.dumps(event, ensure_ascii=False)
     with (data_dir / "runs.jsonl").open("a", encoding="utf-8") as fh:
         fh.write(line + "\n")
+
+
+def read_last_run_event(agent_id: str) -> dict[str, Any] | None:
+    """Return the last run-event dict for an agent (or None if no runs yet).
+
+    Reads the final non-empty line of `<agent data dir>/runs.jsonl`. Shared by the
+    coordinating service (outcome detail) and the M2-P6 web service (agent status),
+    so neither imports a private helper. A malformed last line returns None.
+    """
+    from src.runtime.agent_paths import agent_data_dir
+
+    path = agent_data_dir(agent_id) / "runs.jsonl"
+    if not path.exists():
+        return None
+    lines = [ln for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    if not lines:
+        return None
+    try:
+        return json.loads(lines[-1])
+    except json.JSONDecodeError:
+        return None

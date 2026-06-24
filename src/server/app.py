@@ -16,17 +16,24 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
-from src.server import routes_agents
+from src.server import routes_agents, routes_runs
+from src.server.run_manager import RunManager
 
 
 def create_app() -> FastAPI:
-    """Build the FastAPI app with the agent routers mounted."""
+    """Build the FastAPI app with the agent routers + the per-process run manager.
+
+    ONE `RunManager` lives on `app.state` for the process lifetime (single event loop
+    ⇒ its concurrency bookkeeping is race-free without a lock).
+    """
     app = FastAPI(
         title="my-project-manager — agent web service",
         description="Localhost-only multi-agent dashboard backend (no auth).",
         version="0.0.0",
     )
+    app.state.run_manager = RunManager()
     app.include_router(routes_agents.router)
+    app.include_router(routes_runs.router)
     return app
 
 

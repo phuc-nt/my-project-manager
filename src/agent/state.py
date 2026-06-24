@@ -35,3 +35,7 @@ class ReportState(TypedDict, total=False):
     cost_usd: float | None
     delivered: bool
     delivery_summary: str  # e.g. "confluence=executed slack=executed url=..."
+    # M2-P5: the Lớp B resume decision ("approve" | "reject") written by the
+    # `approval_gate` node after a graph-native interrupt resumes. Unset on the
+    # internal (pass-through) path. Primitive ⇒ checkpoint-safe.
+    approval_decision: str

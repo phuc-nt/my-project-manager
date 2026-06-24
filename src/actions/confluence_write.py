@@ -107,12 +107,15 @@ def create_report_page(
     config: ReportingConfig,
     report_date: str,
     rationale: str = "",
+    approved: bool = False,
 ) -> tuple[GatewayResult, ConfluencePage | None]:
     """Create the detail report page through the gateway.
 
     Returns the gateway result plus the parsed page (id + URL) when executed.
     Idempotent per (space, date) so a re-run the same day does not duplicate.
     `config` is injected so this writer never reads a config singleton.
+    `approved=True` (M2-P5 graph interrupt resume) runs the already-human-approved
+    path — skips the Lớp B enqueue; Lớp A + audit + dedup still apply.
     """
     space_id = config.confluence_space_id
     if not space_id:
@@ -128,7 +131,10 @@ def create_report_page(
         "dedup_hint": f"confluence-report:{config.confluence_space_key}:{report_date}",
     }
     handler = make_create_page_handler(config)
-    result = gateway.execute(action, handler=handler, rationale=rationale)
+    if approved:
+        result = gateway.execute_approved(action, handler=handler, rationale=rationale)
+    else:
+        result = gateway.execute(action, handler=handler, rationale=rationale)
 
     page = None
     if result.status == "executed":

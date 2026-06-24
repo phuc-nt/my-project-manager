@@ -20,6 +20,7 @@ from langgraph.graph.state import CompiledStateGraph
 
 from src.actions.action_gateway import ActionGateway
 from src.actions.slack_write import deliver_report
+from src.agent.approval_gate import add_approval_gate, external_summary
 from src.agent.risk_analyzer import analyze
 from src.agent.state import ReportState
 from src.llm.client import LlmClient
@@ -47,7 +48,9 @@ class ReportDeps:
     fetch_ci: Callable[[], list[CiRun]]
     analyze_risks: Callable[[list[Issue], list[PullRequest], list[CiRun]], list[Risk]]
     compose: Callable[[list[Risk]], tuple[str, float | None]]
-    deliver: Callable[[list[Risk], str], tuple[bool, str]]
+    # `approved` (M2-P5): True when the graph resumed past the Lớp B interrupt with an
+    # approve decision — the writers then run the gateway's already-approved path.
+    deliver: Callable[..., tuple[bool, str]]
 
 
 def _today_utc() -> date:
@@ -130,7 +133,7 @@ def default_report_deps(
             body += weekly_resource_section(today, config, settings)
         return body, result.cost_usd
 
-    def _deliver(risks: list[Risk], detail_body: str) -> tuple[bool, str]:
+    def _deliver(risks: list[Risk], detail_body: str, approved: bool = False) -> tuple[bool, str]:
         from src.agent.audience_delivery import (
             SLACK_OK_STATUSES,
             delivery_summary,
@@ -141,6 +144,7 @@ def default_report_deps(
         channel, date_hint = resolve_audience_delivery(audience, report_kind, today, config)
         title = f"{REPORT_TITLES.get(report_kind, 'Báo cáo')} {today}"
         # 1) Confluence detail page (through the gateway). dedup keyed per kind+audience+date.
+        # `approved` runs the already-human-approved path after a graph-interrupt resume.
         conf_result, page = create_report_page(
             title,
             detail_body,
@@ -148,6 +152,7 @@ def default_report_deps(
             config=config,
             report_date=date_hint,
             rationale=f"scheduled {report_kind} progress report (detail, {audience})",
+            approved=approved,
         )
         detail_url = page.url if page else None
         # 2) Slack short message + link (through the gateway), derived from risks.
@@ -167,6 +172,7 @@ def default_report_deps(
             channel=channel,
             report_date=date_hint,
             rationale=f"{report_kind} progress report (short + link, {audience})",
+            approved=approved,
         )
         ok = (
             conf_result.status in {"executed", "dry_run"}
@@ -210,7 +216,13 @@ def _make_nodes(deps: ReportDeps):
         return {"report_text": text, "cost_usd": cost}
 
     def deliver(state: ReportState) -> dict:
-        delivered, summary = deps.deliver(box.get("risks", []), state.get("report_text", ""))
+        # When the graph reached `deliver` via the approval_gate's approve branch
+        # (M2-P5), the human already authorized this external post at the interrupt —
+        # run the gateway's already-approved path so it posts live (not re-queued).
+        approved = state.get("approval_decision") == "approve"
+        delivered, summary = deps.deliver(
+            box.get("risks", []), state.get("report_text", ""), approved
+        )
         return {"delivered": delivered, "delivery_summary": summary}
 
     return perceive, analyze_node, compose_report, deliver
@@ -264,6 +276,13 @@ def build_report_graph(
     builder.add_edge(START, "perceive")
     builder.add_edge("perceive", "analyze")
     builder.add_edge("analyze", "compose_report")
-    builder.add_edge("compose_report", "deliver")
+    # M2-P5: Lớp B graph-native interrupt. The gate sits between compose and deliver;
+    # external audience pauses here for human approval (resume routes to deliver/END).
+    # Internal audience is a pass-through, so the edge is effectively compose→deliver.
+    add_approval_gate(
+        builder,
+        audience=audience,
+        summary=external_summary(report_kind, audience, config),
+    )
     builder.add_edge("deliver", END)
     return builder.compile(checkpointer=checkpointer)

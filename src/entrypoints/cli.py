@@ -27,6 +27,25 @@ def _checkpointer(settings):
     return get_checkpointer(settings.data_dir / "checkpoints.db")
 
 
+def _warn_if_migrated_to_per_agent() -> None:
+    """Warn that this single-agent CLI is stale once the worker has migrated stores.
+
+    P3's worker moves the v1 stores into `.data/agents/default/`. This CLI still reads
+    the global `.data/`, so after a worker run its `audit`/`approvals` would show
+    nothing — surface that instead of letting it read like data loss. (The per-agent
+    view is the worker / the `mpm agent` CLI in P4.)
+    """
+    from src.config.settings import DATA_DIR
+
+    if (DATA_DIR / "agents" / "default").exists() and not (DATA_DIR / "audit").exists():
+        print(
+            "note: stores have been migrated to .data/agents/default/ (multi-agent mode). "
+            "This single-agent CLI reads the legacy .data/ and may show no audit/approvals; "
+            "use the per-agent worker for the migrated data.",
+            file=sys.stderr,
+        )
+
+
 def _parse_profile(args: list[str]) -> str:
     """`--profile <id>` → id; default `default` (the v1-equivalent agent)."""
     return _flag_value(args, "--profile") or _DEFAULT_PROFILE
@@ -248,6 +267,8 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
+
+    _warn_if_migrated_to_per_agent()
 
     # The profile (default `default` = v1) is the single config source: it yields
     # settings + reporting config + the persona/project/memory context. A bad

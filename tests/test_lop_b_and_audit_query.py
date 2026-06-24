@@ -89,6 +89,42 @@ def test_reject(settings_factory, tmp_path):
         gw.approve(queued.approval_id, handler=lambda a: "x")  # not pending anymore
 
 
+# --- M2-P5: execute_approved (graph-interrupt resume runs live, not re-queued) ---
+
+
+def test_execute_approved_runs_live_not_requeued(settings_factory, tmp_path):
+    # A Lớp B action via execute_approved must run NOW (human approved at the graph
+    # interrupt), NOT enqueue a second pending_approval. This is the C1 fix.
+    gw = _gw(settings_factory, tmp_path, dry_run=False)
+    posted = []
+    result = gw.execute_approved(MERGE, handler=lambda a: posted.append(a) or "MERGED")
+    assert result.status == "executed"
+    assert len(posted) == 1
+    assert gw.pending_approvals() == []  # nothing queued
+
+
+def test_execute_approved_still_blocked_by_lop_a(settings_factory, tmp_path):
+    # The approve-bypass passes a NOT_ALLOWLISTED block, but a real Lớp A hard-deny
+    # (data loss) is NEVER overridable, even when approved.
+    gw = _gw(settings_factory, tmp_path, dry_run=False)
+    with pytest.raises(HardBlockedError):
+        gw.execute_approved({"type": "gh_cli", "argv": ["push", "--force"]},
+                            handler=lambda a: "x")
+    assert gw.pending_approvals() == []
+
+
+def test_execute_approved_dedup_blocks_double_post(settings_factory, tmp_path):
+    # Resuming twice (double-approve) must not double-execute: dedup reserves the key.
+    gw = _gw(settings_factory, tmp_path, dry_run=False)
+    posted = []
+    a = dict(MERGE, dedup_hint="merge-42-once")
+    first = gw.execute_approved(a, handler=lambda x: posted.append(x) or "MERGED")
+    second = gw.execute_approved(a, handler=lambda x: posted.append(x) or "MERGED")
+    assert first.status == "executed"
+    assert second.status == "deduplicated"
+    assert len(posted) == 1  # ran once
+
+
 # --- Audit query ---
 
 

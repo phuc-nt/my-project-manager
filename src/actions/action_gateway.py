@@ -141,6 +141,24 @@ class ActionGateway:
         """
         return self._execute(action, handler=handler, rationale=rationale, approved=False)
 
+    def execute_approved(
+        self,
+        action: dict[str, Any],
+        *,
+        handler: Handler | None = None,
+        rationale: str = "",
+    ) -> GatewayResult:
+        """Run an action a human has ALREADY approved (graph-native Lớp B, v2 M2-P5).
+
+        For the LangGraph interrupt path: the graph paused, a human approved at the
+        interrupt, and the resumed `deliver` node runs the action directly. Skips the
+        Lớp B enqueue (the human IS the approval) exactly like `approve(id)` — but
+        without a store id, because the interrupt checkpoint is the approval record.
+        Lớp A hard-deny + audit + dry-run + kill-switch + dedup ALL still apply: an
+        approved action may pass only a NOT_ALLOWLISTED block, never a real Lớp A deny.
+        """
+        return self._execute(action, handler=handler, rationale=rationale, approved=True)
+
     def _execute(
         self,
         action: dict[str, Any],
@@ -149,9 +167,10 @@ class ActionGateway:
         rationale: str = "",
         approved: bool = False,
     ) -> GatewayResult:
-        """Internal guard chain. `approved=True` (only from `approve()`) skips the
-        Lớp B enqueue and lets the action past a NOT_ALLOWLISTED block. Lớp A
-        hard-deny + audit + dry-run + kill-switch always apply.
+        """Internal guard chain. `approved=True` (from `approve()` or
+        `execute_approved()`) skips the Lớp B enqueue and lets the action past a
+        NOT_ALLOWLISTED block. Lớp A hard-deny + audit + dry-run + kill-switch
+        always apply.
         """
         skip_interrupt = approved
         if not isinstance(action, dict):

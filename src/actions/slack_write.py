@@ -61,12 +61,15 @@ def deliver_report(
     channel: str | None = None,
     report_date: str,
     rationale: str = "",
+    approved: bool = False,
 ) -> GatewayResult:
     """Post a report to Slack through the gateway. Returns the gateway result.
 
     `report_date` (YYYY-MM-DD) makes the action idempotent per day+channel.
     `config` supplies the Slack server spec and default channel; it is injected
-    so this writer never reads a config singleton.
+    so this writer never reads a config singleton. `approved=True` (M2-P5 graph
+    interrupt resume) runs the already-human-approved path — skips the Lớp B
+    enqueue, Lớp A + audit + dedup still apply.
     """
     target = channel or config.slack_report_channel
     if not target:
@@ -83,4 +86,6 @@ def deliver_report(
         "dedup_hint": _dedup_key(target, report_date),
     }
     handler = make_slack_post_handler(config.slack_server)
+    if approved:
+        return gateway.execute_approved(action, handler=handler, rationale=rationale)
     return gateway.execute(action, handler=handler, rationale=rationale)

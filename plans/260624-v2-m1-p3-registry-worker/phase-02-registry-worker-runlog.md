@@ -1,6 +1,6 @@
 # Phase 2 — Registry + worker subprocess + B1 run-event log
 
-> Slice 2 of [plan.md](plan.md). Depends on Slice 1 (`agent_data_dir`, `agent_thread_id`,
+> Status: DONE (932c537). Slice 2 of [plan.md](plan.md). Depends on Slice 1 (`agent_data_dir`, `agent_thread_id`,
 > `migrate_legacy_data_dir`). Delivers `registry.yaml` + its loader, the per-agent worker
 > entrypoint (`python -m src.runtime.worker`), and the B1 run-event log. After this slice a
 > SINGLE agent runs end-to-end through the worker CLI, isolated, with a recorded run-event —

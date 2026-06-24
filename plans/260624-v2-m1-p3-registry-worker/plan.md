@@ -1,12 +1,13 @@
 ---
 title: "v2 M1-P3 — Registry + worker + per-agent isolation + coordinating service"
 description: "Run N agents / N projects fully isolated. Slice 1 lands the isolation core: per-agent data dir .data/agents/<id>/ + once-only v1 auto-migrate + agent-prefixed thread_id (provable with 2 agents, no service). Slice 2 adds registry.yaml + a real-subprocess worker (python -m src.runtime.worker) that loads one profile, sets the per-agent data dir, runs one report, writes a runs.jsonl event, exits with a status code. Slice 3 adds the coordinating daemon: reads the registry + each profile's schedule, spawns/supervises worker subprocesses, collects exit codes + run-events. Guardrail chain PRESERVED, only per-agent-ized. BREAKING (thread_id + data-dir move) accepted; default + auto-migrate = safe v1 path."
-status: pending
-priority: P1
+status: completed
+priority: P3
 effort: 13h
 branch: main
 tags: [v2, m1, p3, registry, worker, coordinating-service, per-agent-isolation, scheduler, run-event-log, subprocess, daemon, breaking]
 created: 2026-06-24
+completed: 2026-06-24
 ---
 
 # v2 M1-P3 — Registry + worker + per-agent isolation + coordinating service
@@ -190,9 +191,9 @@ which `(agent, kind)` fire — no dependence on real wall-clock time (see phase-
 
 | # | Slice | Phase file | Status | Commit | Depends on |
 |---|-------|-----------|--------|--------|-----------|
-| 1 | **Isolation core (no service).** `src/runtime/agent_paths.py` (`agent_data_dir`, `agent_thread_id`) + `src/runtime/legacy_migration.py` (once-only v1 migrate). Add `data_dir: Path \| None = None` kwarg to `load_profile` (None ⇒ `DATA_DIR`, P2-identical). Re-point `cli.py`/`cron.py` thread_ids to `agent_thread_id(profile_id, kind, audience)`. **Provable NOW with 2 agents → 2 data dirs, no audit/budget/dedup/approval cross-contamination, no service.** | [phase-01-isolation-core.md](phase-01-isolation-core.md) | pending | — | P1, P2 (done) |
-| 2 | **Registry + worker subprocess + B1 run-event log.** `registry.yaml` (root, committed) + `src/runtime/registry.py` (load + validate `agents:[{id,enabled}]`). `src/runtime/worker.py`: `python -m src.runtime.worker --agent-id <id> --report <kind> [--audience ...] [--dry-run]` — migrate-once, `load_profile(id, data_dir=agent_data_dir(id))`, build graph + per-agent gateway, run ONE report, append a `runs.jsonl` event, exit 0/1/2. `src/runtime/run_event.py` (B1 append). | [phase-02-registry-worker-runlog.md](phase-02-registry-worker-runlog.md) | pending | — | 1 |
-| 3 | **Coordinating service daemon + scheduler (D1).** `src/runtime/service.py`: read registry, for each `enabled` agent read `profile.schedule`, on each due tick spawn a worker subprocess (injectable spawn fn), supervise (timeout + concurrency cap), collect exit code + last `runs.jsonl` line. `--once` mode runs exactly one scheduler tick (deterministic test). `src/runtime/scheduler.py` (due-check). `deploy/launchd/com.mpm.service.plist` launches the SERVICE (replaces the 3 per-report plists). | [phase-03-service-scheduler.md](phase-03-service-scheduler.md) | pending | — | 1, 2 |
+| 1 | **Isolation core (no service).** `src/runtime/agent_paths.py` (`agent_data_dir`, `agent_thread_id`) + `src/runtime/legacy_migration.py` (once-only v1 migrate). Add `data_dir: Path \| None = None` kwarg to `load_profile` (None ⇒ `DATA_DIR`, P2-identical). Re-point `cli.py`/`cron.py` thread_ids to `agent_thread_id(profile_id, kind, audience)`. **Provable NOW with 2 agents → 2 data dirs, no audit/budget/dedup/approval cross-contamination, no service.** | [phase-01-isolation-core.md](phase-01-isolation-core.md) | DONE | `e046f25` | P1, P2 (done) |
+| 2 | **Registry + worker subprocess + B1 run-event log.** `registry.yaml` (root, committed) + `src/runtime/registry.py` (load + validate `agents:[{id,enabled}]`). `src/runtime/worker.py`: `python -m src.runtime.worker --agent-id <id> --report <kind> [--audience ...] [--dry-run]` — migrate-once, `load_profile(id, data_dir=agent_data_dir(id))`, build graph + per-agent gateway, run ONE report, append a `runs.jsonl` event, exit 0/1/2. `src/runtime/run_event.py` (B1 append). | [phase-02-registry-worker-runlog.md](phase-02-registry-worker-runlog.md) | DONE | `932c537` | 1 |
+| 3 | **Coordinating service daemon + scheduler (D1).** `src/runtime/service.py`: read registry, for each `enabled` agent read `profile.schedule`, on each due tick spawn a worker subprocess (injectable spawn fn), supervise (timeout + concurrency cap), collect exit code + last `runs.jsonl` line. `--once` mode runs exactly one scheduler tick (deterministic test). `src/runtime/scheduler.py` (due-check). `deploy/launchd/com.mpm.service.plist` launches the SERVICE (replaces the 3 per-report plists). | [phase-03-service-scheduler.md](phase-03-service-scheduler.md) | DONE | `05b5ef1` | 1, 2 |
 
 **Dependency graph: 1 → 2 → 3.** Slice 1 is self-contained (paths + migration + the
 `load_profile` kwarg + thread_id re-point) and proves isolation with two `load_profile`

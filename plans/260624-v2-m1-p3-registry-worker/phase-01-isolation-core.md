@@ -1,6 +1,6 @@
 # Phase 1 — Isolation core (per-agent data dir + once-only migrate + thread_id)
 
-> Slice 1 of [plan.md](plan.md). Self-contained, commits alone. Delivers the per-agent
+> Status: DONE (e046f25). Slice 1 of [plan.md](plan.md). Self-contained, commits alone. Delivers the per-agent
 > `data_dir` override (the crux), the once-only v1 auto-migration, and the agent-prefixed
 > thread_id — **proving full isolation with two `load_profile` calls at two tmp dirs, no
 > subprocess, no daemon.** After this slice isolation is REAL for any caller passing `data_dir`.

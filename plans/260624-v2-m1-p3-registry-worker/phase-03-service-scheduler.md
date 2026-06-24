@@ -1,6 +1,6 @@
 # Phase 3 — Coordinating service daemon + scheduler (D1)
 
-> Slice 3 of [plan.md](plan.md). Depends on Slices 1 + 2. Delivers the long-running
+> Status: DONE (05b5ef1). Slice 3 of [plan.md](plan.md). Depends on Slices 1 + 2. Delivers the long-running
 > coordinating service that reads `registry.yaml`, reads each profile's `schedule:`, and on a
 > schedule spawns + supervises per-agent worker subprocesses — replacing v1's global launchd
 > plists. Additive: no existing source file changes (only `deploy/launchd/`). After this slice

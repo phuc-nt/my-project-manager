@@ -263,7 +263,9 @@ def main(argv: list[str] | None = None) -> int:
         print(
             "usage: python -m src.entrypoints.cli [--profile <id>] "
             '"your message" | report [--daily|--weekly|--okr|--resource] '
-            "[--audience internal|external] | audit [filters]",
+            "[--audience internal|external] | audit [filters]\n"
+            "(per-agent view: python -m src.entrypoints.mpm agent "
+            "list | approvals <id> | audit <id>)",
             file=sys.stderr,
         )
         return 2

@@ -17,6 +17,7 @@ from html import escape
 
 from src.agent.okr_analyzer import OkrRollup
 from src.llm.audience_external_prompts import OKR_NARRATIVE_EXTERNAL_SYSTEM
+from src.llm.slack_link import slack_link_line
 from src.profile.context import build_context_block, prepend_persona
 
 
@@ -106,12 +107,7 @@ def build_okr_slack_short(
     if rollup.problems and audience != "external":
         head += f"\n• {len(rollup.problems)} dòng OKR có vấn đề"
 
-    link = (
-        f"\n📄 <{detail_url}|Xem OKR chi tiết trên Confluence>"
-        if detail_url
-        else "\n_(không tạo được link Confluence)_"
-    )
-    return head + link
+    return head + slack_link_line(detail_url, text="Xem OKR chi tiết trên Confluence")
 
 
 _NARRATIVE_SYSTEM = (

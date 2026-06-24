@@ -124,23 +124,36 @@ class RunManager:
         return handle
 
     async def _drive(self, handle: RunHandle, build_graph, dry_run: bool) -> None:
-        """Run the graph, stream node chunks to the queue, push exactly one terminal."""
-        terminal = Terminal(status="error", message="run did not start")
-        last_delta: dict | None = None
-        cfg = {"configurable": {"thread_id": handle.thread_id}}
-        try:
+        """Run the graph in a thread, stream node chunks, push exactly one terminal.
+
+        The graph's nodes (MCP + LLM) are SYNC and its checkpointer is a sync
+        `SqliteSaver` (shared with the worker / `mpm agent resume`, so the interrupt
+        checkpoint stays resume-compatible). `graph.astream` would reject the sync
+        saver, so we run the SYNC `graph.stream` in `asyncio.to_thread` and bridge each
+        chunk back to the event-loop queue thread-safely — keeping the loop free.
+        """
+        loop = asyncio.get_running_loop()
+        terminal_box: dict[str, Terminal] = {}
+
+        def _run_sync() -> None:
+            cfg = {"configurable": {"thread_id": handle.thread_id}}
+            last_delta: dict | None = None
             graph = build_graph(handle.agent_id, handle.kind, handle.audience, dry_run)
             terminal = terminal_for_delivery(None)  # default if no deliver chunk seen
-            async for chunk in graph.astream({}, config=cfg, stream_mode="updates"):
+            for chunk in graph.stream({}, config=cfg, stream_mode="updates"):
                 if "__interrupt__" in chunk:
                     terminal = terminal_for_interrupt(handle.thread_id, chunk)
                     break
-                _put_nonblocking(handle.queue, chunk)
-                # remember the deliver delta so the terminal reflects delivered/not.
+                loop.call_soon_threadsafe(_put_nonblocking, handle.queue, chunk)
                 if "deliver" in chunk:
                     last_delta = chunk["deliver"]
             else:
                 terminal = terminal_for_delivery(last_delta)
+            terminal_box["t"] = terminal
+
+        try:
+            await asyncio.to_thread(_run_sync)
+            terminal = terminal_box["t"]
         except Exception as exc:  # noqa: BLE001 — isolate: a graph crash must not kill the loop
             logger.exception("run %s (%s) failed", handle.run_id, handle.thread_id)
             terminal = Terminal(status="error", message=str(exc)[:200])

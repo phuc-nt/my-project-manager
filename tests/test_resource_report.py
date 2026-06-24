@@ -111,8 +111,8 @@ def _fake_deps(delivered=True):
     resource, cost = _resource(), _cost()
     return ResourceReportDeps(
         fetch=lambda: (resource, cost),
-        compose=lambda r, c: ("<p>tóm tắt</p><h2>RC</h2>", None),
-        deliver=lambda r, c, body, approved=False: (
+        compose=lambda r, c: ("<p>tóm tắt</p><h2>RC</h2>", None, "*rc short*"),
+        deliver=lambda short, body, approved=False: (
             delivered, "confluence=dry_run slack=dry_run url=None"),
     )
 
@@ -167,7 +167,7 @@ def test_resource_deliver_uses_resource_dedup_namespace(settings_factory, tmp_pa
     deps = resource_report_graph.default_resource_deps(
         config=_Cfg(), settings=settings_factory(), gateway=gw
     )
-    ok, summary = deps.deliver(_resource(), _cost(), "<p>body</p>")
+    ok, summary = deps.deliver("*rc short*", "<p>body</p>")
     assert ok is True
     assert seen_dates == [f"resource-{today}", f"resource-{today}"]
 

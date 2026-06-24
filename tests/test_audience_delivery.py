@@ -109,7 +109,6 @@ def _spy_writes(monkeypatch, slack_status, approval_id):
 
 def test_okr_external_deliver_pending_is_ok(settings_factory, tmp_path, monkeypatch):
     from src.agent import okr_report_graph
-    from src.agent.okr_analyzer import OkrRollup
 
     seen = _spy_writes(monkeypatch, "pending_approval", 9)
     gw = _gateway(settings_factory, tmp_path)
@@ -117,7 +116,7 @@ def test_okr_external_deliver_pending_is_ok(settings_factory, tmp_path, monkeypa
         config=_Cfg("C_STAKE"), settings=settings_factory(), audience="external", gateway=gw
     )
     today = datetime.now(UTC).date().isoformat()
-    ok, summary = deps.deliver(OkrRollup((), (), ()), "<p>body</p>")
+    ok, summary = deps.deliver("*okr short*", "<p>body</p>")
     assert ok is True  # pending_approval is success for external
     assert seen["channel"] == "C_STAKE"
     assert seen["slack_date"] == f"okr-external-{today}"
@@ -126,16 +125,13 @@ def test_okr_external_deliver_pending_is_ok(settings_factory, tmp_path, monkeypa
 
 def test_resource_external_deliver_pending_is_ok(settings_factory, tmp_path, monkeypatch):
     from src.agent import resource_report_graph
-    from src.tools.models import CostSummary, ResourceReport
 
     seen = _spy_writes(monkeypatch, "pending_approval", 3)
     gw = _gateway(settings_factory, tmp_path)
     deps = resource_report_graph.default_resource_deps(
         config=_Cfg("C_STAKE"), settings=settings_factory(), audience="external", gateway=gw
     )
-    resource = ResourceReport((), 0.0, (), 0)
-    cost = CostSummary(0.0, 50.0, 0.0, "ok", 0.0, 0, 0.0)
-    ok, summary = deps.deliver(resource, cost, "<p>body</p>")
+    ok, summary = deps.deliver("*rc short*", "<p>body</p>")
     assert ok is True and seen["channel"] == "C_STAKE"
 
 
@@ -166,19 +162,25 @@ def test_resource_external_short_omits_confluence_link(settings_factory, tmp_pat
     deps = resource_report_graph.default_resource_deps(
         config=_Cfg("C_STAKE"), settings=settings_factory(), audience="external", gateway=gw
     )
+    # The URL-free external short is what compose checkpoints (already strips name/labor);
+    # deliver must NOT inject the page link for external (the per-person PII gate).
+    from src.llm.resource_report_prompt import build_resource_slack_short
+
     resource = ResourceReport(
         (AssigneeLoad("Alice", 6, 0, 0, overloaded=True),), 6.0, ("Alice",), 0
     )
     cost = CostSummary(0.0, 50.0, 0.0, "ok", 200.0, 8, 25.0)
-    deps.deliver(resource, cost, "<p>body</p>")
-    # ...but the stakeholder short must NOT link it, and carries no name/labor.
+    short = build_resource_slack_short(
+        resource, cost, report_date="2026-06-25", detail_url=None, audience="external"
+    )
+    deps.deliver(short, "<p>body</p>")
+    # ...the stakeholder short must NOT link the page, and carries no name/labor.
     assert "wiki/internal-page" not in posted["text"]
     assert "Alice" not in posted["text"] and "$200" not in posted["text"]
 
 
 def test_internal_deliver_keeps_channel_none(settings_factory, tmp_path, monkeypatch):
     from src.agent import okr_report_graph
-    from src.agent.okr_analyzer import OkrRollup
 
     seen = _spy_writes(monkeypatch, "executed", None)
     gw = _gateway(settings_factory, tmp_path)
@@ -186,7 +188,7 @@ def test_internal_deliver_keeps_channel_none(settings_factory, tmp_path, monkeyp
         config=_Cfg(None), settings=settings_factory(), audience="internal", gateway=gw
     )
     today = datetime.now(UTC).date().isoformat()
-    ok, _ = deps.deliver(OkrRollup((), (), ()), "<p>body</p>")
+    ok, _ = deps.deliver("*okr short*", "<p>body</p>")
     assert ok is True
     assert seen["channel"] is None  # internal → default channel
     assert seen["slack_date"] == f"okr-{today}"  # dedup hint UNCHANGED
@@ -300,12 +302,12 @@ def test_weekly_external_omits_embedded_sections(settings_factory, monkeypatch):
         config=_Cfg(None), settings=settings_factory(),
         report_kind="weekly", audience="external", client=_FakeLlm(),
     )
-    body_ext, _ = deps_ext.compose([])
+    body_ext, _, _ = deps_ext.compose([])
     assert "OKR-MARKER" not in body_ext and "RES-MARKER" not in body_ext  # dropped
 
     deps_int = report_graph.default_report_deps(
         config=_Cfg(None), settings=settings_factory(),
         report_kind="weekly", audience="internal", client=_FakeLlm(),
     )
-    body_int, _ = deps_int.compose([])
+    body_int, _, _ = deps_int.compose([])
     assert "OKR-MARKER" in body_int and "RES-MARKER" in body_int  # internal keeps them

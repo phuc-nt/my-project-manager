@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
-
 from fastapi.testclient import TestClient
 
 from src.server import routes_runs, run_manager
@@ -11,10 +9,9 @@ from src.server.app import create_app
 
 
 class _FakeGraph:
-    async def astream(self, _input, *, config, stream_mode):
-        for c in ({"perceive": {}}, {"deliver": {"delivered": True, "delivery_summary": "ok"}}):
-            await asyncio.sleep(0)
-            yield c
+    def stream(self, _input, *, config, stream_mode):
+        yield {"perceive": {}}
+        yield {"deliver": {"delivered": True, "delivery_summary": "ok"}}
 
 
 def _patch(monkeypatch, ids=("acme",)):

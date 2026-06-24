@@ -23,10 +23,8 @@ class _FakeGraph:
     def __init__(self, chunks):
         self._chunks = chunks
 
-    async def astream(self, _input, *, config, stream_mode):
-        for c in self._chunks:
-            await asyncio.sleep(0)
-            yield c
+    def stream(self, _input, *, config, stream_mode):
+        yield from self._chunks
 
 
 def _delivered_chunks():
@@ -79,6 +77,45 @@ def test_stream_external_interrupt_terminal():
     assert "Slack" in events[-1]["data"]["summary"]
     # NO deliver node event (graph paused before it)
     assert not any(e["event"] == "node" and e["node"] == "deliver" for e in events)
+
+
+def test_drive_runs_a_real_sqlitesaver_graph(tmp_path):
+    # Regression: the manager runs the SYNC graph.stream in a thread, so a real
+    # (sync) SqliteSaver-backed graph streams fine — graph.astream would have raised
+    # "SqliteSaver does not support async methods" (caught only by a real graph).
+    import sqlite3
+    from datetime import date
+
+    from langgraph.checkpoint.sqlite import SqliteSaver
+
+    from src.agent.report_graph import ReportDeps, build_report_graph
+    from src.tools.models import CiRun, Issue, Risk
+
+    def _real_graph(*a, **k):
+        saver = SqliteSaver(sqlite3.connect(str(tmp_path / "cp.db"), check_same_thread=False))
+        saver.setup()
+        deps = ReportDeps(
+            fetch_issues=lambda: [Issue(key="A-1", summary="x", status="To Do",
+                                        assignee="P", due_date=date(2026, 6, 1), labels=())],
+            fetch_prs=lambda: [],
+            fetch_ci=lambda: [CiRun(workflow="ci", status="completed", conclusion="success")],
+            analyze_risks=lambda i, p, c: [Risk(kind="blocker", severity="high", subject="A-1",
+                                                detail="d", suggested_action="a")],
+            compose=lambda risks: ("<h2>r</h2>", 0.0001, "*short*"),
+            deliver=lambda short, body, approved=False: (True, "confluence=x slack=x url=None"),
+        )
+        return build_report_graph(deps=deps, audience="internal", checkpointer=saver)
+
+    async def _run():
+        mgr = RunManager()
+        h = mgr.start("acme", "daily", "internal", False, build_graph=_real_graph)
+        await h.task
+        return await _collect(h)
+
+    events = asyncio.run(_run())
+    assert events[-1]["status"] == "delivered"  # ran end to end, no async-saver error
+    nodes = [e["node"] for e in events if e["event"] == "node"]
+    assert "deliver" in nodes
 
 
 def test_stream_handles_none_delta_chunks():

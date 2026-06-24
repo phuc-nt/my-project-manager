@@ -44,7 +44,9 @@ class ResourceReportDeps:
     """Injectable collaborators for the resource + cost report flow (real or fake)."""
 
     fetch: Callable[[], Snapshot]
-    compose: Callable[[ResourceReport, CostSummary], tuple[str, float | None]]
+    # compose returns (body, cost, slack_short) — short built URL-free, checkpointed (S4).
+    compose: Callable[[ResourceReport, CostSummary], tuple[str, float | None, str]]
+    # deliver takes the URL-free short (from state) + body + approved (model-free).
     # `approved` (M2-P5): True when the graph resumed past the Lớp B interrupt with
     # an approve decision — the writers then run the gateway's already-approved path.
     deliver: Callable[..., tuple[bool, str]]
@@ -89,11 +91,16 @@ def default_resource_deps(
     )
     llm_box: dict[str, object] = {}
 
-    def _compose(resource: ResourceReport, cost: CostSummary) -> tuple[str, float | None]:
+    def _compose(
+        resource: ResourceReport, cost: CostSummary
+    ) -> tuple[str, float | None, str]:
         report_date = _today_utc().isoformat()
         table = render_resource_xhtml(resource, cost, report_date=report_date)
         narrative, usd = _narrate(resource, cost, report_date)
-        return narrative + table, usd
+        # URL-free short built here (snapshot live) + checkpointed → resume-safe (S4).
+        short = build_resource_slack_short(resource, cost, report_date=report_date,
+                                           detail_url=None, audience=audience)
+        return narrative + table, usd, short
 
     def _narrate(
         resource: ResourceReport, cost: CostSummary, report_date: str
@@ -124,9 +131,9 @@ def default_resource_deps(
                 None,
             )
 
-    def _deliver(
-        resource: ResourceReport, cost: CostSummary, body: str, approved: bool = False
-    ) -> tuple[bool, str]:
+    def _deliver(short_no_url: str, body: str, approved: bool = False) -> tuple[bool, str]:
+        from src.llm.slack_link import inject_link
+
         today = _today_utc().isoformat()
         channel, date_hint = resolve_audience_delivery(audience, "resource", today, config)
         title = f"{REPORT_TITLES['resource']} {today}"
@@ -138,11 +145,9 @@ def default_resource_deps(
         detail_url = page.url if page else None
         # The resource Confluence page carries the per-assignee table (names, counts,
         # labor cost). For an external audience we must NOT hand that link to the
-        # stakeholder — the short stays the high-level capacity summary only.
+        # stakeholder — inject_link(short, None) leaves the short link-free (gate kept).
         short_url = None if audience == "external" else detail_url
-        short = build_resource_slack_short(
-            resource, cost, report_date=today, detail_url=short_url, audience=audience
-        )
+        short = inject_link(short_no_url, short_url, text="Xem chi tiết trên Confluence")
         slack_result = deliver_report(
             short, gateway=gw, config=config, channel=channel, report_date=date_hint,
             rationale=f"resource & cost status report (short + link, {audience})",
@@ -175,15 +180,15 @@ def _make_resource_nodes(deps: ResourceReportDeps):
 
     def compose_report(_state: ReportState) -> dict:
         resource, cost = box["snapshot"]
-        text, usd = deps.compose(resource, cost)
-        return {"report_text": text, "cost_usd": usd}
+        text, usd, short = deps.compose(resource, cost)
+        return {"report_text": text, "cost_usd": usd, "slack_short": short}
 
     def deliver(state: ReportState) -> dict:
-        resource, cost = box["snapshot"]
         # M2-P5: approve at the interrupt authorizes the live external post.
+        # Reads ONLY state (S4) — resume-safe, no box["snapshot"].
         approved = state.get("approval_decision") == "approve"
         delivered, summary = deps.deliver(
-            resource, cost, state.get("report_text", ""), approved
+            state.get("slack_short", ""), state.get("report_text", ""), approved
         )
         return {"delivered": delivered, "delivery_summary": summary}
 

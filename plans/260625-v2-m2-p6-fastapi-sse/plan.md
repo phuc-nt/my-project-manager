@@ -1,12 +1,14 @@
 ---
 title: "v2 M2-P6: Streaming + FastAPI service"
 description: "Localhost FastAPI backend that runs report graphs in-process and streams live node-progress over SSE."
-status: pending
+status: completed
 priority: P1
 effort: 12h
 branch: main
 tags: [v2, m2, fastapi, sse, streaming]
 created: 2026-06-25
+completed: 2026-06-25
+commits: [1aeb3f5, 2c2aa4b, e69b76c]
 ---
 
 # v2 M2-P6 — Streaming + FastAPI service
@@ -123,11 +125,16 @@ keys per node; anything else dropped). This is the PII firewall — unit-tested 
 
 ## Slices (each independently runnable + committable + green suite)
 
-| Slice | Scope | Risk | File |
+| Slice | Scope | Risk | Status |
 |---|---|---|---|
-| **1** | Read-only routes (`/api/agents`, `/status`) + app skeleton + deps + shared `read_last_run_event` + offline TestClient tests. NO graph run. | Low | `phase-01-readonly-routes-and-skeleton.md` |
-| **2** | Run manager (registry, background task, concurrency cap, eviction) + `POST /trigger`, tested with a FAKE async graph. NO SSE yet. | Med | `phase-02-run-manager-and-trigger.md` |
-| **3** | `GET /stream` SSE + `summarize_node` PII firewall + interrupt-terminal + uvicorn `__main__` entrypoint + streaming tests with a fake graph. | Med | `phase-03-sse-stream-and-entrypoint.md` |
+| **1** | Read-only routes (`/api/agents`, `/status`) + app skeleton + deps + shared `read_last_run_event` + offline TestClient tests. NO graph run. | Low | ✅ `1aeb3f5` |
+| **2** | Run manager (registry, background task, concurrency cap, eviction) + `POST /trigger`, fake-graph tested. NO SSE yet. | Med | ✅ `2c2aa4b` |
+| **3** | `GET /stream` SSE + `summarize_node` PII firewall + interrupt-terminal + uvicorn `__main__` entrypoint + streaming tests. | Med | ✅ `e69b76c` |
+| **4** | Resume-safe deliver: checkpoint the URL-free Slack short in `ReportState` at compose so a REBUILT graph (empty box) resumes correctly. Fixes okr/resource resume `KeyError` + daily degraded short (pre-existing P5 bug). + astream→sync-stream-in-thread fix (real graph uses sync SqliteSaver, `astream` rejected it — caught by E2E, masked by fake graphs). | Med | ✅ this commit |
+
+**E2E thật (real uvicorn 127.0.0.1, real graph, default profile):** `POST /trigger` external → SSE emits `perceive→analyze→compose_report` node events LIVE + terminal `interrupted` (thread_id + non-PII summary), PII firewall held (only counts/cost). `mpm agent resume` read the SERVER-created interrupt checkpoint (P5↔P6) → external resource resume → **real Slack post + Confluence page** (`delivered=True`, no KeyError — Slice 4 fix). Found 2 bugs the fake-graph unit tests masked: (1) astream-vs-sync-saver, (2) empty-box on resume — both fixed + regression-tested (real SqliteSaver, rebuild-on-resume).
+
+**Final:** 490 tests (443 baseline + 47 new), ruff clean. New server files <200 LOC; the 3 report graphs are pre-existing-over-200 (report 299, okr 230, resource 237).
 
 Rationale: Slice 1 proves the FastAPI wiring at zero graph risk. Slice 2 lands the
 concurrency/lifecycle core against a fake graph (deterministic). Slice 3 adds the streaming
@@ -198,6 +205,7 @@ No real LLM, MCP, or network in any test.
 - `phase-01-readonly-routes-and-skeleton.md`
 - `phase-02-run-manager-and-trigger.md`
 - `phase-03-sse-stream-and-entrypoint.md`
+- `phase-04-resume-safe-deliver.md`
 
 ## Open questions
 

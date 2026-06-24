@@ -94,16 +94,18 @@ Architecture: [docs/system-architecture.md](docs/v1/system-architecture.md) · C
 | Find where any piece of code lives | [codebase-summary.md](docs/v1/codebase-summary.md) |
 | Set up + run it | [deployment-guide.md](docs/v1/deployment-guide.md) |
 | See how it compares to other agent harnesses | [architecture-comparison.md](docs/architecture-comparison.md) — vs DeerFlow 2.0, Hermes, OpenClaw/Pi.dev |
-| See where it's headed next | [v2/](docs/v2/README.md) — multi-agent platform: profiles, registry/workers, web dashboard (draft) |
+| See the multi-agent platform | [v2/](docs/v2/README.md) — profiles, registry/workers, scheduler (M1 done); web dashboard + Postgres (M2 next) |
 | **Follow the build, decision by decision** | [journals/](docs/journals/) — a phase-by-phase narrative with *what we decided & why* and *what broke & what we learned* |
 
 The [journals](docs/journals/) are the best learning material here: each phase records the real decisions and the bugs adversarial review caught (denylist→allowlist, a JQL-injection surface, a privacy leak via a linked artifact). Build narratives like this are rare — that's the point of sharing this repo.
 
 ## Status
 
-**Phases 0–5 complete** (2026-06-22) — reporting, guardrail hardening, OKR, resource/cost, and audience-split, all E2E-verified against real Jira/GitHub/Slack/Confluence. 269 tests, ruff clean. See [docs/project-roadmap.md](docs/v1/project-roadmap.md).
+**v1 — Phases 0–5 complete** (2026-06-22): reporting, guardrail hardening, OKR, resource/cost, and audience-split, all E2E-verified against real Jira/GitHub/Slack/Confluence. See [docs/v1/project-roadmap.md](docs/v1/project-roadmap.md).
 
-**Deferred (a separate, larger effort):** an HTTP service backend + a real Slack bot UI + multi-user. The current Slack MCP server is send-only (browser-token, no inbound events), so an interactive bot needs new infrastructure.
+**v2 Milestone 1 complete** (2026-06-24) — the **multi-agent core**: N agents / N projects, fully isolated, run via CLI/worker + scheduler with the guardrail applied per-agent. Built in four phases: config-injection (kill the config singletons) → profile system (a 4-file `profiles/<id>/` per agent) → registry + per-agent worker subprocess + coordinating service (cron scheduler) → the `mpm agent list/register/run/approvals/...` CLI. Each agent owns its data dir (`.data/agents/<id>/`), so audit/budget/dedup/approvals never mix. 414 tests, ruff clean, E2E-verified (two agents running concurrently with real writes). See [docs/v2/roadmap-m1.md](docs/v2/roadmap-m1.md).
+
+**Next — v2 Milestone 2:** web dashboard (FastAPI + HTMX/Streamlit), LangGraph interrupts/streaming, and Postgres checkpointer/Store. See [docs/v2/roadmap-m2.md](docs/v2/roadmap-m2.md).
 
 ## License
 

@@ -1,7 +1,7 @@
 ---
 title: "v2 Vision + Roadmap — Multi-agent PM platform"
 description: "From a single-project PM agent to N profile-bound agents managed from a web dashboard, guardrail preserved per-agent."
-status: draft
+status: M1 complete (M2 design)
 created: 2026-06-23
 supersedes: extends ../v1/project-roadmap.md (picks up its deferred items: service backend, multi-user, Postgres scale-up)
 priority: P2
@@ -10,7 +10,9 @@ tags: [v2, vision, roadmap, multi-agent, langgraph, web-ui]
 
 # v2 Vision + Roadmap — my-project-manager
 
-> Forward-looking design. Status: **draft** — đọc, duyệt, rồi `/cook` từng phase.
+> Status: **Milestone 1 COMPLETE** (2026-06-24, P1→P2→P3→P4 — multi-agent core: profiles,
+> registry/worker, scheduler, `mpm agent` CLI; 414 tests, E2E-verified). **Milestone 2 is
+> still design** (web dashboard + LangGraph interrupts/streaming + Postgres).
 > Mở rộng [`../v1/project-roadmap.md`](../v1/project-roadmap.md) (v1 Phase 0–5 đã xong). v1 = single-agent, single-project.
 > v2 = **nhiều agent, mỗi agent một project, quản lý từ web dashboard, guardrail giữ nguyên per-agent.**
 > Bilingual: prose tiếng Việt, code/identifier tiếng Anh.

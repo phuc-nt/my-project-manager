@@ -43,7 +43,7 @@
   - `token_env` resolve đúng từ `.env`; thiếu env → lỗi rõ ràng lúc spawn (không lúc load).
 - **Risks**: persona/project có thể đè business-tone external (rò PII). Mitigation: 3 file Markdown **prepend** context, KHÔNG thay external-prompt sanitization (privacy giữ — bài học Phase 5). Test: external report với persona+project vẫn zero key/PII. Memory tự-ghi tới M2-P8 mới bật (M1 chỉ đọc).
 
-### P3 — Registry + worker + per-agent isolation + per-agent gateway/budget/audit
+### P3 — Registry + worker + per-agent isolation + per-agent gateway/budget/audit ✅ DONE (2026-06-24)
 
 - **Goal**: `registry.yaml` liệt kê agent; worker entrypoint load 1 profile, build graph + gateway + stores per-agent với data dir riêng; coordinating service spawn worker theo registry.
 - **Key changes**:

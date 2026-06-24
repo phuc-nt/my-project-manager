@@ -8,7 +8,7 @@
 2. **Postgres — M1 hay M2?** Đề xuất **M2-P8, opt-in**. M1 dùng SqliteSaver per-agent (1 process/agent → không tranh chấp). Confirm: có use case multi-machine nào ở M1 không? Nếu không, hoãn Postgres là đúng (YAGNI).
 3. **HTMX vs Streamlit** — chưa chốt (P7). HTMX nếu streaming live (P6 SSE) là must; Streamlit nếu dựng nhanh + chấp nhận poll. Quyết sau P6.
 4. **Interrupt replace hay coexist với queue Lớp B?** P5 đề **augment** (cả hai), replace ở P8 khi Postgres bền resume xuyên process. Confirm: approval async (duyệt sau vài giờ) chấp nhận giữ graph paused + checkpoint, hay vẫn cần queue tách rời?
-5. **Resource cost process-per-agent** — N agent = N Python process + N node MCP subprocess spawn/run. 5 agent OK; 50 agent cần worker pool / share. Quyết khi P3 đo RAM/process thật. Mitigation M1: worker on-demand/scheduled, không thường trực.
+5. **Resource cost process-per-agent** — N agent = N Python process + N node MCP subprocess spawn/run. 5 agent OK; 50 agent cần worker pool / share. ✅ PHẦN GIẢI QUYẾT P3: worker on-demand/scheduled (không thường trực), cap concurrency = 4, SqliteSaver per-agent (mỗi process 1 thread → không tranh chấp). 383 tests pass, đo được E2E: service spawn worker cho 1 agent, run isolated report, record run-event thành công. Quyết pool/share nếu production >5 agent.
 6. **Persona override an toàn** — body profile override prompt; phải KHÔNG đè được external-prompt sanitization (rò PII — bài học Phase 5). P2 acceptance test bắt buộc: external + persona vẫn zero key/PII.
 
 ---

@@ -18,6 +18,7 @@ Dòng thời gian phát triển kiến trúc + tính năng (repo vừa-làm-vừ
 | 2026-06-22 | [Phase 5 — Audience-split](260622-phase-5-audience-split.md) | ✅ Done | `--audience internal\|external` cả 4 report; external → giọng business + Lớp B duyệt. Review fix C1 (link Confluence rò PII). E2E lộ+vá gap Phase 2: approve giờ post thật. Service/bot/multi-user hoãn. |
 | 2026-06-23 | [v2 M1-P1 — Config-injection](260623-v2-m1-p1-config-injection.md) | ✅ Done | Giết 2 config singleton (grep src/ = 0 hit). `from_dict` thuần + `from_env` wrapper; config inject làm tham số qua cả call graph. Mở đường P2 per-agent (`profile.yaml→dict→from_dict`). 282 test xanh. |
 | 2026-06-24 | [v2 M1-P2 — Profile system](260624-v2-m1-p2-profile-system.md) | ✅ Done | Agent = thư mục `profiles/<id>/` (4 file: profile.yaml + SOUL/PROJECT/MEMORY.md). Loader env-fallback 3 tầng → `default` == v1. Inject persona/project/memory vào prompt; external KHÔNG lấy gì từ profile (guardrail PII). `--profile` ở cli/cron. 317 test xanh + E2E thật. |
+| 2026-06-24 | [v2 M1-P3 — Registry + worker](260624-v2-m1-p3-registry-worker.md) | ✅ Done | N agent cô lập: `registry.yaml` + worker subprocess (1 process/agent, `.data/agents/<id>/`) + service daemon (cron `schedule:` qua croniter, cap 4, timeout 600s). Cô lập rơi ra từ 1 `data_dir`; auto-migrate `.data/` v1. thread_id `<id>:<kind>:<audience>`. 383 test + E2E spawn thật. |
 
 ## Template entry (`YYMMDD-<slug>.md`)
 

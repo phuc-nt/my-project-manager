@@ -47,9 +47,12 @@ class ReportDeps:
     fetch_prs: Callable[[], list[PullRequest]]
     fetch_ci: Callable[[], list[CiRun]]
     analyze_risks: Callable[[list[Issue], list[PullRequest], list[CiRun]], list[Risk]]
-    compose: Callable[[list[Risk]], tuple[str, float | None]]
-    # `approved` (M2-P5): True when the graph resumed past the Lớp B interrupt with an
-    # approve decision — the writers then run the gateway's already-approved path.
+    # compose returns (detail_body, cost, slack_short) — the short is built URL-free at
+    # compose (M2-P6 S4) and checkpointed so deliver is resume-safe (model-free).
+    compose: Callable[[list[Risk]], tuple[str, float | None, str]]
+    # deliver takes the URL-free short (from state) + body + approved; it creates the
+    # page, injects the real link, and posts. `approved` (M2-P5) runs the gateway's
+    # already-approved path after a graph-interrupt resume.
     deliver: Callable[..., tuple[bool, str]]
 
 
@@ -106,7 +109,7 @@ def default_report_deps(
             f"{sprint.start_date} → {sprint.end_date}."
         )
 
-    def _compose(risks: list[Risk]) -> tuple[str, float | None]:
+    def _compose(risks: list[Risk]) -> tuple[str, float | None, str]:
         nonlocal llm
         if llm is None:
             llm = LlmClient(settings)
@@ -131,14 +134,19 @@ def default_report_deps(
 
             body += weekly_okr_section(today, config)
             body += weekly_resource_section(today, config, settings)
-        return body, result.cost_usd
+        # Build the Slack short URL-free NOW (risks are live) and checkpoint it via state,
+        # so deliver posts the correct short on resume without the closure box. The detail
+        # link + the config-derived weekly lines are appended in deliver (resume-safe).
+        short = build_slack_short(risks, report_date=today, detail_url=None, audience=audience)
+        return body, result.cost_usd, short
 
-    def _deliver(risks: list[Risk], detail_body: str, approved: bool = False) -> tuple[bool, str]:
+    def _deliver(short_no_url: str, detail_body: str, approved: bool = False) -> tuple[bool, str]:
         from src.agent.audience_delivery import (
             SLACK_OK_STATUSES,
             delivery_summary,
             resolve_audience_delivery,
         )
+        from src.llm.slack_link import inject_link
 
         today = _today_utc().isoformat()
         channel, date_hint = resolve_audience_delivery(audience, report_kind, today, config)
@@ -155,9 +163,10 @@ def default_report_deps(
             approved=approved,
         )
         detail_url = page.url if page else None
-        # 2) Slack short message + link (through the gateway), derived from risks.
-        short = build_slack_short(
-            risks, report_date=today, detail_url=detail_url, audience=audience
+        # 2) Slack short = the checkpointed URL-free short + the real link + weekly lines
+        # (config-derived, so resume-safe). No model/box read here.
+        short = inject_link(
+            short_no_url, detail_url, text="Xem báo cáo chi tiết trên Confluence"
         )
         if report_kind == "weekly" and audience == "internal":
             from src.agent.okr_weekly_section import weekly_okr_slack_line
@@ -211,17 +220,19 @@ def _make_nodes(deps: ReportDeps):
         return {"risks": _risks_to_dicts(risks)}
 
     def compose_report(_state: ReportState) -> dict:
-        # `report_text` holds the Confluence detail body (storage HTML) in Slice 2.
-        text, cost = deps.compose(box.get("risks", []))
-        return {"report_text": text, "cost_usd": cost}
+        # `report_text` holds the Confluence detail body (storage HTML). `slack_short`
+        # is the URL-free short, checkpointed so deliver survives a resume (S4).
+        text, cost, short = deps.compose(box.get("risks", []))
+        return {"report_text": text, "cost_usd": cost, "slack_short": short}
 
     def deliver(state: ReportState) -> dict:
         # When the graph reached `deliver` via the approval_gate's approve branch
         # (M2-P5), the human already authorized this external post at the interrupt —
         # run the gateway's already-approved path so it posts live (not re-queued).
+        # Reads ONLY state (report_text + slack_short) — resume-safe, no box.
         approved = state.get("approval_decision") == "approve"
         delivered, summary = deps.deliver(
-            box.get("risks", []), state.get("report_text", ""), approved
+            state.get("slack_short", ""), state.get("report_text", ""), approved
         )
         return {"delivered": delivered, "delivery_summary": summary}
 

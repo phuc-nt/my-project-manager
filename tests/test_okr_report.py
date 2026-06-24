@@ -91,8 +91,8 @@ def _fake_deps(delivered: bool = True):
     rollup = _rollup()
     return OkrReportDeps(
         fetch_rollup=lambda: rollup,
-        compose=lambda r: ("<p>tóm tắt</p><h2>OKR</h2>", None),
-        deliver=lambda r, body, approved=False: (
+        compose=lambda r: ("<p>tóm tắt</p><h2>OKR</h2>", None, "*okr short*"),
+        deliver=lambda short, body, approved=False: (
             delivered, "confluence=dry_run slack=dry_run url=None"),
     )
 
@@ -148,7 +148,7 @@ def test_okr_deliver_uses_okr_dedup_namespace(settings_factory, tmp_path, monkey
     deps = okr_report_graph.default_okr_deps(
         config=_Cfg(), settings=settings_factory(), gateway=gw
     )
-    ok, summary = deps.deliver(_rollup(), "<p>body</p>")
+    ok, summary = deps.deliver("*okr short*", "<p>body</p>")
     assert ok is True
     assert seen_dates == [f"okr-{today}", f"okr-{today}"]  # both writes namespaced per okr-date
 

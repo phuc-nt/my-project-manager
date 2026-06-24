@@ -72,8 +72,8 @@ def _cost() -> CostSummary:
 def _okr_graph(spy, *, audience, checkpointer):
     deps = OkrReportDeps(
         fetch_rollup=lambda: _rollup(),
-        compose=lambda r: ("<p>okr</p>", None),
-        deliver=lambda r, body, approved=False: spy._record(approved),
+        compose=lambda r: ("<p>okr</p>", None, "*okr short*"),
+        deliver=lambda short, body, approved=False: spy._record(approved),
     )
     return build_okr_graph(deps=deps, audience=audience, checkpointer=checkpointer)
 
@@ -81,8 +81,8 @@ def _okr_graph(spy, *, audience, checkpointer):
 def _resource_graph(spy, *, audience, checkpointer):
     deps = ResourceReportDeps(
         fetch=lambda: (_resource(), _cost()),
-        compose=lambda r, c: ("<p>rc</p>", None),
-        deliver=lambda r, c, body, approved=False: spy._record(approved),
+        compose=lambda r, c: ("<p>rc</p>", None, "*rc short*"),
+        deliver=lambda short, body, approved=False: spy._record(approved),
     )
     return build_resource_graph(deps=deps, audience=audience, checkpointer=checkpointer)
 

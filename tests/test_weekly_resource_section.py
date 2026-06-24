@@ -102,7 +102,7 @@ def test_weekly_compose_includes_both_okr_and_resource(settings_factory, monkeyp
         config=_ResCfg("SCRUM"), settings=settings_factory(),
         report_kind="weekly", client=_FakeLlm(),
     )
-    body, _cost = deps.compose([])  # empty risks; weekly sections appended after
+    body, _cost, _short = deps.compose([])  # empty risks; weekly sections appended after
     assert "OKR-MARKER" in body and "RES-MARKER" in body
 
 
@@ -125,5 +125,5 @@ def test_daily_compose_has_no_resource_section(settings_factory, monkeypatch):
         config=_ResCfg("SCRUM"), settings=settings_factory(),
         report_kind="daily", client=_FakeLlm(),
     )
-    body, _cost = deps.compose([])
+    body, _cost, _short = deps.compose([])
     assert "RES-MARKER" not in body

@@ -94,8 +94,8 @@ def _fake_deps():
         fetch_ci=lambda: [CiRun(workflow="ci", status="completed", conclusion="failure")],
         analyze_risks=lambda i, p, c: [Risk(kind="blocker", severity="high", subject="AB-1",
                                             detail="d", suggested_action="a")],
-        compose=lambda risks: ("<h2>Báo cáo</h2>", 0.0002),
-        deliver=lambda risks, body, approved=False: (
+        compose=lambda risks: ("<h2>Báo cáo</h2>", 0.0002, "*short*"),
+        deliver=lambda short, body, approved=False: (
             True, "confluence=executed slack=executed url=https://x"),
     )
 

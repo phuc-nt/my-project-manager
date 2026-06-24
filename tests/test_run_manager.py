@@ -1,7 +1,8 @@
-"""M2-P6 Slice 2: RunManager concurrency + lifecycle (offline, fake async graph).
+"""M2-P6 Slice 2: RunManager concurrency + lifecycle (offline, fake sync graph).
 
 No pytest-asyncio: each test drives the manager inside an `asyncio.run` coroutine. The
-fake graph's `.astream` yields canned `updates` chunks — no real LLM/MCP/network.
+fake graph's sync `.stream` yields canned `updates` chunks (the manager runs it in a
+thread) — no real LLM/MCP/network.
 """
 
 from __future__ import annotations
@@ -13,21 +14,18 @@ from src.server.run_manager import CapReachedError, RunManager, SameThreadRunnin
 
 
 class _FakeGraph:
-    """astream yields the given chunks in order, then stops."""
+    """Sync `stream` yields the given chunks in order (matches the real graph API,
+    which is sync because of the sync SqliteSaver; the manager runs it in a thread)."""
 
     def __init__(self, chunks):
         self._chunks = chunks
 
-    async def astream(self, _input, *, config, stream_mode):
-        for c in self._chunks:
-            await asyncio.sleep(0)  # yield control (mimic a real super-step boundary)
-            yield c
+    def stream(self, _input, *, config, stream_mode):
+        yield from self._chunks
 
 
 class _RaisingGraph:
-    async def astream(self, _input, *, config, stream_mode):
-        if False:  # pragma: no cover — make this an async generator
-            yield {}
+    def stream(self, _input, *, config, stream_mode):
         raise RuntimeError("boom in node")
 
 
@@ -159,9 +157,8 @@ class _FloodGraph:
     def __init__(self, n):
         self._n = n
 
-    async def astream(self, _input, *, config, stream_mode):
+    def stream(self, _input, *, config, stream_mode):
         for i in range(self._n):
-            await asyncio.sleep(0)
             yield {"perceive": {"i": i}}
         yield {"deliver": {"delivered": True, "delivery_summary": "ok"}}
 

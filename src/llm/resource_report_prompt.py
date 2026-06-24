@@ -15,8 +15,11 @@ from __future__ import annotations
 from html import escape
 
 from src.llm.audience_external_prompts import RESOURCE_NARRATIVE_EXTERNAL_SYSTEM
+from src.llm.slack_link import slack_link_line
 from src.profile.context import build_context_block, prepend_persona
 from src.tools.models import CostSummary, ResourceReport
+
+_LINK_TEXT = "Xem chi tiết trên Confluence"
 
 _STATUS_WORD = {"ok": "trong ngưỡng", "warn": "⚠️ gần ngưỡng", "over": "❌ vượt ngưỡng"}
 
@@ -105,12 +108,7 @@ def _resource_slack_short_external(
         f"*Năng lực team: {_capacity_word(resource)}*"
         f"\n• Ngân sách: {status}"
     )
-    link = (
-        f"\n📄 <{detail_url}|Xem chi tiết trên Confluence>"
-        if detail_url
-        else "\n_(không tạo được link Confluence)_"
-    )
-    return head + link
+    return head + slack_link_line(detail_url, text=_LINK_TEXT)
 
 
 def build_resource_slack_short(
@@ -149,12 +147,7 @@ def build_resource_slack_short(
     if cost.cost_per_issue > 0:
         head += f"\n• Nhân công (ước tính): {_fmt_money(cost.labor_estimate)}"
 
-    link = (
-        f"\n📄 <{detail_url}|Xem chi tiết trên Confluence>"
-        if detail_url
-        else "\n_(không tạo được link Confluence)_"
-    )
-    return head + link
+    return head + slack_link_line(detail_url, text=_LINK_TEXT)
 
 
 _NARRATIVE_SYSTEM = (

@@ -37,7 +37,7 @@ class _DeliverSpy:
         self.calls = 0
         self.approved_seen: list[bool] = []
 
-    def __call__(self, risks, body, approved=False):
+    def __call__(self, short, body, approved=False):
         self.calls += 1
         self.approved_seen.append(approved)
         return True, "confluence=executed slack=executed url=https://x"
@@ -57,7 +57,7 @@ def _fake_deps(deliver) -> ReportDeps:
         analyze_risks=lambda i, p, c: [
             Risk(kind="blocker", severity="high", subject="AB-1", detail="d", suggested_action="a")
         ],
-        compose=lambda risks: ("<h2>Báo cáo</h2>", 0.0002),
+        compose=lambda risks: ("<h2>Báo cáo</h2>", 0.0002, "*short*"),
         deliver=deliver,
     )
 

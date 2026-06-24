@@ -9,7 +9,10 @@ the LLM message builders. `report_prompt` re-exports these so the public import 
 
 from __future__ import annotations
 
+from src.llm.slack_link import slack_link_line
 from src.tools.models import Risk
+
+_LINK_TEXT = "Xem báo cáo chi tiết trên Confluence"
 
 REPORT_TITLES = {
     "daily": "Daily Standup",
@@ -39,9 +42,5 @@ def build_slack_short(
     else:
         status = "*✅ Tiến độ ổn* — không phát hiện rủi ro"
         headline = ""
-    link = (
-        f"\n📄 <{detail_url}|Xem báo cáo chi tiết trên Confluence>"
-        if detail_url
-        else "\n_(không tạo được link Confluence)_"
-    )
+    link = slack_link_line(detail_url, text=_LINK_TEXT)
     return f"*Báo cáo tiến độ — {report_date}*\n{status}{headline}{link}"

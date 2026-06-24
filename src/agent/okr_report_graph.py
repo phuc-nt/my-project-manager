@@ -42,7 +42,9 @@ class OkrReportDeps:
     """Injectable collaborators for the OKR report flow (real or fake)."""
 
     fetch_rollup: Callable[[], OkrRollup]
-    compose: Callable[[OkrRollup], tuple[str, float | None]]
+    # compose returns (body, cost, slack_short) — short built URL-free, checkpointed (S4).
+    compose: Callable[[OkrRollup], tuple[str, float | None, str]]
+    # deliver takes the URL-free short (from state) + body + approved (model-free).
     # `approved` (M2-P5): True when the graph resumed past the Lớp B interrupt with
     # an approve decision — the writers then run the gateway's already-approved path.
     deliver: Callable[..., tuple[bool, str]]
@@ -87,11 +89,14 @@ def default_okr_deps(
     )
     llm_box: dict[str, object] = {}
 
-    def _compose(rollup: OkrRollup) -> tuple[str, float | None]:
+    def _compose(rollup: OkrRollup) -> tuple[str, float | None, str]:
         report_date = _today_utc().isoformat()
         table = render_okr_table_xhtml(rollup, report_date=report_date)
         narrative, cost = _narrate(rollup, report_date)
-        return narrative + table, cost
+        # URL-free short built here (rollup live) + checkpointed → resume-safe (S4).
+        short = build_okr_slack_short(rollup, report_date=report_date, detail_url=None,
+                                      audience=audience)
+        return narrative + table, cost, short
 
     def _narrate(rollup: OkrRollup, report_date: str) -> tuple[str, float | None]:
         """LLM 1-paragraph narrative; fall back to a templated line without a key."""
@@ -115,7 +120,9 @@ def default_okr_deps(
             logger.warning("OKR narrative skipped (LLM unavailable): %s", exc)
             return fallback_okr_narrative(rollup, report_date=report_date, audience=audience), None
 
-    def _deliver(rollup: OkrRollup, body: str, approved: bool = False) -> tuple[bool, str]:
+    def _deliver(short_no_url: str, body: str, approved: bool = False) -> tuple[bool, str]:
+        from src.llm.slack_link import inject_link
+
         today = _today_utc().isoformat()
         channel, date_hint = resolve_audience_delivery(audience, "okr", today, config)
         title = f"{REPORT_TITLES['okr']} {today}"
@@ -125,9 +132,8 @@ def default_okr_deps(
             approved=approved,
         )
         detail_url = page.url if page else None
-        short = build_okr_slack_short(
-            rollup, report_date=today, detail_url=detail_url, audience=audience
-        )
+        # Inject the real link into the checkpointed URL-free short (no rollup read).
+        short = inject_link(short_no_url, detail_url, text="Xem OKR chi tiết trên Confluence")
         slack_result = deliver_report(
             short, gateway=gw, config=config, channel=channel, report_date=date_hint,
             rationale=f"OKR status report (short + link, {audience})",
@@ -159,14 +165,17 @@ def _make_okr_nodes(deps: OkrReportDeps):
         return {"risks": _problems_to_dicts(rollup)}
 
     def compose_report(_state: ReportState) -> dict:
-        text, cost = deps.compose(box["rollup"])
-        return {"report_text": text, "cost_usd": cost}
+        text, cost, short = deps.compose(box["rollup"])
+        return {"report_text": text, "cost_usd": cost, "slack_short": short}
 
     def deliver(state: ReportState) -> dict:
         # M2-P5: approve at the interrupt authorizes the live external post (see
         # report_graph.deliver). Internal never sets the key ⇒ approved=False.
+        # Reads ONLY state (S4) — resume-safe, no box["rollup"].
         approved = state.get("approval_decision") == "approve"
-        delivered, summary = deps.deliver(box["rollup"], state.get("report_text", ""), approved)
+        delivered, summary = deps.deliver(
+            state.get("slack_short", ""), state.get("report_text", ""), approved
+        )
         return {"delivered": delivered, "delivery_summary": summary}
 
     return perceive, analyze_node, compose_report, deliver

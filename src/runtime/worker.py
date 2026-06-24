@@ -2,14 +2,17 @@
 
     python -m src.runtime.worker --agent-id <id> --report <daily|weekly|okr|resource>
                                  [--audience internal|external] [--dry-run]
+    python -m src.runtime.worker --agent-id <id> --resume
+                                 --thread <thread_id> --decision approve|reject
 
 One worker = one OS process running ONE report for ONE agent, fully isolated: it loads
 `profiles/<id>/` at the per-agent data dir `.data/agents/<id>/`, so its gateway/audit/
 budget/dedup/approvals/checkpoint all live under that dir (Slice 1). It mirrors the
 cron report path but per-agent (data dir + agent-prefixed thread_id), appends a B1
 run-event to `runs.jsonl`, and exits 0 (delivered) / 1 (ran, not delivered / error) /
-2 (bad invocation or profile load failure). The coordinating service (Slice 3) spawns
-this and collects the exit code + the last run-event line.
+2 (bad invocation or profile load failure) / 3 (PAUSED at a Lớp B interrupt, awaiting
+approval — M2-P5). `--resume` re-attaches to a paused thread and applies the decision.
+The coordinating service spawns this and collects the exit code + the last run-event.
 """
 
 from __future__ import annotations
@@ -48,10 +51,13 @@ def _audience(args: list[str]) -> str:
     return "external" if _flag_value(args, "--audience") == "external" else "internal"
 
 
-def _default_run_report(
-    loaded: LoadedProfile, settings: Any, kind: str, audience: str, thread_id: str
-) -> dict:
-    """Real dispatch: build the per-agent graph and run one report (mirrors cron)."""
+def build_graph_for(loaded: LoadedProfile, settings: Any, kind: str, audience: str):
+    """Build the per-agent compiled graph for one (kind, audience).
+
+    Shared by the fresh-run path and the `--resume` path so both rebuild the
+    IDENTICAL graph structure — a resume must reconstruct the same node/edge shape
+    the interrupted checkpoint was created with.
+    """
     from src.agent.checkpoint import get_checkpointer
 
     context = ProfileContext(persona=loaded.soul, project=loaded.project, memory=loaded.memory)
@@ -59,22 +65,28 @@ def _default_run_report(
     if kind == "resource":
         from src.agent.resource_report_graph import build_resource_graph
 
-        graph = build_resource_graph(
+        return build_resource_graph(
             cp, config=loaded.config, settings=settings, context=context, audience=audience
         )
-    elif kind == "okr":
+    if kind == "okr":
         from src.agent.okr_report_graph import build_okr_graph
 
-        graph = build_okr_graph(
+        return build_okr_graph(
             cp, config=loaded.config, settings=settings, context=context, audience=audience
         )
-    else:
-        from src.agent.report_graph import build_report_graph
+    from src.agent.report_graph import build_report_graph
 
-        graph = build_report_graph(
-            cp, config=loaded.config, settings=settings, context=context,
-            report_kind=kind, audience=audience,
-        )
+    return build_report_graph(
+        cp, config=loaded.config, settings=settings, context=context,
+        report_kind=kind, audience=audience,
+    )
+
+
+def _default_run_report(
+    loaded: LoadedProfile, settings: Any, kind: str, audience: str, thread_id: str
+) -> dict:
+    """Real dispatch: build the per-agent graph and run one report (mirrors cron)."""
+    graph = build_graph_for(loaded, settings, kind, audience)
     return graph.invoke({}, config={"configurable": {"thread_id": thread_id}})
 
 
@@ -122,6 +134,18 @@ def main(argv: list[str] | None = None, *, run_report: RunReport = _default_run_
         append_run_event(data_dir, _event(agent_id, kind, audience, "load_error", None, False))
         return 2
 
+    # M2-P5 resume: re-attach to a thread paused at the Lớp B interrupt and apply the
+    # human decision. The thread_id (not --report/--audience) drives which graph to
+    # rebuild, so this branches before the normal fresh-run dispatch.
+    if "--resume" in args:
+        from src.runtime.worker_resume import run_resume
+
+        return run_resume(
+            args, agent_id=agent_id, loaded=loaded, settings=settings, data_dir=data_dir,
+            build_graph=build_graph_for, flag_value=_flag_value,
+            append_event=append_run_event, make_event=_event,
+        )
+
     thread_id = agent_thread_id(agent_id, kind, audience)
     try:
         result = run_report(loaded, settings, kind, audience, thread_id)
@@ -130,6 +154,20 @@ def main(argv: list[str] | None = None, *, run_report: RunReport = _default_run_
         append_run_event(data_dir, _event(agent_id, kind, audience, "error", None, False))
         print(f"error: {exc}", file=sys.stderr)
         return 1
+
+    # A graph-native Lớp B interrupt (M2-P5): the external report PAUSED before
+    # delivery, state is checkpointed at `thread_id`. The worker exits 3 ("paused,
+    # awaiting approval") and records an `interrupted` run-event — resume later with
+    # `--resume --thread <thread_id> --decision approve|reject`.
+    if "__interrupt__" in result:
+        append_run_event(
+            data_dir, _event(agent_id, kind, audience, "interrupted", None, False)
+        )
+        logger.info("worker %s %s/%s: PAUSED at approval gate (thread %s)",
+                    agent_id, kind, audience, thread_id)
+        print(f"paused for approval — resume with: --resume --thread {thread_id} "
+              "--decision approve|reject")
+        return 3
 
     delivered = bool(result.get("delivered", False))
     cost = result.get("cost_usd")

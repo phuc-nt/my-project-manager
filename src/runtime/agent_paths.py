@@ -51,3 +51,20 @@ def agent_thread_id(agent_id: str, kind: str, audience: str) -> str:
     data dir) so a thread id can't carry a path-like agent id.
     """
     return f"{_validate_agent_id(agent_id)}:{kind}:{audience}"
+
+
+def parse_thread_id(thread_id: str) -> tuple[str, str, str]:
+    """Inverse of `agent_thread_id`: split into (agent_id, kind, audience).
+
+    Used by the worker `--resume` path to rebuild the SAME graph the interrupted
+    thread was created with. The agent id is re-validated so a malformed thread id
+    cannot reach a data dir. Raises ValueError on a thread id that is not the
+    `<agent_id>:<kind>:<audience>` shape.
+    """
+    parts = thread_id.split(":")
+    if len(parts) != 3 or not all(parts):
+        raise ValueError(
+            f"Invalid thread id {thread_id!r}: expected '<agent_id>:<kind>:<audience>'."
+        )
+    agent_id, kind, audience = parts
+    return _validate_agent_id(agent_id), kind, audience

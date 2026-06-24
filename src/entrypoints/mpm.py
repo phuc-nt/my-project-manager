@@ -50,6 +50,10 @@ def main(argv: list[str] | None = None) -> int:
         from src.entrypoints.mpm_registry_cmds import run_register
 
         return run_register(rest)
+    if sub == "run":
+        from src.entrypoints.mpm_run_cmd import run_agent
+
+        return run_agent(rest)
 
     print(f"error: unknown subcommand {sub!r}.\n{_USAGE}", file=sys.stderr)
     return 2

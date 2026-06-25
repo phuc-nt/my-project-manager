@@ -188,7 +188,9 @@ def test_parse_report_kind_resource():
 
 def _fake_loaded(tmp_path, *, api_key):
     """A minimal LoadedProfile stand-in for CLI dispatch tests (no real profile dir)."""
-    settings = type("S", (), {"openrouter_api_key": api_key, "data_dir": tmp_path})()
+    settings = type(
+        "S", (), {"openrouter_api_key": api_key, "data_dir": tmp_path, "store": "memory"}
+    )()
     return type(
         "LP", (),
         {"settings": settings, "config": object(), "soul": "", "project": "", "memory": "",
@@ -213,7 +215,8 @@ def test_cli_report_resource_dispatch(monkeypatch, tmp_path):
     monkeypatch.setattr(cli, "_checkpointer", lambda settings: None)
     monkeypatch.setattr(
         rc_graph_mod, "build_resource_graph",
-        lambda cp, *, config=None, settings=None, context=None, audience="internal": _FakeGraph(),
+        lambda cp, *, config=None, settings=None, context=None, audience="internal",
+        store=None: _FakeGraph(),
     )
 
     rc = cli.main(["report", "--resource"])

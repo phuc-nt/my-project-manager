@@ -31,6 +31,8 @@ from src.profile.context import EMPTY, ProfileContext
 from src.tools.models import CostSummary, ResourceReport
 
 if TYPE_CHECKING:
+    from langgraph.store.base import BaseStore
+
     from src.config.reporting_config import ReportingConfig
     from src.config.settings import Settings
 
@@ -203,6 +205,7 @@ def build_resource_graph(
     context: ProfileContext = EMPTY,
     deps: ResourceReportDeps | None = None,
     audience: str = "internal",
+    store: BaseStore | None = None,
 ) -> CompiledStateGraph:
     """Build + compile the resource + cost reporting graph. `deps` defaults to real wiring.
 
@@ -234,4 +237,4 @@ def build_resource_graph(
         builder, audience=audience, summary=external_summary("resource", audience, config)
     )
     builder.add_edge("deliver", END)
-    return builder.compile(checkpointer=checkpointer)
+    return builder.compile(checkpointer=checkpointer, store=store)

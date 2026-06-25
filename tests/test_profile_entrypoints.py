@@ -5,7 +5,9 @@ from __future__ import annotations
 
 def _fake_loaded(tmp_path, *, api_key="k", soul="", project="", memory=""):
     """A LoadedProfile stand-in so the dispatch runs without a real profile dir."""
-    settings = type("S", (), {"openrouter_api_key": api_key, "data_dir": tmp_path})()
+    settings = type(
+        "S", (), {"openrouter_api_key": api_key, "data_dir": tmp_path, "store": "memory"}
+    )()
     return type(
         "LP", (),
         {
@@ -54,7 +56,7 @@ def test_no_profile_flag_loads_default_and_config_reaches_graph(monkeypatch, tmp
                     "delivery_summary": "s"}
 
     def fake_build(cp, *, config=None, settings=None, context=None,
-                   report_kind="daily", audience="internal"):
+                   report_kind="daily", audience="internal", store=None):
         seen["config"] = config
         seen["context"] = context
         return _FakeGraph()

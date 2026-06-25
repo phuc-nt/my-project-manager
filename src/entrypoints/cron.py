@@ -52,18 +52,21 @@ def _audience(args: list[str]) -> str:
 
 def _build_graph(report_kind: str, audience: str, settings, config, context):
     """Build the graph for a report kind (mirrors the CLI dispatch)."""
+    from src.agent.store import get_store
+
     cp = get_checkpointer(settings)
+    st = get_store(settings)  # cross-thread memory Store (InMemoryStore default)
     if report_kind == "resource":
         from src.agent.resource_report_graph import build_resource_graph
 
         return build_resource_graph(
-            cp, config=config, settings=settings, context=context, audience=audience
+            cp, config=config, settings=settings, context=context, audience=audience, store=st
         )
     if report_kind == "okr":
         from src.agent.okr_report_graph import build_okr_graph
 
         return build_okr_graph(
-            cp, config=config, settings=settings, context=context, audience=audience
+            cp, config=config, settings=settings, context=context, audience=audience, store=st
         )
     from src.agent.report_graph import build_report_graph
 
@@ -74,6 +77,7 @@ def _build_graph(report_kind: str, audience: str, settings, config, context):
         context=context,
         report_kind=report_kind,
         audience=audience,
+        store=st,
     )
 
 

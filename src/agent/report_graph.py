@@ -28,6 +28,8 @@ from src.profile.context import EMPTY, ProfileContext
 from src.tools.models import CiRun, Issue, PullRequest, Risk
 
 if TYPE_CHECKING:
+    from langgraph.store.base import BaseStore
+
     from src.config.reporting_config import ReportingConfig
     from src.config.settings import Settings
 
@@ -255,6 +257,7 @@ def build_report_graph(
     deps: ReportDeps | None = None,
     report_kind: str = "daily",
     audience: str = "internal",
+    store: BaseStore | None = None,
 ) -> CompiledStateGraph:
     """Build + compile the reporting graph. `deps` defaults to real wiring.
 
@@ -296,4 +299,4 @@ def build_report_graph(
         summary=external_summary(report_kind, audience, config),
     )
     builder.add_edge("deliver", END)
-    return builder.compile(checkpointer=checkpointer)
+    return builder.compile(checkpointer=checkpointer, store=store)

@@ -96,18 +96,21 @@ def _run_hello(message: str, settings) -> int:
 
 def _run_report(report_kind: str, audience: str, settings, config, context, profile_id: str) -> int:
     # Imported here so the hello path (and tests) don't pull in MCP/report deps.
+    from src.agent.store import get_store
+
     cp = _checkpointer(settings)
+    st = get_store(settings)  # cross-thread memory Store (parity with cron/worker)
     if report_kind == "resource":
         from src.agent.resource_report_graph import build_resource_graph
 
         graph = build_resource_graph(
-            cp, config=config, settings=settings, context=context, audience=audience
+            cp, config=config, settings=settings, context=context, audience=audience, store=st
         )
     elif report_kind == "okr":
         from src.agent.okr_report_graph import build_okr_graph
 
         graph = build_okr_graph(
-            cp, config=config, settings=settings, context=context, audience=audience
+            cp, config=config, settings=settings, context=context, audience=audience, store=st
         )
     else:
         from src.agent.report_graph import build_report_graph
@@ -119,6 +122,7 @@ def _run_report(report_kind: str, audience: str, settings, config, context, prof
             context=context,
             report_kind=report_kind,
             audience=audience,
+            store=st,
         )
     thread = agent_thread_id(profile_id, report_kind, audience)
     result = graph.invoke({}, config={"configurable": {"thread_id": thread}})

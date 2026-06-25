@@ -47,8 +47,13 @@ def test_postgres_branch_reached_with_dsn(tmp_path, monkeypatch):
         {"data_dir": tmp_path, "checkpointer": "postgres", "postgres_dsn": "postgresql://x/y"}
     )
     cp = get_checkpointer(settings)
+    from psycopg.rows import dict_row
+
     assert seen["dsn"] == "postgresql://x/y"
-    assert seen["kwargs"]["autocommit"] is True  # mirrors from_conn_string's kwargs
+    # kwargs mirror from_conn_string (identical saver behavior minus the GC-close CM).
+    assert seen["kwargs"]["autocommit"] is True
+    assert seen["kwargs"]["prepare_threshold"] == 0
+    assert seen["kwargs"]["row_factory"] is dict_row
     assert seen["setup"] is True
     assert isinstance(cp, _FakeSaver)
 

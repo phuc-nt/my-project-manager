@@ -28,10 +28,14 @@
 
 <p>
   <button class="btn" hx-get="/dashboard/agents/{{ s.id }}/approvals"
-          hx-target="#approvals" hx-swap="outerHTML">Approvals</button>
-  {# Audit / Config / Trigger are wired in S3. #}
-  <span class="muted">· Audit · Config · Trigger (coming in S3)</span>
+          hx-target="#panel" hx-swap="outerHTML">Approvals</button>
+  <button class="btn" hx-get="/dashboard/agents/{{ s.id }}/audit"
+          hx-target="#panel" hx-swap="outerHTML">Audit</button>
+  <button class="btn" hx-get="/dashboard/agents/{{ s.id }}/config"
+          hx-target="#panel" hx-swap="outerHTML">Config</button>
+  <button class="btn" hx-get="/dashboard/agents/{{ s.id }}/run"
+          hx-target="#panel" hx-swap="outerHTML">Run</button>
 </p>
-<div id="approvals"></div>
+<div id="panel"></div>
 {% endif %}
 {% endblock %}

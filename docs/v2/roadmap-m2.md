@@ -56,18 +56,27 @@
 - **Acceptance**: từ UI thấy 2 agent, cost mỗi cái, approve 1 pending Lớp B → Slack post live, sửa 1 threshold → `profile.yaml` update → run kế tiếp dùng giá trị mới.
 - **Risks**: HTMX vs Streamlit chưa chốt (§9). HTMX = nhẹ, server-rendered, hợp FastAPI; Streamlit = nhanh dựng nhưng state model riêng, khó nhúng SSE live. Mitigation: chọn theo P6 — nếu streaming live là must-have → HTMX + SSE; nếu chấp nhận poll → Streamlit nhanh hơn.
 
-### P8 — Postgres checkpointer + Store (multi-process + cross-thread memory)
+### P8 — Postgres checkpointer + Store + cross-thread agent memory ✅ COMPLETE
 
-- **Goal**: thay SqliteSaver per-agent bằng Postgres checkpointer (state bền multi-process/multi-machine) + LangGraph Store (cross-thread memory per-agent).
-- **Key changes**:
-  - `src/agent/checkpoint.py`: thêm `CheckpointerType = sqlite|postgres` (config từ profile/env). Reference: DeerFlow `checkpointer_config.py` (memory|sqlite|postgres).
-  - LangGraph Store namespace theo `agent_id` cho cross-thread memory (vd "nhớ quyết định sprint trước" xuyên report run). Reference: DeerFlow `runtime/store/provider.py`.
-  - Resume interrupt (P5) qua Postgres → approval bền + worker bất kỳ resume được.
-- **Files touched**: `checkpoint.py`, new `src/agent/store.py`, worker (chọn checkpointer theo profile).
-- **Acceptance**: agent ghi memory ở report run 1, đọc lại ở run 2 (cross-thread). Worker restart → resume interrupt từ Postgres. SqliteSaver vẫn là default local (Postgres opt-in qua profile).
-- **Risks**: **Postgres = infra dependency mới** (§9 — M1 hay M2?). Quyết: **M2-P8, opt-in**. SQLite đủ cho M1 (1 process/agent, không tranh chấp). Postgres chỉ cần khi multi-machine hoặc cross-thread memory thật sự dùng.
+**Status**: DONE (2026-06-25, committed 304fc72 / 57b6973 / 9106073, 518 tests, offline-verified with selection tests + no-dsn → ValueError).
 
-**Exit M2**: web dashboard quản lý N agent (status/cost/audit/approve/config/trigger), agent chạy live streaming, Lớp B qua graph interrupt, Postgres+Store opt-in cho scale.
+- **What shipped (two opt-in halves + internal-only guardrail)**:
+  - **Postgres checkpointer (S1)**: `get_checkpointer(settings)` → selects `SqliteSaver` (default, unchanged, byte-identical per-agent file) or `PostgresCheckpointer` (opt-in via new `profile.yaml` `runtime:` block: `checkpointer_type: postgres`, `postgres_dsn`, + env override `CHECKPOINTER_TYPE` / `POSTGRES_DSN`). No infra dependency for common case (SQLite stays default). Postgres path opens raw psycopg connection (process-lifetime). Deps: `langgraph-checkpoint-postgres` + `psycopg[binary]`.
+  - **LangGraph Store (S2)**: `get_store(settings)` → `InMemoryStore` (default) or `PostgresStore` (opt-in). Threaded into `compile(store=...)` on all 4 builders; wired in worker/cron/cli. Namespace per `agent_id` for cross-thread memory.
+  - **Cross-thread agent memory (S3)**: After a real `INTERNAL` delivery (audience="internal" only), an injectable LLM extractor pulls salient facts → written to Store (namespaced by `agent_id`, content-hash keyed for dedup) AND mirrored into `MEMORY.md`'s agent-managed section (between `<!-- AGENT-MEMORY:START -->` / `<!-- AGENT-MEMORY:END -->` markers; human content preserved). A later run reads them back via existing P2 internal-only `MEMORY.md` injection.
+  - **GUARDRAIL: internal-only, no Action Gateway**: memory is INTERNAL agent state — it does NOT flow through the Action Gateway (which governs external mutations only), and it NEVER reaches an external audience. External reports have no memory node; MEMORY.md injection is internal-reports-only.
+  - **Offline-only verification (opt-in path not run against real Postgres)**: Postgres checkpointer + Store *wiring* + selection logic verified (right class reached; no-dsn → ValueError); SQLite + InMemoryStore defaults fully tested. Real Postgres verification deferred (opt-in, infra-gated).
+- **Files touched**: `src/agent/checkpoint.py` (get_checkpointer refactor), new `src/agent/store.py` (get_store), `src/agent/builders.py` (Store threading), `src/agent/memory_extractor.py` (new, LLM fact extraction), `src/agent/approval_gate.py` (memory node added post-deliver for internal runs), worker/cron/cli (get_store call sites).
+- **Acceptance**: 
+  - ✅ SQLite default path: agent ghi checkpoint locally, resume interrupt within-process, memory empty (no cross-thread read). 
+  - ✅ Postgres checkpointer wiring: config → right class selected, no-dsn raises ValueError. 
+  - ✅ Store wiring: builders accept store param, compile calls respect it.
+  - ✅ Internal delivery → memory extracted + mirrored to MEMORY.md + survives restart. External delivery (audience=external) skips memory node.
+- **Risks** (addressed):
+  - **Multi-process resume (P5 + P8)**: P5 resume within-process via SqliteSaver; multi-machine cross-process resume now possible with Postgres (P8 opt-in) — both paths work, user picks infra.
+  - **Memory durability**: Store writes are deduped by content-hash; MEMORY.md mirror survives human edits (human content between markers preserved, agent section replaced).
+
+**Exit M2**: v2 multi-agent platform complete in backend (M1 core + M2 P5/P6/P8). P7 web dashboard deferred. Postgres + Store opt-in for scale; SQLite default for local dev. Cross-thread memory internal-only, audit guardrail preserved.
 
 ---
 

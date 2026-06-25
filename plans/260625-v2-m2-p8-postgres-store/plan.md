@@ -1,12 +1,14 @@
 ---
 title: "v2 M2-P8 — Postgres checkpointer + LangGraph Store (cross-thread agent memory)"
 description: "Opt-in Postgres durable state + a namespaced Store with LLM-extracted memory mirrored to MEMORY.md."
-status: pending
+status: completed
 priority: P1
 effort: 9h
 branch: main
 tags: [v2, m2, postgres, store, memory]
 created: 2026-06-25
+completed: 2026-06-25
+commits: [304fc72, 57b6973, 9106073]
 ---
 
 # v2 M2-P8 — Postgres checkpointer + LangGraph Store (cross-thread agent memory)
@@ -48,11 +50,13 @@ P7 (web dashboard) was SKIPPED by the user; P8 is orthogonal infra and does not 
 
 ## Slices (each independently runnable, committable, green suite)
 
-| Slice | Phase file | Scope | Default behavior | Green gate |
-|-------|-----------|-------|------------------|------------|
-| S1 | `phase-01-checkpointer-selection.md` | `CheckpointerType` config + `get_checkpointer(settings)` + widen builder type hints to `BaseCheckpointSaver \| None` + postgres branch (selection-tested) + dep added | SQLite default unchanged | 490 + new pass; ruff clean |
-| S2 | `phase-02-store-wiring.md` | Store factory (memory default / postgres opt-in) + `store=` param on the 4 builders + `build_graph_for` wires it + `compile(store=...)` | InMemoryStore default; no behavior change | suite green; new store-selection tests pass |
-| S3 | `phase-03-memory-extract-mirror.md` | memory-extract+write node (injectable extractor) after deliver (real deliveries only) + Store `put` + MEMORY.md agent-section rewrite (pure fn) + cross-thread read via P2 injection | memory written only on real internal deliver | suite green; fake-extractor + marker-rewrite tests pass |
+| Slice | Phase file | Scope | Status |
+|-------|-----------|-------|--------|
+| S1 | `phase-01-checkpointer-selection.md` | `CheckpointerType` config + `get_checkpointer(settings)` + widen builder hints to `BaseCheckpointSaver` + postgres branch (selection-tested) + dep | ✅ `304fc72` |
+| S2 | `phase-02-store-wiring.md` | Store factory (memory/postgres) + `store=` on the 4 builders + worker/cron/cli wire it + `compile(store=...)` | ✅ `57b6973` |
+| S3 | `phase-03-memory-extract-mirror.md` | memory-extract `remember` node (injectable extractor, internal+delivered+not-dry-run) + Store `put` (content-hash) + MEMORY.md agent-section rewrite + cross-thread read via P2 injection | ✅ `9106073` |
+
+**Final:** 518 tests (490 baseline + 28 new), ruff clean. New modules <200 LOC. Review caught + fixed 2 CRITICAL bugs: S1 Postgres conn-leak (`from_conn_string().__enter__()` GC-closes the connection → raw-connection fix), S3 MEMORY.md marker-doubling (`_split` re-added markers → corruption every write; fixed + 5-write regression test). Guardrail held: memory is internal-only, never through the gateway, never external (verified). Postgres checkpointer + Store paths wired + selection-tested but NOT run against a real PG (opt-in; live-PG smoke deferred).
 
 Natural slicing rationale: S1 and S2 are pure infra plumbing (no observable behavior change with defaults); S3 is the only slice that changes runtime behavior, and it depends on the Store seam (S2) and the unchanged checkpointer config (S1). Each slice keeps the SQLite/InMemory defaults so the 490-test baseline stays green at every commit.
 

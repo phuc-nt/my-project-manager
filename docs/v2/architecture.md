@@ -51,7 +51,27 @@
    └──────────────────────────────────────────────────────────────────────┘
 ```
 
-Vị trí Postgres/Store: **M1 vẫn dùng SqliteSaver per-agent** (1 file / agent — đủ vì mỗi worker 1 process, không tranh chấp). **M2-P8** mới giới thiệu Postgres khi cần multi-machine hoặc cross-thread memory. Store sống cạnh checkpointer, namespace theo `agent_id`.
+## 5. Persistence: Checkpointer + Store (M2-P8)
+
+**Checkpointer** (LangGraph state durability):
+- **Default**: `SqliteSaver` per-agent (1 `.db` file / agent — simple, no infra, works within-process).
+- **Opt-in via profile**: `PostgresCheckpointer` via `profile.yaml` `runtime: { checkpointer_type: postgres, postgres_dsn: "..." }` or env `CHECKPOINTER_TYPE=postgres` + `POSTGRES_DSN`. Opens raw psycopg connection at process start (lifetime-scoped).
+- **Selection**: `get_checkpointer(settings)` → right class chosen based on config; no-dsn → `ValueError`.
+- **Deps for Postgres path**: `langgraph-checkpoint-postgres` + `psycopg[binary]`.
+
+**Store** (cross-thread memory):
+- **Default**: `InMemoryStore` (per-run, not persisted).
+- **Opt-in via profile**: `PostgresStore` via same `postgres_dsn`.
+- **Namespace**: per `agent_id`, so memory is isolated between agents.
+- **Selection**: `get_store(settings)` → wired into all 4 builders' `compile(store=...)`.
+
+**Agent Memory (M2-P8, internal-only)**:
+- After an `INTERNAL` delivery (audience="internal"), LLM extractor pulls salient facts.
+- Facts written to Store (deduped by content-hash) AND mirrored to `MEMORY.md`'s agent-managed section (`<!-- AGENT-MEMORY:START/END -->`; human edits preserved).
+- Reads back via P2 internal-only `MEMORY.md` injection on next run.
+- **Guardrail**: NOT gated by Action Gateway (memory is internal state, not an external mutation); NOT in external reports.
+
+Vị trí Postgres/Store: **M1 vẫn dùng SqliteSaver per-agent** (1 file / agent — đủ vì mỗi worker 1 process, không tranh chấp). **M2-P8** giới thiệu Postgres khi cần multi-machine hoặc cross-thread memory thật sự dùng. Store sống cạnh checkpointer, namespace theo `agent_id`. Agent memory là internal state: mỗi agent tự ghi vào Store + MEMORY.md, không qua gateway.
 
 **FastAPI service (M2-P6)** — thêm một localhost-only backend (`src/server/app.py`) phục vụ on-demand trigger + SSE streaming cho dashboard. Service này chạy graph in-process (không qua worker subprocess), stream live node events, và enforce PII firewall. Scheduled runs vẫn qua worker/scheduler (M1) — service là *augment*, không thay thế.
 

@@ -21,6 +21,8 @@ from src.agent.state import AgentState
 from src.llm.client import LlmClient
 
 if TYPE_CHECKING:
+    from langgraph.store.base import BaseStore
+
     from src.config.settings import Settings
 
 
@@ -58,6 +60,7 @@ def build_graph(
     *,
     settings: Settings | None = None,
     client: LlmClient | None = None,
+    store: BaseStore | None = None,
 ) -> CompiledStateGraph:
     """Build and compile the minimal agent graph.
 
@@ -71,4 +74,4 @@ def build_graph(
     builder.add_edge(START, "perceive")
     builder.add_edge("perceive", "respond")
     builder.add_edge("respond", END)
-    return builder.compile(checkpointer=checkpointer)
+    return builder.compile(checkpointer=checkpointer, store=store)

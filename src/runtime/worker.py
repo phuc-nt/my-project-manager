@@ -61,8 +61,13 @@ def build_graph_for(loaded: LoadedProfile, settings: Any, kind: str, audience: s
     from src.agent.checkpoint import get_checkpointer
     from src.agent.memory_node import build_remember_node
     from src.agent.store import get_store
+    from src.skills.skill_pool import build_skill_context
 
-    context = ProfileContext(persona=loaded.soul, project=loaded.project, memory=loaded.memory)
+    skills, selector = build_skill_context(loaded, settings)
+    context = ProfileContext(
+        persona=loaded.soul, project=loaded.project, memory=loaded.memory,
+        skills=skills, skill_selector=selector,
+    )
     cp = get_checkpointer(settings)
     st = get_store(settings)  # cross-thread memory Store (InMemoryStore default)
     remember = build_remember_node(loaded.profile_id, settings, audience)

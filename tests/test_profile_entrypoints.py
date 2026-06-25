@@ -13,7 +13,7 @@ def _fake_loaded(tmp_path, *, api_key="k", soul="", project="", memory=""):
         {
             "settings": settings, "config": object(),
             "soul": soul, "project": project, "memory": memory,
-            "profile_id": "default",
+            "profile_id": "default", "skills": (),  # no skills ⇒ build_skill_context inert
         },
     )()
 

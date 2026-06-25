@@ -1,5 +1,5 @@
 {# Approve confirm partial — the operator sees EXACTLY what posts before confirming. #}
-<div id="approvals">
+<div id="panel">
   <h3>Confirm approval #{{ p.id }}</h3>
   <p class="muted">This will run the action for real (it posts live, through the guardrail).</p>
   <table>
@@ -15,9 +15,9 @@
   <p>
     <button class="btn go"
             hx-post="/dashboard/agents/{{ agent_id }}/approvals/{{ p.id }}/approve"
-            hx-target="#approvals" hx-swap="outerHTML">Confirm — post now</button>
+            hx-target="#panel" hx-swap="outerHTML">Confirm — post now</button>
     <button class="btn"
             hx-get="/dashboard/agents/{{ agent_id }}/approvals"
-            hx-target="#approvals" hx-swap="outerHTML">Cancel</button>
+            hx-target="#panel" hx-swap="outerHTML">Cancel</button>
   </p>
 </div>

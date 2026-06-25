@@ -1,5 +1,5 @@
-{# Pending Lớp B approvals partial — swapped into #approvals by htmx. #}
-<div id="approvals">
+{# Pending Lớp B approvals partial — swapped into #panel by htmx. #}
+<div id="panel">
   <h3>Pending approvals ({{ pending | length }})</h3>
   {% if not pending %}
     <p class="muted">None pending.</p>
@@ -22,10 +22,10 @@
         <td style="white-space:nowrap">
           <button class="btn go"
                   hx-get="/dashboard/agents/{{ agent_id }}/approvals/{{ p.id }}/confirm"
-                  hx-target="#approvals" hx-swap="outerHTML">Approve…</button>
+                  hx-target="#panel" hx-swap="outerHTML">Approve…</button>
           <button class="btn danger"
                   hx-post="/dashboard/agents/{{ agent_id }}/approvals/{{ p.id }}/reject"
-                  hx-target="#approvals" hx-swap="outerHTML"
+                  hx-target="#panel" hx-swap="outerHTML"
                   hx-confirm="Reject approval #{{ p.id }}?">Reject</button>
         </td>
       </tr>

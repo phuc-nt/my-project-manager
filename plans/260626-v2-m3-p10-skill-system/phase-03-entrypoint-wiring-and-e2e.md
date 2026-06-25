@@ -1,6 +1,6 @@
 # S3 — Entry-point wiring + end-to-end offline graph tests
 
-**Status:** pending · **Effort:** ~2h · **Blocks:** none · **Blocked by:** S2
+**Status:** done (commit `ab5c9b7`) · **Effort:** ~2h · **Blocks:** none · **Blocked by:** S2
 
 ## Goal
 

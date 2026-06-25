@@ -1,13 +1,24 @@
 ---
 title: "v2 M3-P10 — PM Skill System (C1 bundled, LLM auto-select)"
 description: "Bundled PM SKILL.md instructions auto-selected by an injectable LLM selector and injected into the INTERNAL compose prompt only."
-status: pending
+status: completed
 priority: P1
 effort: 9h
 branch: main
 tags: [v2, m3, skills, llm]
 created: 2026-06-26
+completed: 2026-06-26
 ---
+
+> **Completed 2026-06-26.** All 3 slices landed: S1 `8e6de3d` (loader + 5 bundled
+> skills + profile `skills:` block), S2 `3413261` (injectable selector + internal-only
+> compose injection across all 3 builders), S3 `ab5c9b7` (entry-point wiring + 14 offline
+> e2e). 592 tests pass (545 baseline + 47 new), ruff clean. Code-reviewer DONE per slice,
+> no CRITICAL/HIGH — the P5 red line holds defense-in-depth (selector gate + builder gate),
+> mutation-proven; the no-skills path is allocation-free/key-free and byte-identical to
+> pre-P10. Accepted deviation: `report_prompt.py` (209) / `resource_report_prompt.py` (244)
+> stay >200 LOC (pre-existing prompt files; S2 added ~6 lines each; splitting prose hurts
+> readability — consistent with the prior P1 >200-LOC deviation).
 
 # v2 M3-P10 — PM Skill System (C1)
 

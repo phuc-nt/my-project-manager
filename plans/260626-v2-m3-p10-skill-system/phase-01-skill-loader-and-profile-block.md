@@ -1,6 +1,6 @@
 # S1 — Skill loader + 5 bundled SKILL.md + `skills:` profile block
 
-**Status:** pending · **Effort:** ~3h · **Blocks:** S2 · **Blocked by:** none
+**Status:** done (commit `8e6de3d`) · **Effort:** ~3h · **Blocks:** S2 · **Blocked by:** none
 
 ## Goal
 

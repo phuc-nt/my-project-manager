@@ -1,6 +1,6 @@
 # S2 — Injectable selector + internal-only compose injection
 
-**Status:** pending · **Effort:** ~4h · **Blocks:** S3 · **Blocked by:** S1
+**Status:** done (commit `3413261`) · **Effort:** ~4h · **Blocks:** S3 · **Blocked by:** S1
 
 ## Goal
 

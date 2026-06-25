@@ -29,6 +29,7 @@ from src.agent.okr_analyzer import OkrRollup
 from src.agent.okr_weekly_section import build_okr_rollup
 from src.agent.state import ReportState
 from src.profile.context import EMPTY, ProfileContext
+from src.skills.skill_selector import select_skill_text
 
 if TYPE_CHECKING:
     from langgraph.store.base import BaseStore
@@ -115,6 +116,7 @@ def default_okr_deps(
                     persona=context.persona,
                     project=context.project,
                     memory=context.memory,
+                    skills=select_skill_text(context, audience, kind="okr"),
                 )
             )
             return result.content, result.cost_usd

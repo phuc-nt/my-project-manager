@@ -25,6 +25,7 @@ from src.agent.risk_analyzer import analyze
 from src.agent.state import ReportState
 from src.llm.client import LlmClient
 from src.profile.context import EMPTY, ProfileContext
+from src.skills.skill_selector import select_skill_text
 from src.tools.models import CiRun, Issue, PullRequest, Risk
 
 if TYPE_CHECKING:
@@ -116,6 +117,7 @@ def default_report_deps(
         if llm is None:
             llm = LlmClient(settings)
         today = _today_utc().isoformat()
+        skill_text = select_skill_text(context, audience, kind=report_kind)
         messages = build_detail_messages(
             risks,
             report_date=today,
@@ -125,6 +127,7 @@ def default_report_deps(
             persona=context.persona,
             project=context.project,
             memory=context.memory,
+            skills=skill_text,
         )
         result = llm.complete(messages)
         body = result.content

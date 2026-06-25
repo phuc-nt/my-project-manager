@@ -126,14 +126,16 @@ def build_okr_narrative_messages(
     persona: str = "",
     project: str = "",
     memory: str = "",
+    skills: str = "",
 ) -> list[dict[str, str]]:
     """Messages for the 1-paragraph LLM narrative placed above the OKR table.
 
     The model is told the qualitative situation (counts + which objectives are at
     risk), NOT asked to compute or restate percentages — the table owns the numbers.
     `audience="external"` swaps to a business-tone system prompt (objective names
-    are business-level, so they may appear). `persona`/`project`/`memory` inject as
-    in `build_report_messages` (project+memory internal-only); default "" ⇒ v1.
+    are business-level, so they may appear). `persona`/`project`/`memory`/`skills`
+    inject as in `build_report_messages` (project+memory+skills internal-only);
+    default "" ⇒ v1.
     """
     at_risk = ", ".join(rollup.at_risk) if rollup.at_risk else "không có"
     problem_count = len(rollup.problems)
@@ -153,9 +155,10 @@ def build_okr_narrative_messages(
             {"role": "system", "content": OKR_NARRATIVE_EXTERNAL_SYSTEM},
             {"role": "user", "content": user},
         ]
+    skill_block = f"{skills.strip()}\n\n" if skills.strip() else ""
     return [
         {"role": "system", "content": prepend_persona(_NARRATIVE_SYSTEM, persona)},
-        {"role": "user", "content": build_context_block(project, memory) + user},
+        {"role": "user", "content": build_context_block(project, memory) + skill_block + user},
     ]
 
 

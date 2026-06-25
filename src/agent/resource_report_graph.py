@@ -28,6 +28,7 @@ from src.agent.approval_gate import add_approval_gate, external_summary
 from src.agent.resource_weekly_section import build_resource_rollup
 from src.agent.state import ReportState
 from src.profile.context import EMPTY, ProfileContext
+from src.skills.skill_selector import select_skill_text
 from src.tools.models import CostSummary, ResourceReport
 
 if TYPE_CHECKING:
@@ -121,6 +122,7 @@ def default_resource_deps(
                     persona=context.persona,
                     project=context.project,
                     memory=context.memory,
+                    skills=select_skill_text(context, audience, kind="resource"),
                 )
             )
             return result.content, result.cost_usd

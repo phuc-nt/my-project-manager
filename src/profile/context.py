@@ -17,16 +17,28 @@ Every field defaults to "", so an empty profile yields byte-identical v1 prompts
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.skills.models import Skill
+    from src.skills.skill_selector import SkillSelector
 
 
 @dataclass(frozen=True)
 class ProfileContext:
-    """The three context strings a profile injects into the prompt (all optional)."""
+    """The three context strings a profile injects into the prompt (all optional).
+
+    `skills` is the agent's candidate skill pool (M3-P10); `skill_selector` is the
+    injectable picker. Both feed the INTERNAL compose prompt only (external takes
+    nothing — same red line as project/memory). Default empty ⇒ no skill injection.
+    """
 
     persona: str = ""  # SOUL.md → system message (both audiences)
     project: str = ""  # PROJECT.md → user message (internal only)
     memory: str = ""  # MEMORY.md → user message (internal only)
+    skills: tuple[Skill, ...] = ()  # M3-P10 candidate pool (internal only)
+    skill_selector: SkillSelector | None = field(default=None)  # injectable picker
 
 
 #: The no-op context — used as the default everywhere so v1 behavior is unchanged.

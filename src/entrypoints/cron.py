@@ -52,7 +52,7 @@ def _audience(args: list[str]) -> str:
 
 def _build_graph(report_kind: str, audience: str, settings, config, context):
     """Build the graph for a report kind (mirrors the CLI dispatch)."""
-    cp = get_checkpointer(settings.data_dir / "checkpoints.db")
+    cp = get_checkpointer(settings)
     if report_kind == "resource":
         from src.agent.resource_report_graph import build_resource_graph
 

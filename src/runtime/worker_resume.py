@@ -9,10 +9,11 @@ agent's per-agent checkpointer and resumes it with `Command(resume=decision)`:
 approve → the graph routes to `deliver` and posts LIVE (gateway already-approved
 path); reject → the graph routes to `END`, nothing posted, the decision is audited.
 
-Same-machine resume only (M2): the checkpoint is the agent's local SqliteSaver.
-Cross-process/cross-machine durability is P8 (Postgres). The thread_id encodes
-`<agent_id>:<kind>:<audience>` so the SAME graph structure is rebuilt — a resume
-must reconstruct the node/edge shape the checkpoint was created with.
+Resume reads the agent's configured checkpointer (SqliteSaver by default, or a
+PostgresSaver when opted in via P8). With the SQLite default this is same-machine
+resume; durable cross-process/cross-machine resume is the Postgres opt-in (P8). The
+thread_id encodes `<agent_id>:<kind>:<audience>` so the SAME graph structure is
+rebuilt — a resume must reconstruct the node/edge shape the checkpoint was created with.
 """
 
 from __future__ import annotations

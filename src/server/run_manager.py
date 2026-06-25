@@ -126,11 +126,12 @@ class RunManager:
     async def _drive(self, handle: RunHandle, build_graph, dry_run: bool) -> None:
         """Run the graph in a thread, stream node chunks, push exactly one terminal.
 
-        The graph's nodes (MCP + LLM) are SYNC and its checkpointer is a sync
-        `SqliteSaver` (shared with the worker / `mpm agent resume`, so the interrupt
-        checkpoint stays resume-compatible). `graph.astream` would reject the sync
-        saver, so we run the SYNC `graph.stream` in `asyncio.to_thread` and bridge each
-        chunk back to the event-loop queue thread-safely — keeping the loop free.
+        The graph's nodes (MCP + LLM) are SYNC and its checkpointer is a sync saver
+        (`SqliteSaver` by default, `PostgresSaver` when opted in — both sync; shared
+        with the worker / `mpm agent resume`, so the interrupt checkpoint stays
+        resume-compatible). `graph.astream` would reject the sync saver, so we run the
+        SYNC `graph.stream` in `asyncio.to_thread` and bridge each chunk back to the
+        event-loop queue thread-safely — keeping the loop free.
         """
         loop = asyncio.get_running_loop()
         terminal_box: dict[str, Terminal] = {}

@@ -70,6 +70,7 @@ def build_settings_dict(yaml_doc: dict[str, Any], data_dir: Any) -> dict[str, An
     """profile.yaml → the dict `build_settings_from_dict` consumes."""
     budget = _section(yaml_doc, "budget")
     safety = _section(yaml_doc, "safety")
+    runtime = _section(yaml_doc, "runtime")  # M2-P8 infra (checkpointer / store / dsn)
     out: dict[str, Any] = {"data_dir": data_dir}
 
     # API key is never in profile.yaml — read the fixed env name (same as v1).
@@ -84,6 +85,12 @@ def build_settings_dict(yaml_doc: dict[str, Any], data_dir: Any) -> dict[str, An
 
     _put(out, "monthly_budget_usd", _explicit(budget, "monthly_usd", "MONTHLY_BUDGET_USD"))
     _put(out, "budget_warn_ratio", _explicit(budget, "warn_ratio", "BUDGET_WARN_RATIO"))
+
+    # M2-P8 runtime infra: yaml value → env → omit (build_settings_from_dict defaults
+    # sqlite/memory/None). Empty yaml scalar defers to env, then the default.
+    _put(out, "checkpointer", _fallback(runtime.get("checkpointer"), "CHECKPOINTER_TYPE"))
+    _put(out, "store", _fallback(runtime.get("store"), "STORE_TYPE"))
+    _put(out, "postgres_dsn", _fallback(runtime.get("postgres_dsn"), "POSTGRES_DSN"))
     return out
 
 

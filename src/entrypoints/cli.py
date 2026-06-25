@@ -23,8 +23,8 @@ _DEFAULT_PROFILE = "default"
 
 
 def _checkpointer(settings):
-    """Open the checkpointer at the injected settings' data dir."""
-    return get_checkpointer(settings.data_dir / "checkpoints.db")
+    """Open the checkpointer the injected settings select (sqlite default / postgres)."""
+    return get_checkpointer(settings)
 
 
 def _warn_if_migrated_to_per_agent() -> None:

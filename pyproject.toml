@@ -9,8 +9,13 @@ dependencies = [
     "langchain-core>=1.4.8",
     "langchain-mcp-adapters==0.3.0",
     "langgraph>=1.2.6",
+    "langgraph-checkpoint-postgres>=3.1.0",
     "langgraph-checkpoint-sqlite>=3.1.0",
     "openai>=2.43.0",
+    # psycopg[binary] bundles libpq so the Postgres path imports without a system
+    # libpq install (M2-P8 — Postgres is opt-in; the binary wheel keeps the default
+    # SQLite install self-contained on macOS/Linux without external libpq).
+    "psycopg[binary]>=3.2.0",
     "pydantic>=2.13.4",
     "python-dotenv>=1.2.2",
     "pyyaml>=6.0.3",

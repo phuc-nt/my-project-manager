@@ -44,6 +44,14 @@ class Settings:
 
     data_dir: Path
 
+    # M2-P8 runtime infra (opt-in; defaults keep the self-contained local install).
+    # checkpointer / store: "sqlite"|"postgres" and "memory"|"postgres". Postgres needs
+    # postgres_dsn. The graph state checkpointer + cross-thread memory Store select off
+    # these — SQLite + in-memory Store are the defaults (no infra dependency).
+    checkpointer: str = "sqlite"
+    store: str = "memory"
+    postgres_dsn: str | None = None
+
     def require_api_key(self) -> str:
         """Return the OpenRouter key, or raise a clear error if it is unset.
 

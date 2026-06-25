@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from langgraph.checkpoint.sqlite import SqliteSaver
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
@@ -54,7 +54,7 @@ def _make_respond(client: LlmClient | None, settings: Settings | None):
 
 
 def build_graph(
-    checkpointer: SqliteSaver | None = None,
+    checkpointer: BaseCheckpointSaver | None = None,
     *,
     settings: Settings | None = None,
     client: LlmClient | None = None,

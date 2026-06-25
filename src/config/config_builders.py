@@ -58,6 +58,9 @@ def build_settings_from_dict(d: dict[str, Any]) -> Settings:
         monthly_budget_usd=_d_float(d, "monthly_budget_usd", 50.0),
         budget_warn_ratio=_d_float(d, "budget_warn_ratio", 0.8),
         data_dir=Path(data_dir) if not isinstance(data_dir, Path) else data_dir,
+        checkpointer=(d.get("checkpointer") or "sqlite").lower(),
+        store=(d.get("store") or "memory").lower(),
+        postgres_dsn=_d_str_or_none(d, "postgres_dsn"),
     )
 
 
@@ -80,5 +83,8 @@ def build_settings_from_env() -> Settings:
             "monthly_budget_usd": os.getenv("MONTHLY_BUDGET_USD"),
             "budget_warn_ratio": os.getenv("BUDGET_WARN_RATIO"),
             "data_dir": DATA_DIR,
+            "checkpointer": os.getenv("CHECKPOINTER_TYPE"),
+            "store": os.getenv("STORE_TYPE"),
+            "postgres_dsn": os.getenv("POSTGRES_DSN"),
         }
     )

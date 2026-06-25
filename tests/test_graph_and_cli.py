@@ -26,8 +26,8 @@ def test_graph_compiles_without_network():
     assert graph is not None
 
 
-def test_graph_runs_end_to_end_with_fake_client(tmp_path):
-    cp = get_checkpointer(tmp_path / "checkpoints.db")
+def test_graph_runs_end_to_end_with_fake_client(tmp_path, settings_factory):
+    cp = get_checkpointer(settings_factory())  # data_dir = tmp_path
     graph = build_graph(cp, client=_FakeClient())
     out = graph.invoke(
         {"user_input": "hello", "llm_response": "", "cost_usd": None},
@@ -37,10 +37,9 @@ def test_graph_runs_end_to_end_with_fake_client(tmp_path):
     assert out["cost_usd"] == 0.0001
 
 
-def test_checkpointer_creates_db(tmp_path):
-    db = tmp_path / "checkpoints.db"
-    get_checkpointer(db)
-    assert db.exists()
+def test_checkpointer_creates_db(tmp_path, settings_factory):
+    get_checkpointer(settings_factory())  # data_dir = tmp_path
+    assert (tmp_path / "checkpoints.db").exists()
 
 
 def test_cli_no_args_returns_usage_code():

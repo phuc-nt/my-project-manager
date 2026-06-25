@@ -18,6 +18,11 @@ safety:
   dry_run: true               # DRY_RUN  (v1 default true)
   write_disabled: false       # AGENT_WRITE_DISABLED
 
+runtime:                      # M2-P8 infra (opt-in; defaults = self-contained local)
+  checkpointer: sqlite        # CHECKPOINTER_TYPE  (sqlite | postgres)
+  store: memory               # STORE_TYPE  (memory | postgres) — cross-thread memory
+  postgres_dsn: ""            # POSTGRES_DSN  (required only when checkpointer/store = postgres)
+
 thresholds:                   # all explicit (numeric 0 must win over fallback)
   pr_stale_days: 7            # PR_STALE_DAYS
   blocker_label_substring: block      # BLOCKER_LABEL_SUBSTRING

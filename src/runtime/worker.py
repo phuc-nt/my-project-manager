@@ -61,7 +61,7 @@ def build_graph_for(loaded: LoadedProfile, settings: Any, kind: str, audience: s
     from src.agent.checkpoint import get_checkpointer
 
     context = ProfileContext(persona=loaded.soul, project=loaded.project, memory=loaded.memory)
-    cp = get_checkpointer(settings.data_dir / "checkpoints.db")
+    cp = get_checkpointer(settings)
     if kind == "resource":
         from src.agent.resource_report_graph import build_resource_graph
 

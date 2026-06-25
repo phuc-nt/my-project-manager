@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING
 
-from langgraph.checkpoint.sqlite import SqliteSaver
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
@@ -189,7 +189,7 @@ def _problems_to_dicts(rollup: OkrRollup | None) -> list[dict]:
 
 
 def build_okr_graph(
-    checkpointer: SqliteSaver | None = None,
+    checkpointer: BaseCheckpointSaver | None = None,
     *,
     config: ReportingConfig | None = None,
     settings: Settings | None = None,

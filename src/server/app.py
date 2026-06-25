@@ -14,9 +14,12 @@ both `uvicorn src.server.app:app` and FastAPI's TestClient. The uvicorn `__main_
 
 from __future__ import annotations
 
-from fastapi import FastAPI
+from pathlib import Path
 
-from src.server import routes_agents, routes_runs
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+
+from src.server import routes_agents, routes_dashboard, routes_runs
 from src.server.run_manager import RunManager
 
 
@@ -34,6 +37,14 @@ def create_app() -> FastAPI:
     app.state.run_manager = RunManager()
     app.include_router(routes_agents.router)
     app.include_router(routes_runs.router)
+    # M2-P7 dashboard: HTML pages + static assets (htmx). Paths resolve from this
+    # file's dir (not cwd) so `python -m src.server.app` works from the repo root.
+    app.include_router(routes_dashboard.router)
+    app.mount(
+        "/static",
+        StaticFiles(directory=str(Path(__file__).parent / "static")),
+        name="static",
+    )
     return app
 
 

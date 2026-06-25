@@ -43,10 +43,11 @@
               └─────────────────────────────────────────────────────────────┘
 
    ┌──────────────────────────────────────────────────────────────────────┐
-   │  Web dashboard (FastAPI + HTMX/Streamlit, M2)                          │
-   │  đọc registry + per-agent .data/{audit,budget,approvals}              │
+   │  Web dashboard (FastAPI + HTMX+Jinja2, M2-P7)                           │
+   │  Server-rendered HTML; reads registry + per-agent .data/{audit,budget} │
    │  - agent list + status   - cost vs budget   - recent audit            │
-   │  - pending Lớp B approvals (approve/reject)  - config view/edit        │
+   │  - pending Lớp B approvals (approve/reject on-UI, same real-post path) │
+   │  - config view/edit (validate-before-write, atomic replace, MEMORY RO) │
    │  - trigger report on-demand  - streaming live run (SSE, M2-P6)         │
    └──────────────────────────────────────────────────────────────────────┘
 ```

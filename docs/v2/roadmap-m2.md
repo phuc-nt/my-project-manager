@@ -42,19 +42,25 @@
 - **Acceptance**: trigger report via API → SSE streams live node events → approve_gate pause shows terminal event with thread_id → resume via P5 CLI → stream closes, Slack post live.
 - **Risks** (resolved): SSE + worker process boundary. Mitigation: service runs graph in-process on-demand (no subprocess, stream direct); scheduled runs stay via worker (§ architecture unchanged).
 
-### P7 — Web dashboard (HTMX hoặc Streamlit)
+### P7 — Web dashboard (HTMX + Jinja2) ✅ COMPLETE
 
-- **Goal**: dashboard surface mọi thứ ops cần.
-- **Key changes** (surface):
-  - Agent list + status (running/idle/error) — từ registry + worker heartbeat.
-  - Cost vs budget per-agent — đọc `.data/agents/<id>/budget/`.
-  - Recent audit — đọc per-agent audit JSONL (reuse `audit_log.query`).
-  - **Pending Lớp B approvals — approve/reject ngay trên UI** (gọi P5 resume / approval_store).
-  - Config view/edit — render `profile.yaml` + xem 3 file Markdown; save lại (validate trước khi ghi). `MEMORY.md` read-only trên UI (agent tự ghi).
-  - Trigger report on-demand — gọi `/api/agents/{id}/trigger`.
-- **Files touched**: new `src/server/templates/` (HTMX) hoặc `src/server/dashboard.py` (Streamlit); reuse P6 API.
-- **Acceptance**: từ UI thấy 2 agent, cost mỗi cái, approve 1 pending Lớp B → Slack post live, sửa 1 threshold → `profile.yaml` update → run kế tiếp dùng giá trị mới.
-- **Risks**: HTMX vs Streamlit chưa chốt (§9). HTMX = nhẹ, server-rendered, hợp FastAPI; Streamlit = nhanh dựng nhưng state model riêng, khó nhúng SSE live. Mitigation: chọn theo P6 — nếu streaming live là must-have → HTMX + SSE; nếu chấp nhận poll → Streamlit nhanh hơn.
+**Status**: DONE (2026-06-26, committed 15f881b / d86e1a5 / 89650f7 / 7883710, 545 tests, E2E-verified real Slack post).
+
+- **What shipped**:
+  - **Server-rendered HTML dashboard** (`src/server/templates/` Jinja2 templates) on the existing P6 FastAPI app; vendored htmx 2.x for no-CDN sandbox.
+  - **6 ops surfaces**:
+    1. **Agent list + status** — reads registry, shows running/idle/error per-agent.
+    2. **Cost vs budget** — per-agent budget cap and current spend (read-only).
+    3. **On-UI Lớp B approve/reject** — lists pending approvals, two-step confirm (operator sees channel + message before POST), reject one-click. POST builds per-agent gateway + calls `gw.approve(id, handler=dispatch_approved_action)` = the SAME real-post path as CLI. Response handling: `HardBlockedError → 403`, bad id `→ 400`, post failure `→ 502` with approval reverted to pending.
+    4. **Recent per-agent audit** — reads `AuditLog.query(limit clamped)`, shows last N events per agent.
+    5. **Config view + EDIT (S3)** — render `profile.yaml` + `SOUL.md` / `PROJECT.md` editable; `MEMORY.md` READ-ONLY (agent self-writes, no save route). Edit path: VALIDATE config using existing `load_profile()` builders (raises on bad YAML/stakeholder-channel/threshold); if valid, atomic byte-replace; if invalid, return exact error and leave original byte-unchanged.
+    6. **Trigger on-demand + live SSE view** — form POSTs existing `/api/agents/{id}/trigger`, streams existing SSE live (same as P6 streaming).
+  - **Dispatcher refactored**: extracted `src/actions/approved_dispatch.py` (was duplicated in cli + mpm, now single source).
+  - **Security**: localhost-only (127.0.0.1), NO auth (single-operator sandbox), existing guardrail (Lớp A + audit + budget) applies.
+  - **Deps**: jinja2; existing fastapi, uvicorn, sse-starlette unchanged.
+- **Files touched**: new `src/server/templates/` (Jinja2), new `src/server/dashboard_routes.py` (dashboard POST/GET handlers), `src/actions/approved_dispatch.py` (extracted), `src/server/app.py` (mount dashboard routes).
+- **Acceptance**: ✅ list 2+ agents with costs, approve 1 pending Lớp B from UI → Slack post live, edit 1 threshold in profile.yaml → next run uses new value.
+- **Risks** (resolved): HTMX vs Streamlit (§9 open question) → **RESOLVED: HTMX+Jinja2 chosen** — lightweight, server-rendered, native SSE integration on FastAPI, no-CDN vendored htmx.
 
 ### P8 — Postgres checkpointer + Store + cross-thread agent memory ✅ COMPLETE
 
@@ -76,7 +82,7 @@
   - **Multi-process resume (P5 + P8)**: P5 resume within-process via SqliteSaver; multi-machine cross-process resume now possible with Postgres (P8 opt-in) — both paths work, user picks infra.
   - **Memory durability**: Store writes are deduped by content-hash; MEMORY.md mirror survives human edits (human content between markers preserved, agent section replaced).
 
-**Exit M2**: v2 multi-agent platform complete in backend (M1 core + M2 P5/P6/P8). P7 web dashboard deferred. Postgres + Store opt-in for scale; SQLite default for local dev. Cross-thread memory internal-only, audit guardrail preserved.
+**Exit M2**: v2 multi-agent platform **FULLY COMPLETE** (M1 core + M2 P5/P6/P7/P8 all shipped). Backend (multi-agent + interrupts + streaming + optional Postgres) + **web dashboard (HTMX+Jinja2, 6 ops surfaces)** all in. Postgres + Store opt-in for scale; SQLite default for local dev. Cross-thread memory internal-only, audit guardrail preserved.
 
 ---
 

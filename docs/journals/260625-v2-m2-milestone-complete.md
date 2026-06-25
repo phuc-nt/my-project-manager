@@ -1,17 +1,18 @@
-# 🏁 v2 Milestone 2 CORE COMPLETE — interrupts + streaming + persistence
+# 🏁 v2 Milestone 2 COMPLETE — interrupts + streaming + persistence + dashboard
 
-2026-06-25 · ✅ Done (P5/P6/P8, 12 commit, 518 test xanh; P7 dashboard hoãn)
+2026-06-25 (P5/P6/P8) → 2026-06-26 (P7) · ✅ Done TOÀN BỘ (P5/P6/P7/P8, 16 commit, 545 test xanh)
 
-> Tổng kết milestone. Chi tiết từng phase ở 3 journal P5/P6/P8. Đây là cái nhìn toàn cảnh + retrospective + kết quả E2E thật toàn M2.
+> Tổng kết milestone. Chi tiết từng phase ở 4 journal P5/P6/P7/P8. Đây là cái nhìn toàn cảnh + retrospective + kết quả E2E thật toàn M2. (Bản đầu viết ở P8 khi P7 còn hoãn; cập nhật khi P7 xong → M2 đủ.)
 
 ## Đạt được
 
-Backend v2 hoàn chỉnh trên nền M1 (N agent cô lập): **Lớp B graph-native interrupt** (pause→resume bền), **FastAPI + SSE streaming** (xem agent chạy live), **Postgres checkpointer + Store + cross-thread memory** (state bền multi-process + agent tự nhớ xuyên run). Verify cả unit (518 test) lẫn **E2E thật toàn bộ pattern** — Jira/Slack/Confluence thật + 1 Postgres throwaway thật. Nửa còn lại của M2 — **P7 web dashboard (UI)** — hoãn; backend đã đủ.
+Platform v2 hoàn chỉnh trên nền M1 (N agent cô lập): **Lớp B graph-native interrupt** (pause→resume bền), **FastAPI + SSE streaming** (xem agent chạy live), **Postgres checkpointer + Store + cross-thread memory** (state bền multi-process + agent tự nhớ xuyên run), **web dashboard** (HTMX+Jinja2, 6 surface ops). Verify cả unit (545 test) lẫn **E2E thật toàn bộ pattern** — Jira/Slack/Confluence thật + 1 Postgres throwaway thật. **M2 XONG TOÀN BỘ — không còn mảnh nào hoãn.**
 
 | Phase | Giao | Commit |
 |---|---|---|
 | **P5** Graph interrupt | Node `approval_gate` (3 graph) pause external trước deliver, checkpoint-serialize, resume `Command(resume=...)`. `execute_approved()` post LIVE. `worker --resume` + `mpm agent resume`, exit 3 + run-event `interrupted`. AUGMENT queue (replace ở P8). | `a82dad5`…`92110b1` |
 | **P6** FastAPI + SSE | 4 route localhost (list/status/trigger/stream). Trigger chạy graph in-process (sync `stream` trong thread), SSE node-progress LIVE + terminal `interrupted`. `summarize_node` PII firewall. Cap 4, single-drain (409). | `1aeb3f5`…`d12214d` |
+| **P7** Web dashboard | HTMX+Jinja2 trên app P6 (additive, 4 route cũ byte-stable). 6 surface: list/status/cost · approve/reject trên UI (đúng đường post thật CLI) · audit · config view+EDIT (validate→atomic-replace, MEMORY read-only) · trigger+SSE live. Extract dispatcher dùng chung. | `15f881b`…`7883710` |
 | **P8** Postgres + Store + memory | `get_checkpointer/get_store(settings)` chọn sqlite\|postgres / memory\|postgres (opt-in, SQLite default). Cross-thread memory: extractor LLM → Store content-hash + mirror MEMORY.md (internal-only, KHÔNG qua gateway). | `e68a811`…`8ed63d2` |
 
 ## Đặc tính cốt lõi M2
@@ -46,8 +47,8 @@ Backend v2 hoàn chỉnh trên nền M1 (N agent cô lập): **Lớp B graph-nat
 
 ## Mở / sang sau
 
-- **P7 web dashboard (UI)** — nửa còn lại M2, HOÃN: HTMX/Streamlit trên 4 route P6 + approve/config/trigger. Backend đã đủ; chỉ thiếu frontend.
+- **P7 web dashboard (UI)** — ĐÃ XONG (2026-06-26, `15f881b`→`7883710`): HTMX+Jinja2 trên app P6, 6 surface, approve trên UI = đường post thật. M2 không còn mảnh hoãn.
 - **Postgres production:** runtime đã verify trên PG throwaway, nhưng cần (a) connection-pool cho concurrency thật, (b) quyết lifecycle saver dài hạn, trước khi nói "Postgres production-ready".
 - **Cosmetic:** extractor để sót markdown (`SCRUM-15**`) — `_parse_facts` strip bullet đầu nhưng không strip `**`/`*` cuối. 1 dòng regex.
 - File >200 LOC tồn từ trước (cli 318, action_gateway 351, 3 report graph ~230-300) — M2 không đẻ ra, modularize hoãn.
-- **M3:** xem [feature-proposals](../v2/feature-proposals.md) — cross-agent memory, skill library, MCP gateway, workflow automation. P7 dashboard có thể vào đầu M3.
+- **M3:** xem [feature-proposals](../v2/feature-proposals.md) — cross-agent memory, skill library, MCP gateway, workflow automation. (M2 đã đủ cả backend lẫn dashboard; M3 là tính năng mới.)

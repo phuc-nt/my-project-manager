@@ -1,12 +1,14 @@
 ---
 title: "v2 M2-P7 — Localhost Web Dashboard (HTMX + Jinja2 on the P6 FastAPI app)"
 description: "Server-rendered ops dashboard adding 6 surfaces to the existing P6 app: agent list/status/budget, audit, on-UI Lớp B approve/reject, config view+edit, trigger+live SSE."
-status: pending
+status: completed
 priority: P1
 effort: 11h
 branch: main
 tags: [v2, m2, dashboard, htmx, fastapi]
 created: 2026-06-25
+completed: 2026-06-26
+commits: [15f881b, d86e1a5, 89650f7, 7883710]
 ---
 
 # M2-P7 — Web Dashboard
@@ -163,4 +165,13 @@ Auth, multi-operator, websockets (SSE suffices), client-side framework, a build 
 
 ## Status
 
-Pending. Start S1.
+✅ COMPLETE (2026-06-26). 3 slices + the real-htmx vendor commit.
+
+| Slice | Scope | Commit |
+|---|---|---|
+| S1 | Jinja2/StaticFiles wiring + read-only dashboard (list/status/budget) | `15f881b` |
+| S2 | On-UI Lớp B approve/reject (real-post path + 2-step confirm) + extract shared dispatcher + `ActionGateway.close()` | `d86e1a5` |
+| S3 | Audit + config view/EDIT (validate→atomic-replace, MEMORY read-only) + trigger live-stream view | `89650f7` |
+| — | Vendor real htmx 2.x (replaced the placeholder) | `7883710` |
+
+**Final:** 545 tests (518 baseline + 27 new), ruff clean, all route .py <200 LOC. The 4 P6 JSON routes byte-stable. Review verified the safety-critical paths: config validate-before-write (a bad edit leaves the original byte-identical), MEMORY.md unwritable via any route, agent-id path-escape blocked at two layers, all rendered content autoescaped, approve routes through the real guardrail (no bypass). All 6 surfaces ship; roadmap acceptance met (see agents+cost · approve→live post · edit threshold→next run uses it).

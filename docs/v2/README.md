@@ -1,7 +1,7 @@
 ---
 title: "v2 Vision + Roadmap — Multi-agent PM platform"
 description: "From a single-project PM agent to N profile-bound agents managed from a web dashboard, guardrail preserved per-agent."
-status: M1 complete · M2 core complete + E2E-verified (P5/P6/P8); P7 web dashboard deferred
+status: M1 complete · M2 COMPLETE (P5/P6/P7/P8 all shipped + E2E-verified)
 created: 2026-06-23
 supersedes: extends ../v1/project-roadmap.md (picks up its deferred items: service backend, multi-user, Postgres scale-up)
 priority: P2
@@ -11,9 +11,9 @@ tags: [v2, vision, roadmap, multi-agent, langgraph, web-ui]
 # v2 Vision + Roadmap — my-project-manager
 
 > Status: **Milestone 1 COMPLETE** (2026-06-24, P1→P2→P3→P4 — multi-agent core: profiles,
-> registry/worker, scheduler, `mpm agent` CLI; 414 tests, E2E-verified). **Milestone 2 CORE COMPLETE** (2026-06-25, P5 graph-native Lớp B interrupts + P6 FastAPI SSE streaming + P8 Postgres checkpointer + Store + cross-thread memory; 518 tests; **full M2 E2E against real Jira/Slack/Confluence + a real throwaway Postgres** — every pattern verified incl. the live-PG checkpointer/Store; SQLite default, Postgres opt-in). **P7 web dashboard DEFERRED** (will be M3 or later phase).
+> registry/worker, scheduler, `mpm agent` CLI; 414 tests, E2E-verified). **Milestone 2 COMPLETE** (2026-06-26, P5 graph-native Lớp B interrupts + P6 FastAPI SSE streaming + **P7 web dashboard (HTMX+Jinja2, 6 ops surfaces: agent list, cost tracking, on-UI approve/reject, audit view, config edit, on-demand trigger+SSE)** + P8 Postgres checkpointer + Store + cross-thread memory; 545 tests; **full M2 E2E against real Jira/Slack/Confluence + a real throwaway Postgres** — every pattern verified incl. the live-PG checkpointer/Store, interrupt→resume→post, dashboard on-UI approve, config validate-then-atomic-replace; SQLite default, Postgres opt-in). **M2 FULLY DONE — no deferred pieces.**
 > Mở rộng [`../v1/project-roadmap.md`](../v1/project-roadmap.md) (v1 Phase 0–5 đã xong). v1 = single-agent, single-project.
-> v2 = **nhiều agent, mỗi agent một project, backend làm xong (multi-agent core + interrupts + streaming + optional Postgres), web dashboard deferred, guardrail giữ nguyên per-agent.**
+> v2 = **nhiều agent, mỗi agent một project, làm xong toàn bộ (multi-agent core + interrupts + streaming + optional Postgres + web dashboard), guardrail giữ nguyên per-agent.**
 > Bilingual: prose tiếng Việt, code/identifier tiếng Anh.
 
 ## Bộ tài liệu v2 (chia nhỏ để dễ maintain)
@@ -34,7 +34,7 @@ v1 chứng minh được một luận điểm: một LLM agent có thể **full 
 
 v2 biến nó thành một **multi-agent PM platform**. Mỗi agent = **một thư mục `profiles/<id>/`** (4 file: `profile.yaml` config + `SOUL.md` persona + `PROJECT.md` context + `MEMORY.md` agent tự ghi) bound vào **một project** (Jira/GitHub/Slack/Confluence bindings riêng). Một **registry** liệt kê tất cả agent; một **coordinating service** spawn mỗi agent thành một **worker process** chạy graph của nó (theo lịch + on-demand), với **data isolation hoàn toàn** per-agent (`checkpoints/audit/budget/approvals/dedup` riêng từng agent). Bạn chạy 5 agent cho 5 project, mỗi cái tone + threshold + schedule + budget riêng, không cái nào đụng cái nào.
 
-Trên hết là một **web dashboard** (FastAPI + HTMX/Streamlit): thấy danh sách agent + trạng thái (running/idle/error), cost vs budget từng agent, audit gần đây, **các Lớp B approval đang chờ (approve/reject ngay trên UI)**, xem/sửa config từng agent, **trigger một report on-demand**. Đồng thời v2 khai thác sâu LangGraph mà v1 MVP chưa dùng: **graph-native interrupts** cho human-in-the-loop, **streaming** để UI xem agent chạy live, **Postgres checkpointer + Store** cho state đa-process + cross-thread memory. Điều bất biến: **Action Gateway guardrail được GIỮ NGUYÊN, chỉ trở thành per-agent** — red line Lớp A vẫn hard-coded trước LLM, mọi write vẫn qua một cổng, giờ một cổng *cho mỗi agent*.
+Trên hết là một **web dashboard** (FastAPI + HTMX+Jinja2, server-rendered): thấy danh sách agent + trạng thái (running/idle/error), cost vs budget từng agent, audit gần đây, **các Lớp B approval đang chờ (approve/reject ngay trên UI, same real-post path as CLI)**, xem/sửa config từng agent (validate-before-write, atomic replace, MEMORY.md read-only), **trigger một report on-demand với SSE live streaming**. Đồng thời v2 khai thác sâu LangGraph mà v1 MVP chưa dùng: **graph-native interrupts** cho human-in-the-loop, **streaming** để UI xem agent chạy live, **Postgres checkpointer + Store** cho state đa-process + cross-thread memory. Điều bất biến: **Action Gateway guardrail được GIỮ NGUYÊN, chỉ trở thành per-agent** — red line Lớp A vẫn hard-coded trước LLM, mọi write vẫn qua một cổng, giờ một cổng *cho mỗi agent*.
 
 ## 2. What changes vs v1
 

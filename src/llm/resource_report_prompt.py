@@ -167,13 +167,14 @@ def build_resource_narrative_messages(
     persona: str = "",
     project: str = "",
     memory: str = "",
+    skills: str = "",
 ) -> list[dict[str, str]]:
     """Messages for the 1-paragraph LLM narrative placed above the tables.
 
     Internal passes qualitative facts (who is overloaded, budget word). External
     passes ONLY a capacity word + budget word — no assignee names, no counts.
-    `persona` prepends to system; `project`/`memory` prepend the INTERNAL user
-    message only; default "" ⇒ v1 prompt.
+    `persona` prepends to system; `project`/`memory`/`skills` prepend the INTERNAL
+    user message only; default "" ⇒ v1 prompt.
     """
     if audience == "external":
         budget_word = _STATUS_WORD.get(cost.llm_status, cost.llm_status)
@@ -208,9 +209,10 @@ def build_resource_narrative_messages(
         "Viết một đoạn <p> tóm tắt ngắn cho lãnh đạo: tổng quan tải team, nhấn vào người "
         "quá tải và tình trạng ngân sách nếu đáng chú ý. Nhớ: KHÔNG nêu số cụ thể."
     )
+    skill_block = f"{skills.strip()}\n\n" if skills.strip() else ""
     return [
         {"role": "system", "content": prepend_persona(_NARRATIVE_SYSTEM, persona)},
-        {"role": "user", "content": build_context_block(project, memory) + user},
+        {"role": "user", "content": build_context_block(project, memory) + skill_block + user},
     ]
 
 

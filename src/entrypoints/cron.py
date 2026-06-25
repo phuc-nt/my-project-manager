@@ -99,8 +99,12 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     settings, config = loaded.settings, loaded.config
+    from src.skills.skill_pool import build_skill_context
+
+    skills, selector = build_skill_context(loaded, settings)
     context = ProfileContext(
-        persona=loaded.soul, project=loaded.project, memory=loaded.memory
+        persona=loaded.soul, project=loaded.project, memory=loaded.memory,
+        skills=skills, skill_selector=selector,
     )
 
     if not settings.openrouter_api_key:

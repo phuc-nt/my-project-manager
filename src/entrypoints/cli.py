@@ -68,9 +68,15 @@ def _load_or_exit(args: list[str]):
         return None
 
 
-def _context_of(loaded) -> ProfileContext:
-    """Build the prompt context (persona/project/memory) from a loaded profile."""
-    return ProfileContext(persona=loaded.soul, project=loaded.project, memory=loaded.memory)
+def _context_of(loaded, settings) -> ProfileContext:
+    """Build the prompt context (persona/project/memory/skills) from a loaded profile."""
+    from src.skills.skill_pool import build_skill_context
+
+    skills, selector = build_skill_context(loaded, settings)
+    return ProfileContext(
+        persona=loaded.soul, project=loaded.project, memory=loaded.memory,
+        skills=skills, skill_selector=selector,
+    )
 
 
 def _require_key(settings) -> bool:
@@ -294,7 +300,7 @@ def main(argv: list[str] | None = None) -> int:
             _parse_audience(args[1:]),
             settings,
             config,
-            _context_of(loaded),
+            _context_of(loaded, settings),
             loaded.profile_id,
         )
     return _run_hello(" ".join(args), settings)  # hello: no profile context

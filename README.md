@@ -105,7 +105,7 @@ The [journals](docs/journals/) are the best learning material here: each phase r
 
 **v2 Milestone 1 complete** (2026-06-24) — the **multi-agent core**: N agents / N projects, fully isolated, run via CLI/worker + scheduler with the guardrail applied per-agent. 414 tests, E2E-verified (two agents concurrent, real writes). See [docs/v2/roadmap-m1.md](docs/v2/roadmap-m1.md).
 
-**v2 Milestone 2: P5–P6 complete** (2026-06-25) — **graph-native Lớp B interrupts** + **FastAPI SSE streaming service**. P5 adds `approval_gate` node + pause/resume workflow (existing queue path intact, augment not replace); P6 adds localhost-only FastAPI backend (GET /api/agents, /status, POST /trigger, GET /stream SSE) with in-process graph runs, PII firewall, concurrency limits. 490 tests, E2E-verified real Slack post. **P7–P8 in design** (web dashboard, Postgres). See [docs/v2/roadmap-m2.md](docs/v2/roadmap-m2.md).
+**v2 Milestone 2 CORE COMPLETE** (2026-06-25) — **P5 graph-native Lớp B interrupts** + **P6 FastAPI SSE streaming service** + **P8 Postgres checkpointer + Store + cross-thread memory (opt-in)**. P5 adds `approval_gate` node + pause/resume workflow; P6 adds localhost-only FastAPI backend (GET /api/agents, /status, POST /trigger, GET /stream SSE); P8 adds optional Postgres checkpointer + LangGraph Store (SQLite default, Postgres opt-in via profile) + internal-only cross-thread agent memory (MEMORY.md-mirrored). 518 tests, offline-verified (SQLite+InMemoryStore fully tested, Postgres path wiring + selection verified but not run against real Postgres). **P7 web dashboard deferred** (M3 or later). See [docs/v2/roadmap-m2.md](docs/v2/roadmap-m2.md).
 
 ## License
 

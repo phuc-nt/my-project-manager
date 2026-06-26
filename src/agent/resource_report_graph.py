@@ -26,6 +26,7 @@ from langgraph.graph.state import CompiledStateGraph
 from src.actions.action_gateway import ActionGateway
 from src.agent.approval_gate import add_approval_gate, external_summary
 from src.agent.resource_weekly_section import build_resource_rollup
+from src.agent.sibling_selector import select_sibling_text
 from src.agent.state import ReportState
 from src.profile.context import EMPTY, ProfileContext
 from src.skills.skill_selector import select_skill_text
@@ -123,6 +124,9 @@ def default_resource_deps(
                     project=context.project,
                     memory=context.memory,
                     skills=select_skill_text(context, audience, kind="resource"),
+                    sibling_facts=select_sibling_text(
+                        context, audience, kind="resource", project_group=context.sibling_project
+                    ),
                 )
             )
             return result.content, result.cost_usd

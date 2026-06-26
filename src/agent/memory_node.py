@@ -25,6 +25,21 @@ from src.agent.memory_mirror import write_memory_file
 _NAMESPACE_KIND = "memory"
 
 
+def _assert_self_namespace(namespace: tuple[str, str], agent_id: str) -> None:
+    """WO-self boundary (M3-P9 A3): an agent writes ONLY its own memory namespace.
+
+    Cross-agent memory is READ-only (siblings read each other); writing is self-only.
+    A namespace other than `(agent_id, "memory")` is a bug/misconfig — fail loud so it
+    can never silently corrupt a sibling's facts.
+    """
+    expected = (agent_id, _NAMESPACE_KIND)
+    if namespace != expected:
+        raise PermissionError(
+            f"memory write denied: {namespace!r} is not this agent's namespace "
+            f"({expected!r}); agents write only their own memory."
+        )
+
+
 def make_memory_node(
     *,
     extractor: MemoryExtractor,
@@ -54,9 +69,11 @@ def make_memory_node(
 
         ts = datetime.now(UTC).isoformat()
         if store is not None:
+            namespace = (agent_id, _NAMESPACE_KIND)
+            _assert_self_namespace(namespace, agent_id)  # WO-self: write only own memory
             for fact in facts:
                 key = hashlib.sha256(fact.encode("utf-8")).hexdigest()[:16]
-                store.put((agent_id, _NAMESPACE_KIND), key, {"fact": fact, "ts": ts})
+                store.put(namespace, key, {"fact": fact, "ts": ts})
 
         if memory_path is not None:
             write_memory_file(memory_path, facts)

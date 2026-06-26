@@ -86,3 +86,9 @@ class ReportingConfig:
     jira_server: McpServerSpec
     slack_server: McpServerSpec
     confluence_server: McpServerSpec
+
+    # M3-P11 (C3): config-driven extra stdio MCP servers (e.g. Linear), keyed by
+    # lowercase server name. Empty ⇒ no extra integration declared (backward-compat).
+    # The builder always passes this (default {} when no `integrations:` block), so
+    # a profile without integrations behaves byte-identically to pre-P11.
+    extra_servers: dict[str, McpServerSpec]

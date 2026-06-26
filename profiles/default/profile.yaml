@@ -56,3 +56,12 @@ bindings:
 
 schedule: {}                  # parsed; consumed in P3 (scheduler)
 reports: []                   # parsed; consumed in P3 (kind gate)
+
+# M3-P11 (C3): config-driven extra MCP servers. Empty/absent ⇒ no integration (v1).
+# Declare an extra stdio MCP server by name; `required_env` lists the env var NAMES it
+# reads (values come from .env, never stored here). Writes still deny-by-default until
+# allowlisted + Lớp A/B-classified (see Action Gateway).
+integrations: {}              # e.g.:
+#   linear:                          # @tacticlaunch/mcp-linear (stdio, node dist/index.js)
+#     mcp_dist: ""                   # path to the built server; empty ⇒ LINEAR_MCP_DIST env
+#     required_env: [LINEAR_API_TOKEN]   # Linear personal API key (Read + Create comments)

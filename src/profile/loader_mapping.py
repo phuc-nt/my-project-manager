@@ -163,7 +163,32 @@ def build_reporting_dict(yaml_doc: dict[str, Any]) -> dict[str, Any]:
     _put(out, "atlassian_api_token", _resolve_atlassian_token(jira, confluence))
     for dict_key, env_name in _FIXED_SERVER_ENV.items():
         _put(out, dict_key, os.environ.get(env_name))
+
+    # --- M3-P11 (C3): config-driven extra MCP servers from the `integrations:` block. ---
+    _put(out, "extra_servers", _build_integrations(yaml_doc))
     return out
+
+
+def _build_integrations(yaml_doc: dict[str, Any]) -> list[dict[str, Any]] | None:
+    """Normalize the `integrations:` block → the `extra_servers` list from_dict consumes.
+
+    Each entry: {name, mcp_dist, required_env}. `mcp_dist` resolves yaml → `<NAME>_MCP_DIST`
+    env (so a profile can name the server but defer the path to env). `required_env` lists
+    the env var NAMES the server reads — values are pulled from os.environ by from_dict, never
+    stored in yaml. Returns None when no integrations declared (omit ⇒ extra_servers={}).
+    """
+    integrations = _section(yaml_doc, "integrations")
+    if not integrations:
+        return None
+    out: list[dict[str, Any]] = []
+    for raw_name, cfg in integrations.items():
+        if not isinstance(cfg, dict):
+            continue
+        name = str(raw_name).strip().lower()
+        dist = _fallback(cfg.get("mcp_dist"), f"{name.upper()}_MCP_DIST")
+        required_env = [str(k) for k in (cfg.get("required_env") or [])]
+        out.append({"name": name, "mcp_dist": dist or "", "required_env": required_env})
+    return out or None
 
 
 def _explicit(section: dict[str, Any], yaml_key: str, env_name: str) -> Any:

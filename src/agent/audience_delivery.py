@@ -19,6 +19,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from src.actions.action_gateway import ActionGateway
     from src.config.reporting_config import ReportingConfig
 
 # Slack statuses that count as a successful (or accepted) delivery. `pending_approval`
@@ -51,3 +52,46 @@ def delivery_summary(conf_status: str, slack_result, detail_url: str | None) -> 
     if getattr(slack_result, "approval_id", None) is not None:
         summary += f" approval_id={slack_result.approval_id}"
     return summary + f" url={detail_url}"
+
+
+def deliver_extra_channels_and_summarize(
+    body: str,
+    subject: str,
+    *,
+    gateway: ActionGateway,
+    config: ReportingConfig,
+    report_date: str,
+    audience: str,
+    rationale: str,
+    approved: bool,
+) -> str:
+    """Deliver to any configured extra channels (email) + return a summary suffix.
+
+    Uniform across all 3 report graphs (M3-P11 D2). No extra channel configured ⇒ "" ⇒
+    the summary is byte-identical to pre-P11. Every send is gateway-routed (email = Lớp B
+    ⇒ `pending_approval`). A channel failure is logged+skipped inside the registry so it
+    never breaks the core Slack+Confluence delivery already done by the caller.
+
+    INTERNAL-ONLY: extra channels carry the full report `body` (the Confluence detail
+    content, incl. per-assignee names/costs for the resource report). External reports
+    deliberately withhold that detail (see the resource graph's external link-stripping),
+    so the email channel is skipped for `audience="external"` — the same red line.
+    """
+    from src.agent.channel_registry import deliver_extra_channels, resolve_channels
+
+    if audience != "internal":
+        return ""
+    channels = resolve_channels(config)
+    if not channels:
+        return ""
+    results = deliver_extra_channels(
+        body, subject, gateway=gateway, config=config, report_date=report_date,
+        audience=audience, rationale=rationale, approved=approved,
+    )
+    parts = []
+    for channel, result in zip(channels, results, strict=False):
+        suffix = f" {channel}={result.status}"
+        if getattr(result, "approval_id", None) is not None:
+            suffix += f" {channel}_approval_id={result.approval_id}"
+        parts.append(suffix)
+    return "".join(parts)

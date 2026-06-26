@@ -15,6 +15,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from src.config.smtp_config import SmtpConfig
+
 # Default dist paths for the local MCP server repos (overridable via env).
 _DEFAULT_JIRA_DIST = Path.home() / "workspace" / "jira-cloud-mcp-server" / "dist" / "index.js"
 _DEFAULT_SLACK_DIST = Path.home() / "workspace" / "slack-browser-mcp-server" / "dist" / "index.js"
@@ -92,3 +94,7 @@ class ReportingConfig:
     # The builder always passes this (default {} when no `integrations:` block), so
     # a profile without integrations behaves byte-identically to pre-P11.
     extra_servers: dict[str, McpServerSpec]
+
+    # M3-P11 (D2): outbound email delivery channel. None ⇒ no email channel declared
+    # ⇒ delivery is Slack+Confluence only (byte-identical to pre-P11).
+    smtp: SmtpConfig | None = None

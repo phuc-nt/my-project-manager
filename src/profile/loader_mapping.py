@@ -166,6 +166,8 @@ def build_reporting_dict(yaml_doc: dict[str, Any]) -> dict[str, Any]:
 
     # --- M3-P11 (C3): config-driven extra MCP servers from the `integrations:` block. ---
     _put(out, "extra_servers", _build_integrations(yaml_doc))
+    # --- M3-P11 (D2): outbound email channel from the `smtp:` block (password env-only). ---
+    _put(out, "smtp", _build_smtp_mapping(yaml_doc))
     return out
 
 
@@ -189,6 +191,27 @@ def _build_integrations(yaml_doc: dict[str, Any]) -> list[dict[str, Any]] | None
         required_env = [str(k) for k in (cfg.get("required_env") or [])]
         out.append({"name": name, "mcp_dist": dist or "", "required_env": required_env})
     return out or None
+
+
+def _build_smtp_mapping(yaml_doc: dict[str, Any]) -> dict[str, Any] | None:
+    """Normalize the `smtp:` block → the dict `_build_smtp` consumes. None when absent.
+
+    Each field resolves yaml → env (`SMTP_HOST`/`SMTP_PORT`/...). The PASSWORD is never
+    mapped here — it is read from `SMTP_PASSWORD` at send time. A block with no host ⇒ None
+    ⇒ no email channel (backward-compat).
+    """
+    smtp = _section(yaml_doc, "smtp")
+    host = _fallback(smtp.get("host"), "SMTP_HOST")
+    if not host:
+        return None
+    return {
+        "host": host,
+        "port": _fallback(smtp.get("port"), "SMTP_PORT"),
+        "user": _fallback(smtp.get("user"), "SMTP_USER"),
+        "from_addr": _fallback(smtp.get("from_addr"), "SMTP_FROM_ADDR"),
+        "use_tls": _explicit_bool(smtp, "use_tls", "SMTP_USE_TLS"),
+        "recipients": _fallback(smtp.get("recipients"), "SMTP_RECIPIENTS"),
+    }
 
 
 def _explicit(section: dict[str, Any], yaml_key: str, env_name: str) -> Any:

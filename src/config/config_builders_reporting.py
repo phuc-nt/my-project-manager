@@ -13,6 +13,12 @@ from typing import Any
 
 from dotenv import load_dotenv
 
+from src.config.config_builders_channels import (
+    build_extra_servers,
+    build_smtp,
+    extra_servers_from_env,
+    smtp_from_env,
+)
 from src.config.config_builders_helpers import _d_float, _d_int, _d_str_or_none
 from src.config.reporting_config import (
     _DEFAULT_CONFLUENCE_DIST,
@@ -63,33 +69,6 @@ def _build_servers(d: dict[str, Any]) -> tuple[McpServerSpec, McpServerSpec, Mcp
     return jira, slack, confluence
 
 
-def _build_extra_servers(d: dict[str, Any]) -> dict[str, McpServerSpec]:
-    """Build config-driven extra MCP server specs (M3-P11 C3), keyed by lowercase name.
-
-    Input `d["extra_servers"]` is a list of {name, mcp_dist, required_env} dicts (built
-    by the loader from the profile `integrations:` block). For each entry, env VALUES are
-    pulled from `os.environ` by the declared key NAMES — names live in the profile, secrets
-    never do. `validate()` stays lazy (fires only on real use), so a declared-but-unused
-    server never breaks load. Returns {} when no extra servers are declared (backward-compat).
-    """
-    raw = d.get("extra_servers") or []
-    out: dict[str, McpServerSpec] = {}
-    for entry in raw:
-        if not isinstance(entry, dict):
-            continue
-        name = str(entry.get("name") or "").strip().lower()
-        if not name:
-            continue
-        required_env = tuple(str(k) for k in (entry.get("required_env") or ()))
-        out[name] = McpServerSpec(
-            name=name,
-            dist_path=Path(str(entry.get("mcp_dist") or "")),
-            env={k: os.environ.get(k, "") for k in required_env},
-            required_env_keys=required_env,
-        )
-    return out
-
-
 def _coerce_external_channels(val: Any) -> frozenset[str]:
     """A comma-string or an iterable of channel names → a clean frozenset."""
     if not val:
@@ -131,20 +110,9 @@ def build_reporting_config_from_dict(d: dict[str, Any]) -> ReportingConfig:
         jira_server=jira_server,
         slack_server=slack_server,
         confluence_server=confluence_server,
-        extra_servers=_build_extra_servers(d),
+        extra_servers=build_extra_servers(d),
+        smtp=build_smtp(d),
     )
-
-
-def _extra_servers_from_env() -> list[dict[str, Any]]:
-    """Env path for extra MCP servers: declare Linear when `LINEAR_MCP_DIST` is set.
-
-    Mirrors the profile `integrations:` shape so from_dict's `_build_extra_servers`
-    consumes it identically. Unset ⇒ [] ⇒ no extra server (backward-compat).
-    """
-    linear_dist = os.getenv("LINEAR_MCP_DIST")
-    if not linear_dist:
-        return []
-    return [{"name": "linear", "mcp_dist": linear_dist, "required_env": ["LINEAR_API_TOKEN"]}]
 
 
 def build_reporting_config_from_env() -> ReportingConfig:
@@ -157,7 +125,8 @@ def build_reporting_config_from_env() -> ReportingConfig:
     load_dotenv(REPO_ROOT / ".env")
     return build_reporting_config_from_dict(
         {
-            "extra_servers": _extra_servers_from_env(),
+            "extra_servers": extra_servers_from_env(),
+            "smtp": smtp_from_env(),
             "jira_project_key": os.getenv("JIRA_PROJECT_KEY"),
             "github_repo": os.getenv("GITHUB_REPO"),
             "slack_report_channel": os.getenv("SLACK_REPORT_CHANNEL"),

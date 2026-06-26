@@ -96,6 +96,10 @@ def needs_interrupt(
     if not isinstance(action, dict):
         return _NO_INTERRUPT
     atype = str(action.get("type", "")).lower()
+    if atype == "email_send":
+        # Locked policy: EVERY outbound email needs human approval (no domain allowlist,
+        # no internal/external split). Reached only after Lớp A passes in classify().
+        return InterruptVerdict(True, "Lớp B: gửi email cần người duyệt")
     if atype == "mcp_tool":
         tool = str(action.get("tool", "")).lower()
         if any(m in tool for m in _LOP_B_MCP_TOOL_MARKERS):
@@ -286,6 +290,39 @@ def _hard_deny_mcp(action: dict[str, Any]) -> BlockVerdict | None:
     return None
 
 
+def _hard_deny_email(action: dict[str, Any]) -> BlockVerdict | None:
+    """Lớp A checks for an outbound email send. None = no red-line match.
+
+    Scans recipient + subject + body for secrets (a credential must never ride out in
+    an email) and rejects a structurally invalid send (no recipient, empty body) so a
+    malformed mutation can't reach the approval queue. A valid send returns None (allowed
+    past Lớp A) and is then ALWAYS queued for human approval (see `needs_interrupt`).
+    """
+    to = action.get("to")
+    subject = action.get("subject", "")
+    body = action.get("body", "")
+
+    cred = _credential_verdict({"to": to, "subject": subject, "body": body})
+    if cred:
+        return cred
+
+    if not (isinstance(to, str) and to.strip()) and not (
+        isinstance(to, (list, tuple)) and any(str(r).strip() for r in to)
+    ):
+        return BlockVerdict(
+            blocked=True,
+            category=BlockCategory.NOT_ALLOWLISTED,
+            reason="email_send has no recipient",
+        )
+    if not str(body).strip():
+        return BlockVerdict(
+            blocked=True,
+            category=BlockCategory.NOT_ALLOWLISTED,
+            reason="email_send has an empty body",
+        )
+    return None
+
+
 def _argv_lower(action: dict[str, Any]) -> list[str]:
     argv = action.get("argv", [])
     if not isinstance(argv, (list, tuple)):
@@ -421,6 +458,14 @@ def classify(action: dict[str, Any]) -> BlockVerdict:
         denied = _hard_deny_mcp(action)
     elif action_type == "gh_cli":
         denied = _hard_deny_gh(action)
+    elif action_type == "email_send":
+        # Email is a native gateway action type (no email MCP server). Lớp A scans the
+        # recipient/subject/body for secrets and rejects an empty recipient/body; a
+        # well-formed send is allowed past Lớp A, then ALWAYS queued Lớp B (needs_interrupt).
+        denied = _hard_deny_email(action)
+        if denied:
+            return denied
+        return _ALLOW
     else:
         # Unknown type: still scan for secrets, then deny (not allowlisted).
         denied = _credential_verdict(action.get("args", action.get("argv", action)))

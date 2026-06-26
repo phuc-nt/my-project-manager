@@ -65,3 +65,14 @@ integrations: {}              # e.g.:
 #   linear:                          # @tacticlaunch/mcp-linear (stdio, node dist/index.js)
 #     mcp_dist: ""                   # path to the built server; empty ⇒ LINEAR_MCP_DIST env
 #     required_env: [LINEAR_API_TOKEN]   # Linear personal API key (Read + Create comments)
+
+# M3-P11 (D2): optional outbound email delivery channel. Absent/no host ⇒ no email
+# channel (delivery stays Slack+Confluence only). EVERY email goes through Lớp B approval.
+# The password is NEVER here — read from SMTP_PASSWORD env at send time.
+# smtp:
+#   host: smtp.gmail.com        # SMTP_HOST (empty ⇒ no email channel)
+#   port: 587                   # SMTP_PORT (STARTTLS)
+#   user: you@example.com       # SMTP_USER
+#   from_addr: you@example.com  # SMTP_FROM_ADDR (defaults to user)
+#   use_tls: true               # SMTP_USE_TLS (STARTTLS)
+#   recipients: []              # SMTP_RECIPIENTS (comma list → tuple)

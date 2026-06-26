@@ -32,5 +32,14 @@ def dispatch_approved_action(action: dict, config) -> str:
         if spec is None:
             raise RuntimeError("linear MCP server not declared; cannot dispatch approved comment.")
         return make_linear_comment_handler(spec)(action)
+    # M3-P11 (D2): an approved outbound email routes to the SMTP handler. The SMTP config
+    # (and the env-resolved password) stay in the handler closure, never on the action.
+    if action.get("type") == "email_send":
+        from src.actions.email_write import make_email_handler
+
+        smtp = getattr(config, "smtp", None)
+        if smtp is None:
+            raise RuntimeError("smtp not configured; cannot dispatch approved email.")
+        return make_email_handler(smtp)(action)
     label = action.get("tool") or action.get("argv") or action.get("type")
     raise RuntimeError(f"No live handler wired for approved action: {label!r}")

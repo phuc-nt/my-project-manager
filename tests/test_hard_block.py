@@ -83,6 +83,13 @@ DENY_CASES = [
     # an unlisted linear tool is still default-deny
     ({"type": "mcp_tool", "server": "linear", "tool": "linear_makeAdmin", "args": {}},
      BlockCategory.NOT_ALLOWLISTED),
+    # --- M3-P11 (D2): email_send red line — secret/empty-recipient/empty-body denied ---
+    ({"type": "email_send", "to": "x@y.com", "subject": "r",
+      "body": "deploy with ghp_abcdefghij1234567890XYZ"}, BlockCategory.CREDENTIAL),
+    ({"type": "email_send", "to": "", "subject": "r", "body": "hi"},
+     BlockCategory.NOT_ALLOWLISTED),
+    ({"type": "email_send", "to": "x@y.com", "subject": "r", "body": "  "},
+     BlockCategory.NOT_ALLOWLISTED),
     # --- not allowlisted (default deny) ---
     ({"type": "mcp_tool", "server": "jira", "tool": "someBrandNewTool", "args": {}},
      BlockCategory.NOT_ALLOWLISTED),
@@ -103,6 +110,8 @@ ALLOW_CASES = [
     {"type": "gh_cli", "argv": ["pr", "create", "--title", "Report"]},
     {"type": "gh_cli", "argv": ["api", "/repos/o/r/pulls"]},  # read-only GET
     {"type": "gh_cli", "argv": ["api", "-X", "GET", "/repos/o/r/pulls"]},  # explicit GET
+    # M3-P11: a well-formed email_send passes Lớp A (it is then Lớp B-queued by the gateway).
+    {"type": "email_send", "to": "lead@team.com", "subject": "Daily", "body": "3 done"},
 ]
 
 

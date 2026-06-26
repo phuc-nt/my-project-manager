@@ -113,3 +113,19 @@ Phần lớn đề xuất còn lại (cross-agent memory, skill library, MCP gat
 - **Risks** (resolved): internal-only red line verified in depth (external path returns before skills accessed; each builder checks audience).
 
 **Exit M3-P10**: ✅ ĐẠT. Agent skill system (instruction-only, internal-only, allocated-on-demand) shipped — verified offline (fake selector) + live-key E2E: selector LLM thật chọn `[prioritize-blockers, flag-risk, parse-github-labels]` cho daily, lằn ranh đỏ giữ (internal inject `<pm_skills>`, external `""` cả ở select lẫn compose prompt), compose call thật OK (dry_run → không post). Foundation for M3 advanced orchestration features.
+
+### P9 — Cross-agent memory share (A3) ✅ COMPLETE
+
+**Status**: DONE (2026-06-26, committed S1 10a60f1 / S2 ba046af / S3 1512e5a, 628 tests).
+
+- **What shipped**:
+  - **Sibling grouping** (`profile.yaml` `project: <slug>` → `LoadedProfile.project_group`): agents sharing a project slug are siblings; no `project:` ⇒ no siblings (backward-compat).
+  - **Sibling read helper** (`src/agent/sibling_memory.py`): `enumerate_siblings` (same-group enabled registry agents, self excluded, broken sibling warned+skipped — never crashes the reader) + `read_sibling_facts` (per-sibling Store namespace `(id,"memory")` via namespace-scoped `store.search`, no wildcard — works InMemory + Postgres; capped at MAX_SIBLING_FACTS) + `build_sibling_context` (no-op `((), None)` without LlmClient when no group/siblings/facts).
+  - **Sibling-fact ranker** (`src/agent/sibling_selector.py`): injectable `SiblingFactSelector` ranks facts to the relevant subset for a report kind; failure → [] (drop, never break a run); filters output back to the input set (hallucination guard).
+  - **Injection + red line**: `select_sibling_text(context, audience, kind, project_group)` renders a labeled block `--- Bộ nhớ agent khác (project: <slug>) ---` into the INTERNAL compose prompt of all builders. **Internal-only** — external returns "" + each builder folds sibling text after its external early-return.
+  - **WO-self / RO-sibling**: `memory_node._assert_self_namespace` raises if a write targets any namespace other than `(self_id,"memory")` (fail loud). Cross-agent is read-only.
+  - **Wiring**: worker/cron/cli build the sibling context and thread ONE store instance (sibling READ + remember WRITE share state); the M2-P6 server path inherits via worker.
+- **Acceptance**: ✅ two agents with the same `project:` — B reads A's stored facts into B's INTERNAL prompt; external omits them; no-project byte-identical + allocation-free (tested, offline e2e ×3 kinds).
+- **Risks** (resolved): internal-only red line verified in depth; broken-sibling-profile isolation (S1 review HIGH → fixed); widened secret-exposure threat-model documented (architecture §6.2).
+
+**Exit M3-P9**: ✅ ĐẠT. Cross-agent memory share shipped — proof toàn bộ offline (fake selector + recording LLM); live-key E2E chưa chạy. **Lưu ý vận hành**: đọc-chéo hiệu lực thật cần `store: postgres` (default InMemoryStore per-process → A3 degrade sạch về no-siblings ở multi-process).

@@ -151,7 +151,13 @@ def default_okr_deps(
             conf_result.status in {"executed", "dry_run"}
             and slack_result.status in SLACK_OK_STATUSES
         )
-        return ok, delivery_summary(conf_result.status, slack_result, detail_url)
+        from src.agent.audience_delivery import deliver_extra_channels_and_summarize
+
+        extra = deliver_extra_channels_and_summarize(
+            body, title, gateway=gw, config=config, report_date=date_hint,
+            audience=audience, rationale=f"OKR report ({audience})", approved=approved,
+        )
+        return ok, delivery_summary(conf_result.status, slack_result, detail_url) + extra
 
     return OkrReportDeps(
         fetch_rollup=lambda: build_okr_rollup(config),

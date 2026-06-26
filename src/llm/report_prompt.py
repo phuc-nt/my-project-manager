@@ -68,11 +68,11 @@ def _summarize_risks(risks: list[Risk]) -> str:
     return f"Tổng {len(risks)} hạng mục cần theo dõi ({', '.join(parts)})."
 
 
-def _skill_block(skills: str) -> str:
-    """Trailing block for the chosen skill bodies, prepended to the INTERNAL user
-    message (after project/memory). Empty ⇒ "" so a no-skills run is byte-identical."""
-    skills = skills.strip()
-    return f"{skills}\n\n" if skills else ""
+def _text_block(text: str) -> str:
+    """Trailing block (skill bodies or sibling facts) prepended to the INTERNAL user
+    message after project/memory. Empty ⇒ "" so a no-injection run is byte-identical."""
+    text = text.strip()
+    return f"{text}\n\n" if text else ""
 
 
 def build_report_messages(
@@ -84,6 +84,7 @@ def build_report_messages(
     project: str = "",
     memory: str = "",
     skills: str = "",
+    sibling_facts: str = "",
 ) -> list[dict[str, str]]:
     """Build the chat messages for the report-composing LLM call (Slack mrkdwn).
 
@@ -91,8 +92,8 @@ def build_report_messages(
     the model uses it verbatim instead of inventing a placeholder. `audience`
     "internal" (default) is the full technical report; "external" is a business
     summary for stakeholders (no issue keys / PR numbers). `persona` prepends to the
-    system message; `project`/`memory`/`skills` prepend to the INTERNAL user message
-    only (never external — they carry internal facts). All default "" ⇒ v1 prompt.
+    system message; `project`/`memory`/`skills`/`sibling_facts` prepend to the INTERNAL
+    user message only (never external — they carry internal facts). All "" ⇒ v1 prompt.
     """
     if audience == "external":
         user = (
@@ -121,7 +122,8 @@ def build_report_messages(
         {"role": "system", "content": prepend_persona(_SYSTEM, persona)},
         {
             "role": "user",
-            "content": build_context_block(project, memory) + _skill_block(skills) + user,
+            "content": build_context_block(project, memory)
+            + _text_block(skills) + _text_block(sibling_facts) + user,
         },
     ]
 
@@ -149,6 +151,7 @@ def build_detail_messages(
     project: str = "",
     memory: str = "",
     skills: str = "",
+    sibling_facts: str = "",
 ) -> list[dict[str, str]]:
     """Messages for the detail report on a Confluence page (XHTML).
 
@@ -156,8 +159,8 @@ def build_detail_messages(
     — đầy đủ, cả sprint). `sprint_context` (weekly only) is a short text block of
     sprint name/dates/issue counts the model should summarize. `audience`
     "external" produces a business-tone stakeholder page (no internal detail).
-    `persona`/`project`/`memory`/`skills` inject as in `build_report_messages`
-    (project+memory+skills internal-only). All default "" ⇒ v1 prompt.
+    `persona`/`project`/`memory`/`skills`/`sibling_facts` inject as in
+    `build_report_messages` (all internal-only). All default "" ⇒ v1 prompt.
     """
     if audience == "external":
         sprint_block = f"\n\nThông tin sprint:\n{sprint_context}" if sprint_context else ""
@@ -196,7 +199,8 @@ def build_detail_messages(
         {"role": "system", "content": prepend_persona(_DETAIL_SYSTEM, persona)},
         {
             "role": "user",
-            "content": build_context_block(project, memory) + _skill_block(skills) + user,
+            "content": build_context_block(project, memory)
+            + _text_block(skills) + _text_block(sibling_facts) + user,
         },
     ]
 

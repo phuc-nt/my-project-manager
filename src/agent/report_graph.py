@@ -22,6 +22,7 @@ from src.actions.action_gateway import ActionGateway
 from src.actions.slack_write import deliver_report
 from src.agent.approval_gate import add_approval_gate, external_summary
 from src.agent.risk_analyzer import analyze
+from src.agent.sibling_selector import select_sibling_text
 from src.agent.state import ReportState
 from src.llm.client import LlmClient
 from src.profile.context import EMPTY, ProfileContext
@@ -118,6 +119,13 @@ def default_report_deps(
             llm = LlmClient(settings)
         today = _today_utc().isoformat()
         skill_text = select_skill_text(context, audience, kind=report_kind)
+        try:
+            sibling_text = select_sibling_text(
+                context, audience, kind=report_kind, project_group=context.sibling_project
+            )
+        except Exception as exc:  # noqa: BLE001 — a misbehaving selector must not break the run
+            logger.warning("sibling-fact injection skipped: %s", exc)
+            sibling_text = ""
         messages = build_detail_messages(
             risks,
             report_date=today,
@@ -128,6 +136,7 @@ def default_report_deps(
             project=context.project,
             memory=context.memory,
             skills=skill_text,
+            sibling_facts=sibling_text,
         )
         result = llm.complete(messages)
         body = result.content

@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from src.agent.sibling_selector import SiblingFactSelector
     from src.skills.models import Skill
     from src.skills.skill_selector import SkillSelector
 
@@ -30,8 +31,10 @@ class ProfileContext:
     """The three context strings a profile injects into the prompt (all optional).
 
     `skills` is the agent's candidate skill pool (M3-P10); `skill_selector` is the
-    injectable picker. Both feed the INTERNAL compose prompt only (external takes
-    nothing — same red line as project/memory). Default empty ⇒ no skill injection.
+    injectable picker. `sibling_facts` is other same-project agents' remembered facts
+    (M3-P9 A3); `sibling_selector` ranks them; `sibling_project` labels the block. All
+    feed the INTERNAL compose prompt only (external takes nothing — same red line as
+    project/memory). Default empty ⇒ no injection.
     """
 
     persona: str = ""  # SOUL.md → system message (both audiences)
@@ -39,6 +42,9 @@ class ProfileContext:
     memory: str = ""  # MEMORY.md → user message (internal only)
     skills: tuple[Skill, ...] = ()  # M3-P10 candidate pool (internal only)
     skill_selector: SkillSelector | None = field(default=None)  # injectable picker
+    sibling_facts: tuple[str, ...] = ()  # M3-P9 sibling memory (internal only)
+    sibling_selector: SiblingFactSelector | None = field(default=None)  # injectable ranker
+    sibling_project: str | None = None  # label slug for the sibling block
 
 
 #: The no-op context — used as the default everywhere so v1 behavior is unchanged.

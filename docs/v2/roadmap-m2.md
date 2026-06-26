@@ -112,4 +112,4 @@ Phần lớn đề xuất còn lại (cross-agent memory, skill library, MCP gat
 - **Acceptance**: ✅ profile declares `skills: [flag-risk]` → skill loaded + selected for report kind → instruction injected into INTERNAL compose prompt. External audience omits skills (tested). No skills declared → no LlmClient constructed (tested).
 - **Risks** (resolved): internal-only red line verified in depth (external path returns before skills accessed; each builder checks audience).
 
-**Exit M3-P10**: ✅ ĐẠT. Agent skill system (instruction-only, internal-only, allocated-on-demand) shipped — proof toàn bộ offline (fake selector + recording LLM); live-key E2E với profile có `skills:` chưa chạy. Foundation for M3 advanced orchestration features.
+**Exit M3-P10**: ✅ ĐẠT. Agent skill system (instruction-only, internal-only, allocated-on-demand) shipped — verified offline (fake selector) + live-key E2E: selector LLM thật chọn `[prioritize-blockers, flag-risk, parse-github-labels]` cho daily, lằn ranh đỏ giữ (internal inject `<pm_skills>`, external `""` cả ở select lẫn compose prompt), compose call thật OK (dry_run → không post). Foundation for M3 advanced orchestration features.

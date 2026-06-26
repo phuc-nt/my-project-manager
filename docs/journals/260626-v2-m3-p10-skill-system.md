@@ -45,8 +45,14 @@ không CRITICAL/HIGH. No-skills byte-identical với pre-P10 (backward-compat th
 sẵn, S2 thêm ~6 dòng mỗi file, tách prose sẽ hại readability (nhất quán deviation >200-LOC
 từ P1).
 
+## Live-key E2E (2026-06-26)
+
+Chạy với key thật (`minimax/minimax-m2.7`, profile dry_run → không post): selector LLM
+thật chọn `[prioritize-blockers, flag-risk, parse-github-labels]` cho daily (đúng kind).
+Lằn ranh đỏ giữ live cả 2 lớp — `select_skill_text` internal=1073 char có `<pm_skills>`,
+external=`""`; compose prompt external KHÔNG có skill block (dù cố tình truyền `skills=`).
+Compose call thật OK (605 char, $0.0007), body lead-with-blocker đúng guidance đã inject.
+
 ## Còn lại / mở
 
-- Production e2e với key thật + profile có `skills:` để xác nhận lằn ranh đỏ live (chưa
-  chạy — toàn bộ proof là offline với fake selector + recording LLM).
 - C2 (`.skill` ZIP upload), `allowed-tools` enforcement, slash activation: ngoài scope, hoãn.

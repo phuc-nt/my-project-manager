@@ -132,7 +132,7 @@ Phần lớn đề xuất còn lại (cross-agent memory, skill library, MCP gat
 
 ### P11 — Integrations + multi-channel delivery (C3 + D2) ✅ COMPLETE
 
-**Status**: DONE (2026-06-27, committed S1 76ad0c5 / S2 d61ac6e / S3 3df09d8 / S4 0cbe397, 704 tests).
+**Status**: DONE (2026-06-27, committed S1 76ad0c5 / S2 d61ac6e / S3 3df09d8 / S4 8ca62c5, 704 tests).
 
 - **What shipped**:
   - **C3 — Config-driven extra MCP servers**: `ReportingConfig.extra_servers` dict lets `profile.yaml` `integrations:` declare optional stdio MCP servers (name + mcp_dist + required_env NAMES; values from `os.environ`, never in YAML). **Linear example** (`@tacticlaunch/mcp-linear` community stdio MCP; note: official Linear MCP HTTP/SSE-remote-only, incompatible with stdio-spawn).

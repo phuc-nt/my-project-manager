@@ -1,0 +1,28 @@
+# Sample D3 workflow (v2 M3-P12) — READ-ONLY + PROPOSE.
+#
+# Run:  mpm agent automate <id> docs/v2/examples/automation-blocker-stakeholder-note.yaml [--dry-run]
+#
+# The workflow reads Jira issues, asks the LLM to summarize blockers (a NAMED prompt — no
+# free text here), and PROPOSES a Slack note to a stakeholder channel. The propose step does
+# NOT post: it enqueues a Lớp B approval, and the operator approves via `mpm agent approve`.
+# Every write stays behind the Action Gateway; a destructive/secret-bearing proposal is
+# refused by Lớp A. This file is illustrative — it is not executed by default.
+
+name: blocker-stakeholder-note
+
+# Optional single `field == value` gate (no boolean operators). Omit to always run.
+# when: "priority == P0"
+
+steps:
+  - read: jira.issues          # whitelisted read tool (reads bypass the gateway — safe)
+    args: {}
+    as: issues
+
+  - analyze: summarize_blockers  # NAMED prompt from the bundled registry (not free text)
+    using: [issues]
+    as: blocker_note
+
+  - propose: slack.post        # builds a Lớp B action + enqueues it (never auto-posts)
+    args:
+      channel: "stakeholders"
+      text: "Cập nhật blocker:\n{{blocker_note}}"

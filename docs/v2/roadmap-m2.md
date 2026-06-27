@@ -150,7 +150,7 @@ Phần lớn đề xuất còn lại (cross-agent memory, skill library, MCP gat
 
 ### P12 — Automation + observability (B4 + B3 + D3) ✅ COMPLETE
 
-**Status**: DONE (2026-06-27, committed S1 e8c3e58 / S2 6cda62d / S3 ed36383 / S4 e4a5973, 775 tests).
+**Status**: DONE (2026-06-27, committed S1 e8c3e58 / S2 6cda62d / S3 ed36383 / S4 1fc0397, 775 tests).
 
 - **What shipped**:
   - **B4 — LangSmith tracing opt-in**: `invoke_config(thread_id, settings)` at graph invoke seam (worker/cron/server paths) attaches optional `LangChainTracer` callbacks list. **DEFAULT OFF** ⇒ no `callbacks` key, byte-identical pre-P12. Gated by BOTH profile flag (`runtime.tracing: true` → `Settings.tracing`) AND env signal (`LANGCHAIN_TRACING_V2` or `LANGSMITH_API_KEY`). Shared `tracing_env_on()` check ensures worker/cli (Settings path) + server (env-only) agree. Tracer failure degrades gracefully (untraced, never breaks); lazy import keeps OFF path langsmith-free. **Observability-only** — no Action Gateway touch, no guardrail changes.

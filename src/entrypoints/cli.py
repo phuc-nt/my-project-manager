@@ -19,6 +19,7 @@ from src.agent.graph import build_graph
 from src.profile.context import ProfileContext
 from src.profile.loader import load_profile
 from src.runtime.agent_paths import agent_thread_id
+from src.runtime.run_config import invoke_config
 
 _DEFAULT_PROFILE = "default"
 
@@ -101,7 +102,7 @@ def _run_hello(message: str, settings) -> int:
     graph = build_graph(_checkpointer(settings), settings=settings)
     result = graph.invoke(
         {"user_input": message, "llm_response": "", "cost_usd": None},
-        config={"configurable": {"thread_id": "cli"}},
+        config=invoke_config("cli", settings),
     )
     print(result["llm_response"])
     cost = result.get("cost_usd")
@@ -149,7 +150,7 @@ def _run_report(
             remember=rem,
         )
     thread = agent_thread_id(profile_id, report_kind, audience)
-    result = graph.invoke({}, config={"configurable": {"thread_id": thread}})
+    result = graph.invoke({}, config=invoke_config(thread, settings))
 
     print(result.get("report_text", "(no report)"))
     cost = result.get("cost_usd")

@@ -91,6 +91,8 @@ def build_settings_dict(yaml_doc: dict[str, Any], data_dir: Any) -> dict[str, An
     _put(out, "checkpointer", _fallback(runtime.get("checkpointer"), "CHECKPOINTER_TYPE"))
     _put(out, "store", _fallback(runtime.get("store"), "STORE_TYPE"))
     _put(out, "postgres_dsn", _fallback(runtime.get("postgres_dsn"), "POSTGRES_DSN"))
+    # M3-P12 (B4): opt-in tracing flag (present yaml bool wins; else env). Default OFF.
+    _put(out, "tracing", _explicit_bool(runtime, "tracing", "LANGCHAIN_TRACING_V2"))
     return out
 
 

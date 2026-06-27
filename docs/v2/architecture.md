@@ -93,7 +93,6 @@ Vị trí Postgres/Store: **M1 vẫn dùng SqliteSaver per-agent** (1 file / age
 
 **Unchanged invariant (restate)**: Every new write (Linear comment, email) stays behind Action Gateway — Lớp A hard-deny + default-DENY allowlist + Lớp B approve. New write tools deny by default until explicitly allowlisted. Config flows through all 3 entry points (worker/cron/cli) automatically. Backward-compat: no `integrations:` + no `smtp:` ⇒ byte-identical pre-P11 behavior (Slack+Confluence only). `classify()` / `needs_interrupt()` unchanged.
 
-
 ## 7. What's PRESERVED from v1
 
 - **Action Gateway guardrail** — Lớp A hard-deny (red line, trước LLM), allowlist-default-deny, Lớp B approve, audit immutable + secret redaction, budget cap, dedup reserve-before-execute. **Giữ nguyên logic, chỉ per-agent hóa** (path + config từ profile). `classify()` / `needs_interrupt()` không đổi.
@@ -101,7 +100,29 @@ Vị trí Postgres/Store: **M1 vẫn dùng SqliteSaver per-agent** (1 file / age
 - **State primitive-only** — kỷ luật checkpointer-safe giữ nguyên (model nặng trong closure).
 - **Test + journal discipline** — 269 test giữ + mở rộng; mỗi phase có exit criteria đo được; journal "Vấp & học được" tiếp tục.
 
-## 9. Cross-cutting principles (giữ từ v1)
+## 8. Automation + observability (M3-P12)
+
+**B4 — LangSmith tracing opt-in**:
+- `invoke_config(thread_id, settings)` at the graph invoke seam (worker/cron/server paths) attaches an optional `LangChainTracer` callbacks list. **DEFAULT OFF** ⇒ no `callbacks` key, byte-identical pre-P12 behavior. Gated by BOTH profile flag (`runtime.tracing: true` → `Settings.tracing`) AND env signal (`LANGCHAIN_TRACING_V2` or `LANGSMITH_API_KEY`). Shared env check `tracing_env_on()` ensures worker/cli (Settings path) + server (`invoke_config_env`, env-only) agree.
+- Tracer failure degrades gracefully (untraced run, never breaks execution); lazy import keeps OFF path langsmith-free. **Observability-only** — no Action Gateway interaction, never touches guardrail logic or write authority.
+
+**B3 — Run replay / time-travel**:
+- `src/runtime/replay.py`: `mpm agent replay <id> <thread> [--checkpoint <id>]`. Without `--checkpoint`, LISTS checkpoint history (structural summary only, no PII); each row flagged `[replayable]`/`[needs-earlier-data]`. With `--checkpoint`, REPLAYS from the saved checkpoint using FROZEN stored state (graph.invoke with checkpoint-pinned config) — NO re-fetch of live Jira/GitHub.
+- **Safe-replay guard**: only checkpoints pending `deliver` or `approval_gate` nodes (or terminal) are replayable; earlier nodes (perceive/analyze/compose) are REFUSED — they rebuild fetched-data closure boxes that are not checkpointed, so replay would degenerate. Time-travel state edits and re-fetch toggles deferred.
+- Replay re-runs the existing graph — any write re-enters the same gateway Lớp A/B + dedup chain. No replay bypass.
+
+**D3 — Workflow automation (READ-ONLY + PROPOSE)**:
+- `src/automation/` package (schema/prompts/propose/engine): `mpm agent automate <id> <automation.yaml> [--dry-run]`. Flat YAML with 3 step types (`read`/`analyze`/`propose`); single `when: field == value` condition; named-prompt `analyze` only (no free-text in YAML).
+- Engine chains WHITELISTED reads (jira.issues/github.prs/linear.issues/confluence.page — bypass gateway by design), runs `analyze` via agent LLM (named prompts from `src/automation/prompts.py`), builds action dict for each `propose` (whitelist: slack.post/linear.comment).
+- Routes proposals through `ActionGateway.execute()` WITHOUT a handler ⇒ Lớp B action ENQUEUES (`pending_approval`), non-Lớp-B no-ops (`skipped`). **NEVER auto-executes** a write; never calls `execute_approved`/`approve`. `--dry-run` builds+prints each proposal without touching the gateway.
+- Fail-closed schema (unknown step/tool/target/prompt → parse error; `when` is single `==`, no boolean ops). Example: `docs/v2/examples/automation-blocker-stakeholder-note.yaml`.
+
+**THE INVARIANT (unchanged by all of P12)**:
+- D3 proposes through the gateway (Lớp B, never auto-execute); B3 replay re-runs gateway-routed graphs (no bypass); B4 tracing is observability-only (no action path).
+- The Action-Gateway red line — Lớp A hard-deny + allowlist default-DENY + Lớp B approve, `classify()`/`needs_interrupt()` unchanged — is **untouched**.
+- Backward-compat: tracing OFF + no automation invoked ⇒ byte-identical pre-P12.
+
+## 9. Cross-cutting principles (giữ từ v1, unchanged by M3-P12)
 
 - Mỗi phase **chạy được + giá trị thật** trước phase sau (không big-bang).
 - Không mở write authority mới khi guardrail chưa vững — v2 **không thêm** Lớp A/B action nào, chỉ per-agent hóa.

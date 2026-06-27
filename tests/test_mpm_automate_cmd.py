@@ -135,3 +135,28 @@ def test_automate_dispatch_via_mpm(monkeypatch):
     rc = mpm.main(["agent", "automate", "acme", "wf.yaml", "--dry-run"])
     assert rc == 0
     assert called["rest"] == ["acme", "wf.yaml", "--dry-run"]
+
+
+def test_real_analyze_fn_reads_llm_result_content(monkeypatch):
+    """Regression: the real analyze_fn must read LlmResult.content (NOT .text).
+
+    Live E2E caught `_analyze` accessing a non-existent `.text`; the fake `analyze_fn` in
+    other tests hid it. This exercises the real `_build_analyze_fn` against a fake LlmClient
+    whose `.complete()` returns a real `LlmResult` shape.
+    """
+    from src.llm.client import LlmResult
+
+    class _FakeClient:
+        def __init__(self, settings):
+            pass
+
+        def complete(self, messages, *, model=None):
+            return LlmResult(
+                content="summary OK", model="x", prompt_tokens=1,
+                completion_tokens=1, cost_usd=0.0,
+            )
+
+    monkeypatch.setattr("src.llm.client.LlmClient", _FakeClient)
+    analyze = mpm_automate_cmd._build_analyze_fn(settings=object())
+    out = analyze("a prompt", {"issues": []})
+    assert out == "summary OK"

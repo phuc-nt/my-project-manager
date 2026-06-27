@@ -51,7 +51,7 @@ def _build_analyze_fn(settings):
                 {"role": "user", "content": content},
             ]
         )
-        return result.text
+        return result.content
 
     return _analyze
 

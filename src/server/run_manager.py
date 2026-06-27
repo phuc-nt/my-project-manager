@@ -25,6 +25,7 @@ import uuid
 from dataclasses import dataclass, field
 
 from src.runtime.agent_paths import agent_thread_id
+from src.runtime.run_config import invoke_config_env
 from src.server.graph_runner import (
     Terminal,
     default_build_graph,
@@ -137,7 +138,7 @@ class RunManager:
         terminal_box: dict[str, Terminal] = {}
 
         def _run_sync() -> None:
-            cfg = {"configurable": {"thread_id": handle.thread_id}}
+            cfg = invoke_config_env(handle.thread_id)
             last_delta: dict | None = None
             graph = build_graph(handle.agent_id, handle.kind, handle.audience, dry_run)
             terminal = terminal_for_delivery(None)  # default if no deliver chunk seen

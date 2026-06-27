@@ -12,6 +12,7 @@ dependencies = [
     "langgraph>=1.2.6",
     "langgraph-checkpoint-postgres>=3.1.0",
     "langgraph-checkpoint-sqlite>=3.1.0",
+    "langsmith>=0.8.18",
     "openai>=2.43.0",
     # psycopg[binary] bundles libpq so the Postgres path imports without a system
     # libpq install (M2-P8 — Postgres is opt-in; the binary wheel keeps the default

@@ -52,6 +52,11 @@ class Settings:
     store: str = "memory"
     postgres_dsn: str | None = None
 
+    # M3-P12 (B4): opt-in LangSmith tracing. Default OFF ⇒ no callbacks attached at
+    # invoke time ⇒ byte-identical to pre-P12. Effective only when the env is also
+    # configured (LANGCHAIN_TRACING_V2 / LANGSMITH_API_KEY) — see runtime.run_config.
+    tracing: bool = False
+
     def require_api_key(self) -> str:
         """Return the OpenRouter key, or raise a clear error if it is unset.
 

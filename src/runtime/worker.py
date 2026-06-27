@@ -27,6 +27,7 @@ from src.profile.context import ProfileContext
 from src.profile.loader import LoadedProfile, load_profile
 from src.runtime.agent_paths import agent_data_dir, agent_thread_id
 from src.runtime.legacy_migration import migrate_legacy_data_dir
+from src.runtime.run_config import invoke_config
 from src.runtime.run_event import append_run_event
 
 logger = logging.getLogger(__name__)
@@ -104,7 +105,7 @@ def _default_run_report(
 ) -> dict:
     """Real dispatch: build the per-agent graph and run one report (mirrors cron)."""
     graph = build_graph_for(loaded, settings, kind, audience)
-    return graph.invoke({}, config={"configurable": {"thread_id": thread_id}})
+    return graph.invoke({}, config=invoke_config(thread_id, settings))
 
 
 def main(argv: list[str] | None = None, *, run_report: RunReport = _default_run_report) -> int:

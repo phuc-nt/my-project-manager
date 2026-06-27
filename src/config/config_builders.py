@@ -61,6 +61,7 @@ def build_settings_from_dict(d: dict[str, Any]) -> Settings:
         checkpointer=(d.get("checkpointer") or "sqlite").lower(),
         store=(d.get("store") or "memory").lower(),
         postgres_dsn=_d_str_or_none(d, "postgres_dsn"),
+        tracing=_d_bool(d, "tracing", False),
     )
 
 
@@ -70,6 +71,7 @@ def build_settings_from_env() -> Settings:
     Reproduces the v1 env-loaded settings exactly (same keys, same coercion).
     """
     from src.config.settings import REPO_ROOT
+    from src.runtime.run_config import tracing_env_on
 
     load_dotenv(REPO_ROOT / ".env")
     return build_settings_from_dict(
@@ -86,5 +88,10 @@ def build_settings_from_env() -> Settings:
             "checkpointer": os.getenv("CHECKPOINTER_TYPE"),
             "store": os.getenv("STORE_TYPE"),
             "postgres_dsn": os.getenv("POSTGRES_DSN"),
+            # Tracing is on (env side) when either the V2 flag is truthy OR an API key is
+            # present — normalized to a bool so an API-key string (not a true/false word)
+            # still enables. Shared helper so the worker/cli settings path and the server
+            # env-only path agree on the same signal.
+            "tracing": tracing_env_on(),
         }
     )

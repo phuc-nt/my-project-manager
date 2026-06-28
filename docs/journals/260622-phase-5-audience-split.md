@@ -17,7 +17,7 @@
 
 ## Vấp & học được
 - **Code review bắt C1 (privacy leak thật)**: external resource Slack short SẠCH (không tên/labor), NHƯNG nó **link tới trang Confluence** mà trang đó vẫn render bảng per-assignee đầy đủ (tên, count, labor `$`). Stakeholder click 1 phát là thấy hết. Test bỏ sót vì chỉ check text của short. Vá: external resource short BỎ link Confluence (trang vẫn tạo, internal-visibility, không trao URL). Bài học: privacy phải tính cả **artifact liên kết**, không chỉ text trực tiếp.
-- **E2E lộ gap Phase 2 thật**: `approve <id>` chỉ "authorize" chứ KHÔNG dispatch — handler là stub từ Phase 2 ("real handlers land when a Lớp B action actually enters a flow"). Phase 5 là flow đầu tiên Lớp B thực sự cần execute. Vá: `_dispatch_approved_action` route action đã duyệt (slack post_message) tới live handler thật. Sau vá: `approve 4 → posted to C0BBZN04XPX ts=…` (post thật). → E2E thật mới lộ; queue-only test không đủ.
+- **E2E lộ gap Phase 2 thật**: `approve <id>` chỉ "authorize" chứ KHÔNG dispatch — handler là stub từ Phase 2 ("real handlers land when a Lớp B action actually enters a flow"). Phase 5 là flow đầu tiên Lớp B thực sự cần execute. Vá: `_dispatch_approved_action` route action đã duyệt (slack post_message) tới live handler thật. Sau vá: `approve 4 → posted to <SLACK_CHANNEL_ID> ts=…` (post thật). → E2E thật mới lộ; queue-only test không đủ.
 - **Single-channel collision**: chỉ có 1 channel test → dùng chung cho internal + stakeholder. Thêm nó vào external set khiến internal post tới đó CŨNG bị Lớp B (đúng logic, sai ý định). Deployment thật phải tách 2 channel.
 
 ## Mở / sang sau

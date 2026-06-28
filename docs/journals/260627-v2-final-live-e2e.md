@@ -10,7 +10,7 @@ chính với data + post THẬT (Jira/Slack/Confluence + Postgres throwaway), kh
 ## Cách chạy
 
 Agent throwaway `e2e-final` (`dry_run: false`, `store/checkpointer: postgres`) trỏ vào
-target seeded thật (.env): Jira SCRUM, Confluence space MPM, Slack `C0BBZN04XPX`. Chạy qua
+target seeded thật (.env): Jira SCRUM, Confluence space MPM, Slack `<SLACK_CHANNEL_ID>`. Chạy qua
 per-agent worker (đúng đường v2, không đụng profile `default`). Postgres Docker throwaway
 (port 55432). Dọn sạch sau (profile + container + data + registry entry).
 

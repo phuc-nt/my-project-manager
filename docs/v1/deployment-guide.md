@@ -123,23 +123,23 @@ Entrypoint: `python -m src.entrypoints.cron --daily|--weekly` (gọi cùng luồ
 - **Daily standup digest** — 9:00 mỗi ngày (`com.mpm.report.daily.plist`).
 - **Weekly sprint review** — thứ 6 17:00, kéo thêm Jira sprint data (`com.mpm.report.weekly.plist`).
 
-Artifacts ở `deploy/launchd/`: 2 plist + `run-report.sh` (wrapper set PATH cho node/gh/uv, cd repo, gọi cron).
+Artifacts ở `deploy/launchd/`: 4 plist template (placeholder `__REPO_DIR__`) + `run-report.sh`
+(wrapper tự dò repo root, set PATH cho node/gh/uv, gọi cron) + `install.sh` / `uninstall.sh`.
 
-**Cài (load vào launchd):**
+**Cài** — dùng `install.sh`, nó tự thay đường dẫn clone vào plist (KHÔNG cần sửa path tay):
 ```bash
-cp deploy/launchd/com.mpm.report.*.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.mpm.report.daily.plist
-launchctl load ~/Library/LaunchAgents/com.mpm.report.weekly.plist
-# chạy thử ngay (không chờ tới giờ):
-launchctl start com.mpm.report.daily
+./deploy/launchd/install.sh            # service điều phối (v2): worker/agent theo registry + schedule
+./deploy/launchd/install.sh --legacy   # hoặc: 3 cron single-agent (v1) cho profile `default`
 ```
-**Gỡ:** `launchctl unload ~/Library/LaunchAgents/com.mpm.report.{daily,weekly}.plist`.
-**Log:** `.data/cron-{daily,weekly}.log` (+ `.err.log`).
+> Chỉ chạy MỘT trong hai — chạy cả hai gây double-schedule.
+
+**Gỡ:** `./deploy/launchd/uninstall.sh` (unload + xóa mọi job mpm).
+**Log:** service → `.data/service.log`; legacy cron → `.data/cron-{daily,weekly,resource}.log` (+ `.err.log`).
 
 ⚠️ **Lưu ý**:
 - launchd chỉ chạy khi máy bật. Cron chạy với env tối thiểu → wrapper tự set PATH; token đọc từ `.env`.
 - Mặc định `.env` có `DRY_RUN=true` (chỉ log). **Để cron post thật, đặt `DRY_RUN=false` trong `.env`.**
-- Plist + wrapper hardcode path tuyệt đối `/Users/phucnt/workspace/my-project-manager` — đổi nếu repo ở chỗ khác.
+- `install.sh` bake đường dẫn clone tuyệt đối vào plist ở `~/Library/LaunchAgents/` (launchd cần path tuyệt đối + không expand biến). Pull template mới thì chạy lại `install.sh`.
 
 ## 6. Đường lên service (Phase 5 — chưa làm)
 

@@ -9,7 +9,7 @@
 - **Node `approval_gate`** (`src/agent/approval_gate.py`) chèn giữa compose↔deliver ở **cả 3 graph** (report/okr/resource). External → gọi `interrupt()` → graph PAUSE trước deliver, state ghi vào per-agent `SqliteSaver`; conditional edge: approve→deliver, reject→END. Internal → pass-through (edge mặc định deliver), v1 không đổi.
 - **`ActionGateway.execute_approved()`** — đường "đã-người-duyệt": bỏ enqueue Lớp B lần 2 để post LIVE, nhưng Lớp A hard-deny + audit + dry-run + kill-switch + dedup VẪN áp. `deliver_report`/`create_report_page` thêm cờ `approved`; node deliver đọc `state["approval_decision"]=="approve"`.
 - **Operator surface:** `worker --resume --thread <id> --decision approve|reject` (re-attach thread paused, rebuild graph từ thread_id qua `parse_thread_id`, `invoke(Command(resume=...))`). `mpm agent resume <id> <thread> --decision ...` spawn nó. Fresh external run pause → exit **3** + run-event `interrupted`. Refuse resume thread của agent khác (exit 2).
-- **E2E thật** (SqliteSaver thật, profile default, channel C0BBZN04XPX): pause (exit 3, checkpoint `next=('approval_gate',)`, 0 write) → approve → **post Slack thật** (messageTs 1782314334, audit `executed` — KHÔNG re-queue) → reject (thread weekly) → KHÔNG post (write server không spawn), END sạch, audited.
+- **E2E thật** (SqliteSaver thật, profile default, channel `<SLACK_CHANNEL_ID>`): pause (exit 3, checkpoint `next=('approval_gate',)`, 0 write) → approve → **post Slack thật** (messageTs 1782314334, audit `executed` — KHÔNG re-queue) → reject (thread weekly) → KHÔNG post (write server không spawn), END sạch, audited.
 
 ## Quyết định & vì sao
 

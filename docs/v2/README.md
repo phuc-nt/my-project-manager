@@ -24,6 +24,7 @@ tags: [v2, vision, roadmap, multi-agent, langgraph, web-ui]
 | File | Nội dung |
 |---|---|
 | **README.md** (file này) | Vision + tóm tắt thay đổi vs v1 + index |
+| [getting-started.md](getting-started.md) | **START HERE**: Step-by-step guide to register a new agent + fill profile.yaml + test + schedule |
 | [profile-design.md](profile-design.md) | **Centerpiece**: thiết kế agent profile (thư mục 4 file: `profile.yaml` + `SOUL.md` + `PROJECT.md` + `MEMORY.md`) |
 | [architecture.md](architecture.md) | Kiến trúc target (registry → service → worker → per-agent gateway) + cái GIỮ từ v1 + cross-cutting principles |
 | [roadmap-m1.md](roadmap-m1.md) | **Milestone M1** — multi-agent core (config refactor → profile → registry/worker → CLI) |

@@ -92,6 +92,7 @@ Architecture: [docs/system-architecture.md](docs/v1/system-architecture.md) · C
 
 | Read this to… | Doc |
 |---|---|
+| **Add a new agent** (quick start) | [docs/v2/getting-started.md](docs/v2/getting-started.md) |
 | Understand the guardrail (the main lesson) | [action-gateway-explainer.md](docs/v1/action-gateway-explainer.md) |
 | Understand the problem + vision | [project-overview-pdr.md](docs/v1/project-overview-pdr.md) |
 | Understand the architecture | [system-architecture.md](docs/v1/system-architecture.md) |

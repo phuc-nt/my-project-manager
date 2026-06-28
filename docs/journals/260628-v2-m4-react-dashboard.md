@@ -29,7 +29,7 @@ M4 is a UI/observability layer only. Action Gateway, `classify()`, `needs_interr
 ## Live E2E (2026-06-28, browser thật + post outward thật)
 
 Chạy full live qua agent throwaway `e2e-m4` (dry_run=false, Postgres throwaway), target seeded
-thật (.env): Jira SCRUM, Slack `C0BBZN04XPX`. Đường đi: server uvicorn THẬT
+thật (.env): Jira SCRUM, Slack `<SLACK_CHANNEL_ID>`. Đường đi: server uvicorn THẬT
 (`python -m src.server.app`, 127.0.0.1:8765) → browser headless THẬT (Playwright Chromium) →
 React render → click trên UI.
 - **Seed**: D3 `automate` đọc Jira thật + LLM summarize blocker → propose → enqueue Lớp B
@@ -39,7 +39,7 @@ React render → click trên UI.
 - **Browser render**: React mount, agent picker, 8 nav; Approvals view hiện proposal #1;
   confirm dialog hiện ĐÚNG action JSON sẽ post (channel + text từ Jira read) trước khi duyệt.
 - **Live approve trên UI**: click "Approve & post" → **post Slack THẬT** (audit:
-  `slack:post_message verdict=allow result="posted to C0BBZN04XPX ts=1782650017.735719"`),
+  `slack:post_message verdict=allow result="posted to <SLACK_CHANNEL_ID> ts=1782650017.735719"`),
   proposal consumed (pending→0). Qua đúng `gw.approve(dispatch_approved_action)` — không bypass.
 
 Dọn sạch sau: kill server + container, xóa profile (chứa DSN) + data dir, revert registry,

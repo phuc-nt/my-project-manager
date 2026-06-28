@@ -90,3 +90,37 @@ export interface AuditPayload {
   counts: Record<string, number>
   recent: AuditRow[]
 }
+
+// --- ops payloads (S4) ---
+
+export interface PendingAction {
+  type?: string
+  server?: string
+  tool?: string
+  args?: Record<string, unknown>
+}
+
+export interface ApprovalItem {
+  id: number
+  reason: string
+  status: string
+  created_at: string
+  action: PendingAction
+}
+
+export interface ApprovalsPayload {
+  agent_id: string
+  pending: ApprovalItem[]
+  approved?: number
+  rejected?: number
+}
+
+export interface ConfigPayload {
+  agent_id: string
+  files: Record<string, string> // { profile, soul, project, memory }
+}
+
+export interface TriggerResult {
+  run_id: string
+  thread_id: string
+}

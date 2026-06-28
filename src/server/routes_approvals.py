@@ -18,32 +18,11 @@ from fastapi import APIRouter, HTTPException, Request
 
 from src.actions.action_gateway import HardBlockedError
 from src.actions.approved_dispatch import dispatch_approved_action
-from src.server import agent_views
+from src.server.ops_helpers import build_gateway as _gateway
+from src.server.ops_helpers import require_agent as _require_agent
 from src.server.routes_dashboard import templates
 
 router = APIRouter(tags=["approvals"])
-
-
-def _require_agent(agent_id: str):
-    """Load a REGISTERED agent's profile at its own data dir, or 404.
-
-    The registry-membership check also covers path-escape: a malformed id is never
-    registered, so it never reaches a data-dir build.
-    """
-    from src.profile.loader import load_profile
-    from src.runtime.agent_paths import agent_data_dir
-
-    if agent_id not in {e.id for e in agent_views.load_registry()}:
-        raise HTTPException(status_code=404, detail=f"unknown agent {agent_id!r}")
-    return load_profile(agent_id, data_dir=agent_data_dir(agent_id))
-
-
-def _gateway(loaded):
-    from src.actions.action_gateway import ActionGateway
-
-    return ActionGateway(
-        loaded.settings, external_channels=loaded.config.slack_external_channels
-    )
 
 
 def _list_partial(request: Request, agent_id: str, loaded):

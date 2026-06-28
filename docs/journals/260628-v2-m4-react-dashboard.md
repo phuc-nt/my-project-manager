@@ -32,4 +32,4 @@ M4 is a UI/observability layer only. Action Gateway, `classify()`, `needs_interr
 - **Advanced visualizations**: Dashboard sufficient for MVP; D3/custom layouts deferred pending product feedback.
 
 ## Kết quả
-✅ 5 slices, all committed (S1 1c0bd75, S2 4c770fb, S3 39713fb, S4 4f025f0, S5 <pending>). 785 pytest green, vitest 11, ruff clean. React SPA fully replaces htmx; guardrail + gateway path byte-stable. Memory/automation internal-only respected. M4 closes the dashboard modernization; next = integrations or multi-user auth.
+✅ 5 slices, all committed (S1 1c0bd75, S2 4c770fb, S3 39713fb, S4 4f025f0, S5 3630ae7). 785 pytest green, vitest 11, ruff clean. React SPA fully replaces htmx; guardrail + gateway path byte-stable. Memory/automation internal-only respected. M4 closes the dashboard modernization; next = integrations or multi-user auth.

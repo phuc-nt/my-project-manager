@@ -4,8 +4,11 @@ import { BrowserRouter, Route, Routes } from 'react-router'
 import './App.css'
 import { AgentProvider } from './agent-context'
 import { Layout } from './components/Layout'
-import { Cost, Guardrail, MemoryAutomation, Timeline } from './views/placeholders'
+import { Cost } from './views/Cost'
+import { Guardrail } from './views/Guardrail'
+import { MemoryAutomation } from './views/MemoryAuto'
 import { Overview } from './views/Overview'
+import { Timeline } from './views/Timeline'
 
 function App() {
   return (

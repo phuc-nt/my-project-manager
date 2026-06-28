@@ -46,3 +46,29 @@ def read_last_run_event(agent_id: str) -> dict[str, Any] | None:
         return json.loads(lines[-1])
     except json.JSONDecodeError:
         return None
+
+
+def read_run_events(agent_id: str, *, limit: int = 100) -> list[dict[str, Any]]:
+    """Return an agent's run-events newest-first (M4: timeline view source).
+
+    Sibling of `read_last_run_event` — reads the whole `runs.jsonl`, skips malformed
+    lines (never fails the whole read), reverses to newest-first, and clamps to `limit`
+    (bounded so a long-running agent's history can't return an unbounded list). Returns
+    `[]` when there are no runs yet.
+    """
+    from src.runtime.agent_paths import agent_data_dir
+
+    path = agent_data_dir(agent_id) / "runs.jsonl"
+    if not path.exists():
+        return []
+    out: list[dict[str, Any]] = []
+    for ln in path.read_text(encoding="utf-8").splitlines():
+        if not ln.strip():
+            continue
+        try:
+            out.append(json.loads(ln))
+        except json.JSONDecodeError:
+            continue  # skip a corrupt line rather than fail the whole read
+    out.reverse()  # newest first
+    clamp = max(1, min(limit, 500))
+    return out[:clamp]

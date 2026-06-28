@@ -26,6 +26,7 @@ from src.server import (
     routes_dashboard,
     routes_profile,
     routes_runs,
+    routes_visualize,
 )
 from src.server.run_manager import RunManager
 
@@ -50,6 +51,8 @@ def create_app() -> FastAPI:
     app.include_router(routes_approvals.router)
     app.include_router(routes_audit.router)
     app.include_router(routes_profile.router)
+    # M4-S1: read-only JSON API for the React visualization dashboard.
+    app.include_router(routes_visualize.router)
     app.mount(
         "/static",
         StaticFiles(directory=str(Path(__file__).parent / "static")),

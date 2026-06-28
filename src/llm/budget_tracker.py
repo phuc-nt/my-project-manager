@@ -16,6 +16,7 @@ import json
 import logging
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from src.config.settings import Settings
 
@@ -61,6 +62,32 @@ class BudgetTracker:
 
     def spent_this_month(self) -> float:
         return self._read(_current_month())
+
+    def monthly_series(self, *, months: int = 12) -> list[dict[str, Any]]:
+        """Read-only cost history for the M4 cost chart: `[{month, total_usd}]`.
+
+        Globs the per-month `budget-{month}.json` files, sorts by month ascending, and
+        clamps to the last `months` (default 12) to bound the chart. SIDE-EFFECT-FREE —
+        does NOT call `check_allowed` (which raises/gates LLM calls). A corrupt budget
+        file surfaces via `_read` (not silently zeroed) — same posture as the writer.
+        """
+        if not self._budget_dir.exists():
+            return []
+        series: list[dict[str, Any]] = []
+        for path in sorted(self._budget_dir.glob("budget-*.json")):
+            month = path.stem.removeprefix("budget-")
+            try:
+                total = self._read(month)
+            except RuntimeError as exc:
+                # An observability series must not crash on ONE corrupt month — skip it
+                # (logged) so the dashboard still shows the rest. The spend gate still
+                # surfaces a corrupt file via `_read` on the write/check path.
+                logger.warning("skipping corrupt budget month %s in series: %s", month, exc)
+                continue
+            series.append({"month": month, "total_usd": total})
+        series.sort(key=lambda row: row["month"])
+        clamp = max(1, months)
+        return series[-clamp:]
 
     def check_allowed(self) -> tuple[bool, float]:
         """Return (allowed, ratio_spent). Raise BudgetExceededError at >=100%.

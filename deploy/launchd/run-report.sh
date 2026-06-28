@@ -12,7 +12,10 @@
 # This script + the 3 plists are kept (not deleted in P3) for the single-agent cron path.
 set -euo pipefail
 
-REPO_DIR="/Users/phucnt/workspace/my-project-manager"
+# Resolve the repo root from this script's own location (deploy/launchd/run-report.sh
+# → two levels up), so the wrapper works regardless of where the repo is cloned.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$REPO_DIR"
 
 # Ensure tools the report needs are on PATH (node for MCP servers, gh, uv).

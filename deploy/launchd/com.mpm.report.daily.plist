@@ -6,7 +6,7 @@
     <string>com.mpm.report.daily</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/phucnt/workspace/my-project-manager/deploy/launchd/run-report.sh</string>
+        <string>__REPO_DIR__/deploy/launchd/run-report.sh</string>
         <string>--daily</string>
     </array>
     <!-- Daily standup digest at 09:00 every day. -->
@@ -18,9 +18,9 @@
         <integer>0</integer>
     </dict>
     <key>StandardOutPath</key>
-    <string>/Users/phucnt/workspace/my-project-manager/.data/cron-daily.log</string>
+    <string>__REPO_DIR__/.data/cron-daily.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/phucnt/workspace/my-project-manager/.data/cron-daily.err.log</string>
+    <string>__REPO_DIR__/.data/cron-daily.err.log</string>
     <key>RunAtLoad</key>
     <false/>
 </dict>

@@ -26,10 +26,29 @@ M4 is a UI/observability layer only. Action Gateway, `classify()`, `needs_interr
 - **Htmx yaml-500 latent bug**: Config POST that sent YAML form-data triggered 500 on invalid YAML. Died with htmx route; no JSON API equivalent (JSON-only).
 - **Coverage guard worked**: Mapped every unique htmx edge (approve/reject/config valid/invalid) to a JSON test before deletion. Zero coverage loss.
 
+## Live E2E (2026-06-28, browser thật + post outward thật)
+
+Chạy full live qua agent throwaway `e2e-m4` (dry_run=false, Postgres throwaway), target seeded
+thật (.env): Jira SCRUM, Slack `C0BBZN04XPX`. Đường đi: server uvicorn THẬT
+(`python -m src.server.app`, 127.0.0.1:8765) → browser headless THẬT (Playwright Chromium) →
+React render → click trên UI.
+- **Seed**: D3 `automate` đọc Jira thật + LLM summarize blocker → propose → enqueue Lớp B
+  `approval_id=1` vào ApprovalStore (đúng nguồn dashboard đọc).
+- **HTTP live** (uvicorn, không TestClient): `GET /` (SPA) + 5 JSON API + deep-link `/cost`
+  (catch-all) đều 200; `/api/memory?audience=external` → `facts: []` (lằn ranh đỏ live).
+- **Browser render**: React mount, agent picker, 8 nav; Approvals view hiện proposal #1;
+  confirm dialog hiện ĐÚNG action JSON sẽ post (channel + text từ Jira read) trước khi duyệt.
+- **Live approve trên UI**: click "Approve & post" → **post Slack THẬT** (audit:
+  `slack:post_message verdict=allow result="posted to C0BBZN04XPX ts=1782650017.735719"`),
+  proposal consumed (pending→0). Qua đúng `gw.approve(dispatch_approved_action)` — không bypass.
+
+Dọn sạch sau: kill server + container, xóa profile (chứa DSN) + data dir, revert registry,
+gỡ Playwright khỏi `web/`. `git grep` xác nhận DSN/secret/throwaway-id KHÔNG vào file tracked.
+
 ## Mở / sang sau
-- **Live-key E2E for React SPA**: manual browser smoke (approve flow, config edit, SSE trigger) once S5 lands. Automation welcome.
-- **Auth + remote**: still deferred (localhost-only + no-auth). JSON API design is ready; add auth middleware without rewrite.
+- **Auth + remote**: still deferred (localhost-only + no-auth). JSON API design ready; add auth middleware without rewrite.
 - **Advanced visualizations**: Dashboard sufficient for MVP; D3/custom layouts deferred pending product feedback.
+- **Per-run cost trend** (D3 `runs.jsonl` cost_usd): deferred — monthly-only this round.
 
 ## Kết quả
-✅ 5 slices, all committed (S1 1c0bd75, S2 4c770fb, S3 39713fb, S4 4f025f0, S5 3630ae7). 785 pytest green, vitest 11, ruff clean. React SPA fully replaces htmx; guardrail + gateway path byte-stable. Memory/automation internal-only respected. M4 closes the dashboard modernization; next = integrations or multi-user auth.
+✅ 5 slices, all committed (S1 1c0bd75, S2 4c770fb, S3 39713fb, S4 4f025f0, S5 3630ae7). 785 pytest green, vitest 11, ruff clean. React SPA fully replaces htmx; guardrail + gateway path byte-stable. Memory/automation internal-only respected. **Live E2E xác nhận: browser thật render SPA + click Approve trên UI → post Slack thật qua gateway (ts 1782650017).** M4 closes the dashboard modernization; next = integrations or multi-user auth.

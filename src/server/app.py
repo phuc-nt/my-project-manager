@@ -24,6 +24,7 @@ from src.server import (
     routes_approvals,
     routes_audit,
     routes_dashboard,
+    routes_ops_json,
     routes_profile,
     routes_runs,
     routes_visualize,
@@ -53,6 +54,8 @@ def create_app() -> FastAPI:
     app.include_router(routes_profile.router)
     # M4-S1: read-only JSON API for the React visualization dashboard.
     app.include_router(routes_visualize.router)
+    # M4-S4: JSON ops API (approve/reject/config) — same gateway path as the htmx routes.
+    app.include_router(routes_ops_json.router)
     app.mount(
         "/static",
         StaticFiles(directory=str(Path(__file__).parent / "static")),

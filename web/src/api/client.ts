@@ -4,11 +4,14 @@
 import type {
   AgentStatus,
   AgentSummary,
+  ApprovalsPayload,
   AuditPayload,
   AutomationPayload,
+  ConfigPayload,
   CostPayload,
   MemoryPayload,
   RunsPayload,
+  TriggerResult,
 } from '../types'
 
 class ApiError extends Error {
@@ -28,6 +31,26 @@ async function request<T>(path: string): Promise<T> {
   return (await res.json()) as T
 }
 
+async function post<T>(path: string, body?: unknown): Promise<T> {
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+  if (!res.ok) {
+    // surface the backend's exact detail (e.g. the config validation message)
+    let detail = `${res.status} ${res.statusText}`
+    try {
+      const j = (await res.json()) as { detail?: string }
+      if (j.detail) detail = j.detail
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new ApiError(res.status, detail)
+  }
+  return (await res.json()) as T
+}
+
 export const api = {
   getAgents: () => request<AgentSummary[]>('/api/agents'),
   getAgentStatus: (id: string) => request<AgentStatus>(`/api/agents/${id}/status`),
@@ -37,6 +60,20 @@ export const api = {
     request<MemoryPayload>(`/api/memory/${id}?audience=${encodeURIComponent(audience)}`),
   getAutomation: (id: string) => request<AutomationPayload>(`/api/automation/${id}`),
   getAudit: (id: string) => request<AuditPayload>(`/api/audit/${id}`),
+
+  // --- ops (S4): write surfaces — all go through the existing gateway-routed endpoints ---
+  getApprovals: (id: string) => request<ApprovalsPayload>(`/api/agents/${id}/approvals`),
+  approve: (id: string, approvalId: number) =>
+    post<ApprovalsPayload>(`/api/agents/${id}/approvals/${approvalId}/approve`),
+  reject: (id: string, approvalId: number) =>
+    post<ApprovalsPayload>(`/api/agents/${id}/approvals/${approvalId}/reject`),
+  getConfig: (id: string) => request<ConfigPayload>(`/api/agents/${id}/config`),
+  saveProfile: (id: string, text: string) =>
+    post<{ saved: string }>(`/api/agents/${id}/config/profile`, { text }),
+  saveMarkdown: (id: string, which: 'soul' | 'project', text: string) =>
+    post<{ saved: string }>(`/api/agents/${id}/config/${which}`, { text }),
+  triggerRun: (id: string, params: { kind: string; audience: string; dry_run: boolean }) =>
+    post<TriggerResult>(`/api/agents/${id}/trigger`, params),
 }
 
 export { ApiError }

@@ -9,6 +9,9 @@ const NAV = [
   { to: 'cost', label: 'Cost' },
   { to: 'memory', label: 'Memory & Automation' },
   { to: 'guardrail', label: 'Guardrail' },
+  { to: 'approvals', label: 'Approvals' },
+  { to: 'config', label: 'Config' },
+  { to: 'trigger', label: 'Trigger' },
 ]
 
 export function Layout() {

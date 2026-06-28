@@ -6,7 +6,7 @@
     <string>com.mpm.report.weekly</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/phucnt/workspace/my-project-manager/deploy/launchd/run-report.sh</string>
+        <string>__REPO_DIR__/deploy/launchd/run-report.sh</string>
         <string>--weekly</string>
     </array>
     <!-- Weekly sprint review on Friday (Weekday 5) at 17:00. -->
@@ -20,9 +20,9 @@
         <integer>0</integer>
     </dict>
     <key>StandardOutPath</key>
-    <string>/Users/phucnt/workspace/my-project-manager/.data/cron-weekly.log</string>
+    <string>__REPO_DIR__/.data/cron-weekly.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/phucnt/workspace/my-project-manager/.data/cron-weekly.err.log</string>
+    <string>__REPO_DIR__/.data/cron-weekly.err.log</string>
     <key>RunAtLoad</key>
     <false/>
 </dict>

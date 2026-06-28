@@ -6,7 +6,7 @@
     <string>com.mpm.report.resource</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/phucnt/workspace/my-project-manager/deploy/launchd/run-report.sh</string>
+        <string>__REPO_DIR__/deploy/launchd/run-report.sh</string>
         <string>--resource</string>
     </array>
     <!-- Weekly resource & cost status on Monday (Weekday 1) at 09:00. -->
@@ -20,9 +20,9 @@
         <integer>0</integer>
     </dict>
     <key>StandardOutPath</key>
-    <string>/Users/phucnt/workspace/my-project-manager/.data/cron-resource.log</string>
+    <string>__REPO_DIR__/.data/cron-resource.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/phucnt/workspace/my-project-manager/.data/cron-resource.err.log</string>
+    <string>__REPO_DIR__/.data/cron-resource.err.log</string>
     <key>RunAtLoad</key>
     <false/>
 </dict>

@@ -10,6 +10,42 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date
 
+# --- v3 M5 S6: generic domain-neutral entities ---
+# `Task`/`Event` are the cross-domain vocabulary a domain pack maps its source entity
+# onto, so the core no longer assumes "Jira Issue". PM maps Issue → Task (see
+# `domain_models.issue_to_task`); HR maps a headcount row, Admin a cross-agent metric.
+# Field names are deliberately neutral (`id`/`title`, not `key`/`summary`) but carry the
+# same semantics the analyzers need (status, assignee, due_date, labels, flagged). `kind`
+# labels the domain entity ("issue", "headcount-row", ...); `extra` holds domain fields
+# the generic shape doesn't name, so a pack never loses information in the mapping.
+
+
+@dataclass(frozen=True)
+class Task:
+    """A generic unit of tracked work/record any domain pack maps its entity to."""
+
+    id: str
+    title: str
+    status: str
+    assignee: str | None = None
+    due_date: date | None = None
+    labels: tuple[str, ...] = ()
+    flagged: bool = False
+    kind: str = "task"  # domain label: "issue" (PM) | "headcount-row" (HR) | ...
+    extra: tuple[tuple[str, str], ...] = ()  # domain-specific fields, name→value
+
+
+@dataclass(frozen=True)
+class Event:
+    """A generic timestamped activity/occurrence (for HR/Admin timelines)."""
+
+    id: str
+    summary: str
+    occurred_on: date | None = None
+    actor: str | None = None
+    kind: str = "event"
+    extra: tuple[tuple[str, str], ...] = ()
+
 
 @dataclass(frozen=True)
 class Issue:

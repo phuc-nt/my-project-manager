@@ -90,6 +90,9 @@ def default_resource_deps(
         render_resource_xhtml,
     )
 
+    # Resource is a PM-only report kind → core default allowlist (== PM pack's). No
+    # non-PM pack serves this kind, so there is no pack allowlist to thread here (unlike
+    # the daily/weekly report graph). Thread it like S4 does if that ever changes.
     gw = gateway or ActionGateway(
         settings, external_channels=config.slack_external_channels
     )

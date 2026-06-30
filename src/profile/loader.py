@@ -57,6 +57,7 @@ class LoadedProfile:
     reports: tuple[str, ...]  # consumed in P3 (kind gate)
     skills: tuple[str, ...] = ()  # M3-P10: per-agent skill candidate pool (names)
     project_group: str | None = None  # M3-P9: sibling group slug (None ⇒ no siblings)
+    domain: str = "pm"  # v3 M5: which domain pack drives this agent (absent ⇒ "pm")
 
 
 def _read_md(profile_dir: Path, name: str) -> str:
@@ -107,6 +108,10 @@ def load_profile(
     skills = yaml_doc.get("skills") or []
     project_raw = yaml_doc.get("project")
     project_group = str(project_raw).strip() or None if project_raw is not None else None
+    # A blank/absent `domain:` defaults to "pm" so every pre-v3 profile (which never
+    # declared a domain) keeps loading as a PM agent — backward-compat is load-bearing.
+    domain_raw = yaml_doc.get("domain")
+    domain = str(domain_raw).strip() or "pm" if domain_raw is not None else "pm"
     schedule_map = (
         {str(k): str(v) for k, v in schedule.items()} if isinstance(schedule, dict) else {}
     )
@@ -123,4 +128,5 @@ def load_profile(
         reports=tuple(str(r) for r in reports) if isinstance(reports, list) else (),
         skills=tuple(str(s) for s in skills) if isinstance(skills, list) else (),
         project_group=project_group,
+        domain=domain,
     )

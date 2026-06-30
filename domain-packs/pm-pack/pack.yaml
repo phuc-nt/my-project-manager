@@ -1,0 +1,23 @@
+# pm-pack manifest (v3 M5) — the PM domain that the core used to hardcode.
+#
+# This is the reference pack: every other domain (hr in M6, admin in M8) mirrors this
+# shape. The core reads it via PackRegistry; it contributes report kinds, tools, an
+# allowlist, prompts, and skills WITHOUT the core importing any of them directly.
+#
+# In M5 this manifest is descriptive (the registry binds builders in code, S2). It
+# becomes the load-bearing source of truth as later slices move PM assets in.
+id: pm
+name: Project Management
+# Report kinds this pack serves — must match the --report values the worker accepts.
+report_kinds:
+  - daily
+  - weekly
+  - okr
+  - resource
+# Write targets this pack contributes to the gateway allowlist. MUST match the
+# servers in write_handlers.py:ALLOWLIST (the load-bearing source of truth).
+servers:
+  - slack
+  - confluence
+  - jira
+  - linear

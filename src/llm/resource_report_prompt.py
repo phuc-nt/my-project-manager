@@ -16,6 +16,7 @@ from html import escape
 
 from src.llm.audience_external_prompts import RESOURCE_NARRATIVE_EXTERNAL_SYSTEM
 from src.llm.slack_link import slack_link_line
+from src.packs.registry import load_pack_prompt
 from src.profile.context import build_context_block, prepend_persona
 from src.tools.models import CostSummary, ResourceReport
 
@@ -150,13 +151,7 @@ def build_resource_slack_short(
     return head + slack_link_line(detail_url, text=_LINK_TEXT)
 
 
-_NARRATIVE_SYSTEM = (
-    "Bạn là một PM/SM giỏi, viết MỘT đoạn tóm tắt ngắn (2-4 câu) bằng tiếng Việt về tình hình "
-    "tải công việc và chi phí của team. KHÔNG nhắc lại con số cụ thể (bảng số liệu đã có riêng) "
-    "— chỉ nêu định tính: ai đang quá tải, ngân sách có gần ngưỡng không, đề xuất cân bằng nếu "
-    "cần. ĐỊNH DẠNG: chỉ một thẻ <p> (Confluence storage XHTML), có thể dùng <strong>/<em>. "
-    "KHÔNG heading, KHÔNG markdown, KHÔNG bịa thông tin ngoài dữ liệu được cung cấp."
-)
+_NARRATIVE_SYSTEM = load_pack_prompt("pm", "resource-narrative-system")
 
 def build_resource_narrative_messages(
     resource: ResourceReport,

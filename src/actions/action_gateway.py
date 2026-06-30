@@ -114,6 +114,7 @@ class ActionGateway:
         dedup_store: DedupStore | None = None,
         approval_store: ApprovalStore | None = None,
         external_channels: frozenset[str] | None = None,
+        mcp_allowlist: dict[str, frozenset[str]] | dict[str, tuple[str, ...]] | None = None,
     ) -> None:
         self._settings = settings
         self._recent_calls: deque[float] = deque()
@@ -123,6 +124,11 @@ class ActionGateway:
         self._external_channels = (
             external_channels if external_channels is not None else frozenset()
         )
+        # v3 M5 S4: the active domain pack's permitted MCP server→tool allowlist.
+        # None ⇒ the core's default PM allowlist (byte-identical pre-v3). Governs only
+        # the default-DENY layer; the Lớp A red line stays in core and is never widened
+        # by a pack.
+        self._mcp_allowlist = mcp_allowlist
         # Stores: paths follow this gateway's settings data_dir (per-agent in v2) so
         # tests stay isolated to their tmp dir; dedup + approval survive restarts.
         data_dir = self._settings.data_dir
@@ -190,8 +196,9 @@ class ActionGateway:
 
         tool = _label(action)
 
-        # 1. Hard-block (Lớp A) — denied in code, before anything else.
-        verdict = classify(action)
+        # 1. Hard-block (Lớp A) — denied in code, before anything else. The pack
+        # allowlist (if any) governs only the default-DENY layer inside classify.
+        verdict = classify(action, allowlist=self._mcp_allowlist)
 
         # 1b. Interrupt (Lớp B) — sensitive-but-reversible: queue for human approval.
         # Checked BEFORE the allowlist default-deny: a Lớp B action is "allowed but

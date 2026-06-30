@@ -63,6 +63,7 @@ def build_graph_for(loaded: LoadedProfile, settings: Any, kind: str, audience: s
     from src.agent.memory_node import build_remember_node
     from src.agent.sibling_memory import build_sibling_context
     from src.agent.store import get_store
+    from src.packs.registry import PackRegistry
     from src.runtime.registry import load_registry
     from src.skills.skill_pool import build_skill_context
 
@@ -78,25 +79,20 @@ def build_graph_for(loaded: LoadedProfile, settings: Any, kind: str, audience: s
         sibling_project=loaded.project_group,
     )
     remember = build_remember_node(loaded.profile_id, settings, audience)
-    if kind == "resource":
-        from src.agent.resource_report_graph import build_resource_graph
 
-        return build_resource_graph(
-            cp, config=loaded.config, settings=settings, context=context,
-            audience=audience, store=st, remember=remember,
+    # v3 M5 S2: dispatch the report kind through the agent's domain pack instead of an
+    # if/elif ladder. The pm-pack registers daily/weekly/okr/resource builders that call
+    # the same build_*_graph as before, so output stays byte-identical.
+    pack = PackRegistry().load(loaded.domain)
+    builder = pack.report_kinds.get(kind)
+    if builder is None:
+        raise ValueError(
+            f"Report kind {kind!r} is not served by the {pack.domain!r} pack. "
+            f"Available: {', '.join(sorted(pack.report_kinds)) or '(none)'}."
         )
-    if kind == "okr":
-        from src.agent.okr_report_graph import build_okr_graph
-
-        return build_okr_graph(
-            cp, config=loaded.config, settings=settings, context=context,
-            audience=audience, store=st, remember=remember,
-        )
-    from src.agent.report_graph import build_report_graph
-
-    return build_report_graph(
+    return builder(
         cp, config=loaded.config, settings=settings, context=context,
-        report_kind=kind, audience=audience, store=st, remember=remember,
+        audience=audience, store=st, remember=remember, tools=pack.tools,
     )
 
 

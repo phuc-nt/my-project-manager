@@ -120,11 +120,17 @@ def needs_interrupt(
 
 
 # ---------------------------------------------------------------------------
-# Allowlist (Phase 0 — the safe, reversible writes the agent may perform).
-# Phase 1 widens this deliberately as real handlers land. Anything not here is
-# denied by default. Tool names are matched case-insensitively.
+# Allowlist (the safe, reversible writes an agent may perform). Anything not here
+# is denied by default (default-DENY). Tool names match case-insensitively.
+#
+# v3 M5 S4: this is the DEFAULT (PM) allowlist. A domain pack contributes its own
+# allowlist (via `pack.allowlist`); the gateway threads it into `classify(...,
+# allowlist=...)`. A pack can only ADD permitted tools — it can NEVER widen the
+# Lớp A red line (the destructive/security markers below are checked first, in core,
+# and are not pack-overridable). When no pack allowlist is passed, this default is
+# used, so direct `classify(action)` calls stay byte-identical to pre-v3.
 # ---------------------------------------------------------------------------
-_MCP_ALLOWLIST: dict[str, frozenset[str]] = {
+_DEFAULT_MCP_ALLOWLIST: dict[str, frozenset[str]] = {
     "slack": frozenset({"post_message", "post_message_blocks", "update_message"}),
     # updatepage is allowed but additionally requires a version (checked in hard-deny).
     "confluence": frozenset({"createpage", "updatepage"}),
@@ -136,6 +142,25 @@ _MCP_ALLOWLIST: dict[str, frozenset[str]] = {
     # tools (delete*/archive*) are NOT listed and hit the Lớp A red line regardless.
     "linear": frozenset({"linear_createcomment"}),
 }
+
+#: Back-compat alias — pre-v3 code/tests referenced `_MCP_ALLOWLIST`. Same object.
+_MCP_ALLOWLIST = _DEFAULT_MCP_ALLOWLIST
+
+
+def _normalize_allowlist(
+    allowlist: dict[str, frozenset[str]] | dict[str, tuple[str, ...]] | None,
+) -> dict[str, frozenset[str]]:
+    """Coerce a pack-supplied allowlist (server→names) to lowercased frozensets.
+
+    A pack may declare its allowlist with tuples; normalize so lookups are
+    case-insensitive exactly like the default. None ⇒ the default PM allowlist.
+    """
+    if allowlist is None:
+        return _DEFAULT_MCP_ALLOWLIST
+    return {
+        str(server).lower(): frozenset(str(t).lower() for t in tools)
+        for server, tools in allowlist.items()
+    }
 
 # gh subcommands allowed, as argv prefixes (read-only + safe creates).
 _GH_ALLOWLIST_PREFIXES: tuple[tuple[str, ...], ...] = (
@@ -431,26 +456,39 @@ def _hard_deny_gh(action: dict[str, Any]) -> BlockVerdict | None:
     return None
 
 
-def _allowlisted_mcp(action: dict[str, Any]) -> bool:
+def _allowlisted_mcp(
+    action: dict[str, Any], allowlist: dict[str, frozenset[str]] | None = None
+) -> bool:
     server = str(action.get("server", "")).lower()
     tool = str(action.get("tool", "")).lower()
-    return tool in _MCP_ALLOWLIST.get(server, frozenset())
+    table = allowlist if allowlist is not None else _DEFAULT_MCP_ALLOWLIST
+    return tool in table.get(server, frozenset())
 
 
 def _allowlisted_gh(action: dict[str, Any]) -> bool:
     return _matches_any_prefix(_argv_lower(action), _GH_ALLOWLIST_PREFIXES)
 
 
-def classify(action: dict[str, Any]) -> BlockVerdict:
+def classify(
+    action: dict[str, Any],
+    *,
+    allowlist: dict[str, frozenset[str]] | dict[str, tuple[str, ...]] | None = None,
+) -> BlockVerdict:
     """Decide whether an action may proceed.
 
     Order: Lớp A hard-deny first (the red line, never overridable), then the
     default-DENY allowlist. Returns a blocked verdict with category + reason, or
     an allow verdict only for explicitly-permitted, non-red-line actions.
+
+    `allowlist` (v3 M5 S4) is the active domain pack's permitted MCP server→tool
+    map. None ⇒ the default PM allowlist (byte-identical pre-v3). It governs ONLY
+    the default-DENY layer; the Lớp A hard-deny above is core and not pack-overridable,
+    so a pack can never permit a destructive/security action by listing it.
     """
     if not isinstance(action, dict):
         raise TypeError(f"action must be a dict, got {type(action).__name__}")
 
+    mcp_allowlist = _normalize_allowlist(allowlist)
     action_type = str(action.get("type", "")).lower()
 
     # Layer 1: Lớp A hard-deny (defense-in-depth, checked before allowlist).
@@ -479,8 +517,12 @@ def classify(action: dict[str, Any]) -> BlockVerdict:
     if denied:
         return denied
 
-    # Layer 2: default-DENY allowlist.
-    allowed = _allowlisted_mcp(action) if action_type == "mcp_tool" else _allowlisted_gh(action)
+    # Layer 2: default-DENY allowlist (pack-contributed for MCP; gh stays core).
+    allowed = (
+        _allowlisted_mcp(action, mcp_allowlist)
+        if action_type == "mcp_tool"
+        else _allowlisted_gh(action)
+    )
     if allowed:
         return _ALLOW
     label = action.get("tool") if action_type == "mcp_tool" else " ".join(_argv_lower(action)[:3])

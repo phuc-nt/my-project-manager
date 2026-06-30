@@ -88,6 +88,10 @@ def default_okr_deps(
     )
     from src.llm.report_prompt import REPORT_TITLES
 
+    # OKR is a PM-only report kind, so its gateway uses the core default allowlist (==
+    # the PM pack's). A non-PM pack does not serve this kind, so there is no pack
+    # allowlist to thread here (unlike the daily/weekly report graph, which is the seam
+    # a future domain reuses). If that changes, thread the pack allowlist like S4 does.
     gw = gateway or ActionGateway(
         settings, external_channels=config.slack_external_channels
     )

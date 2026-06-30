@@ -73,6 +73,8 @@ def default_report_deps(
     context: ProfileContext = EMPTY,
     client: LlmClient | None = None,
     gateway: ActionGateway | None = None,
+    tools: object | None = None,
+    allowlist: dict[str, tuple[str, ...]] | None = None,
 ) -> ReportDeps:
     """Wire the real implementations for a report kind ("daily" | "weekly").
 
@@ -82,25 +84,37 @@ def default_report_deps(
     (routes through Lớp B). `config`/`settings` are injected; collaborators
     (gateway, LLM, fetchers, writers, section helpers) are built from them — no
     config singleton is read here. Lazy imports keep graph-build network-free.
+
+    `tools` is the active domain pack's ToolProvider (v3 M5 S3). It owns the source
+    reads (issues/sprint/PRs/CI) so this builder no longer imports `jira_read`/
+    `github_read` directly. None ⇒ the PM provider, so PM behavior is byte-identical.
     """
     from src.actions.confluence_write import create_report_page
     from src.llm.report_prompt import REPORT_TITLES, build_detail_messages, build_slack_short
-    from src.tools import github_read, jira_read
+
+    if tools is None or allowlist is None:
+        from src.packs.registry import PackRegistry
+
+        pm = PackRegistry().load("pm")
+        tools = tools if tools is not None else pm.tools
+        allowlist = allowlist if allowlist is not None else pm.allowlist
 
     gw = gateway or ActionGateway(
-        settings, external_channels=config.slack_external_channels
+        settings,
+        external_channels=config.slack_external_channels,
+        mcp_allowlist=allowlist,
     )
     llm = client
     sprint_box: dict[str, object] = {}
 
     def _fetch_issues() -> list[Issue]:
         if report_kind == "weekly":
-            sprint = jira_read.get_active_sprint(config=config)
+            sprint = tools.get_active_sprint(config=config)
             sprint_box["sprint"] = sprint
             if sprint is not None:
-                return jira_read.get_sprint_issues(sprint.id, config=config)
-            return jira_read.get_open_issues(config=config)  # fallback: no active sprint
-        return jira_read.get_open_issues(config=config)
+                return tools.get_sprint_issues(sprint.id, config=config)
+            return tools.get_open_issues(config=config)  # fallback: no active sprint
+        return tools.get_open_issues(config=config)
 
     def _sprint_context() -> str | None:
         sprint = sprint_box.get("sprint")
@@ -211,8 +225,8 @@ def default_report_deps(
 
     return ReportDeps(
         fetch_issues=_fetch_issues,
-        fetch_prs=lambda: github_read.get_open_prs(config=config),
-        fetch_ci=lambda: github_read.get_recent_ci(config=config),
+        fetch_prs=lambda: tools.get_open_prs(config=config),
+        fetch_ci=lambda: tools.get_recent_ci(config=config),
         analyze_risks=lambda issues, prs, ci: analyze(
             issues, prs, ci, today=_today_utc(),
             blocker_label_substring=config.blocker_label_substring,
@@ -277,6 +291,7 @@ def build_report_graph(
     audience: str = "internal",
     store: BaseStore | None = None,
     remember=None,
+    tools: object | None = None,
 ) -> CompiledStateGraph:
     """Build + compile the reporting graph. `deps` defaults to real wiring.
 
@@ -285,6 +300,9 @@ def build_report_graph(
     when `deps` is not explicitly provided. `context` carries the profile's
     persona/project/memory (empty ⇒ v1 prompts). When `deps` is None, `config` +
     `settings` are required; a caller that injects `deps` need not pass them.
+
+    `tools` is the active pack's ToolProvider (v3 M5 S3), forwarded to the default
+    deps; None ⇒ the PM provider, so PM output is byte-identical.
     """
     if deps is None:
         if config is None or settings is None:
@@ -297,6 +315,7 @@ def build_report_graph(
             context=context,
             report_kind=report_kind,
             audience=audience,
+            tools=tools,
         )
     resolved = deps
     perceive, analyze_node, compose_report, deliver = _make_nodes(resolved)

@@ -23,15 +23,16 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def load_skill_pool(skill_names: tuple[str, ...]) -> tuple[Skill, ...]:
-    """Load the bundled skills named in `skill_names`, preserving pool (declared) order.
+def load_skill_pool(skill_names: tuple[str, ...], *, domain: str = "pm") -> tuple[Skill, ...]:
+    """Load the named skills from the domain's pack, preserving pool (declared) order.
 
     Empty `skill_names` ⇒ `()` with NO disk read. A named-but-missing skill is warned and
     dropped (a typo in profile.yaml must not crash a run — graceful, like the loader itself).
+    `domain` selects which pack's skills dir to scan (default "pm").
     """
     if not skill_names:
         return ()
-    by_name = {s.name: s for s in load_skills()}
+    by_name = {s.name: s for s in load_skills(domain=domain)}
     pool: list[Skill] = []
     for name in skill_names:
         skill = by_name.get(name)
@@ -49,8 +50,9 @@ def build_skill_context(
 
     Returns `((), None)` when the profile declares no skills — WITHOUT constructing an
     `LlmClient` — so the default-profile path needs no key and allocates nothing new.
+    The agent's `domain` selects which pack's skills dir the pool loads from.
     """
-    pool = load_skill_pool(loaded.skills)
+    pool = load_skill_pool(loaded.skills, domain=getattr(loaded, "domain", "pm"))
     if not pool:
         return (), None
     from src.llm.client import LlmClient

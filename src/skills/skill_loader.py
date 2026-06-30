@@ -1,10 +1,15 @@
-"""Load bundled PM skills from the `skills/` data dir (v2 M3-P10).
+"""Load a domain pack's bundled skills (v2 M3-P10; v3 M5 S5 = pack asset).
 
-Each skill is a `skills/<name>.md` with a `---`-delimited YAML frontmatter
-(`name`, `description`, optional `applies_to`, optional `allowed-tools` — the last is
+Each skill is a `<name>.md` with a `---`-delimited YAML frontmatter (`name`,
+`description`, optional `applies_to`, optional `allowed-tools` — the last is
 PARSED-AND-IGNORED this round) followed by the markdown instruction body. A malformed
 file (no frontmatter, bad YAML, missing name/description) is SKIPPED with a warning —
 one bad file never aborts the scan.
+
+The skill `.md` files moved from the repo-root `skills/` into the owning domain pack
+(`domain-packs/<domain>-pack/skills/`) in v3 M5 S5, so each domain bundles its own
+skills without the core enumerating them. `load_skills(domain=...)` resolves the active
+pack's dir; `domain` defaults to "pm" so the pre-v3 PM skill pool loads unchanged.
 """
 
 from __future__ import annotations
@@ -14,23 +19,25 @@ from pathlib import Path
 
 import yaml
 
-from src.config.settings import REPO_ROOT
 from src.skills.models import Skill
 
 logger = logging.getLogger(__name__)
 
-BUNDLED_SKILLS_DIR = REPO_ROOT / "skills"
 
+def load_skills(skills_dir: Path | None = None, *, domain: str = "pm") -> list[Skill]:
+    """Scan a domain pack's skills dir → the Skills it holds.
 
-def load_skills(skills_dir: Path | None = None) -> list[Skill]:
-    """Scan `skills_dir` (default: the bundled `skills/`) → the Skills it holds.
-
-    Returns sorted by name (deterministic), with names UNIQUE: if two files declare the
-    same `name`, the first by filename order wins and later duplicates are warned + dropped
-    (a duplicate name would otherwise inject the same skill twice). Malformed files are
-    skipped, never raised.
+    `skills_dir` overrides the location (tests pass a tmp dir); otherwise the active
+    `domain`'s pack skills dir is used. Returns sorted by name (deterministic), with
+    names UNIQUE: if two files declare the same `name`, the first by filename order wins
+    and later duplicates are warned + dropped. Malformed files are skipped, never raised.
     """
-    base = skills_dir if skills_dir is not None else BUNDLED_SKILLS_DIR
+    if skills_dir is not None:
+        base = skills_dir
+    else:
+        from src.packs.registry import pack_skills_dir
+
+        base = pack_skills_dir(domain)
     if not base.exists():
         return []
     by_name: dict[str, Skill] = {}

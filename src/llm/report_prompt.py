@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from src.llm.audience_external_prompts import DETAIL_EXTERNAL_SYSTEM, REPORT_EXTERNAL_SYSTEM
 from src.llm.report_slack_short import REPORT_TITLES, build_slack_short
+from src.packs.registry import load_pack_prompt
 from src.profile.context import build_context_block, prepend_persona
 from src.tools.models import Risk
 
@@ -20,16 +21,10 @@ from src.tools.models import Risk
 # persona/LLM), so they live in `report_slack_short`; importers still use
 # `from src.llm.report_prompt import ...` — a stable public path.
 
-_SYSTEM = (
-    "Bạn là một PM/SM giỏi, viết báo cáo tiến độ ngắn gọn, thực dụng, bằng tiếng Việt. "
-    "Mở đầu bằng rủi ro quan trọng nhất (lead with the signal), mỗi rủi ro kèm hành động "
-    "cần làm (ai/cái gì). Không dump dữ liệu thô. Dựa hoàn toàn vào dữ liệu được cung cấp, "
-    "không bịa số liệu. Nếu không có rủi ro, nói rõ tiến độ ổn.\n\n"
-    "ĐỊNH DẠNG: chỉ dùng Slack mrkdwn — *đậm* (một dấu sao), _nghiêng_, `code`, và "
-    "bullet bằng ký tự •. TUYỆT ĐỐI KHÔNG dùng cú pháp Markdown của GitHub: không có "
-    "# hay ## heading, không có ** (hai sao), không có gạch đầu dòng bằng '-'. "
-    "Không tự chèn placeholder ngày/giờ (vd $(date) hay [Hôm nay]) — dùng đúng ngày được cung cấp."
-)
+# v3 M5 S5: the PM system-prompt text is a pm-pack asset
+# (`domain-packs/pm-pack/prompts/report-system.md`), read verbatim so the composed
+# prompt is byte-identical to the pre-v3 literal. The builder logic stays here in core.
+_SYSTEM = load_pack_prompt("pm", "report-system")
 
 
 def _format_risks(risks: list[Risk]) -> str:
@@ -130,14 +125,7 @@ def build_report_messages(
 
 # --- Slice 2: detail report (Confluence storage format) + derived Slack short ---
 
-_DETAIL_SYSTEM = (
-    "Bạn là một PM/SM giỏi, viết báo cáo tiến độ đầy đủ bằng tiếng Việt cho trang Confluence. "
-    "Mở đầu bằng rủi ro quan trọng nhất, mỗi rủi ro nêu chi tiết + hành động (ai/cái gì). "
-    "Dựa hoàn toàn vào dữ liệu được cung cấp, không bịa số liệu.\n\n"
-    "ĐỊNH DẠNG: xuất ra Confluence storage format (XHTML đơn giản). CHỈ dùng các thẻ: "
-    "<h2>, <h3>, <p>, <ul>, <li>, <strong>, <em>. KHÔNG markdown, KHÔNG <html>/<body>, "
-    "KHÔNG thẻ khác. Không tự chèn placeholder ngày — dùng đúng ngày được cung cấp."
-)
+_DETAIL_SYSTEM = load_pack_prompt("pm", "report-detail-system")
 
 
 def build_detail_messages(

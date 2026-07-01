@@ -22,7 +22,11 @@ from src.actions.action_gateway import ActionGateway
 from src.actions.confluence_write import create_report_page
 from src.actions.slack_write import deliver_report
 from src.agent.approval_gate import add_approval_gate, external_summary
-from src.agent.audience_delivery import SLACK_OK_STATUSES, delivery_summary
+from src.agent.audience_delivery import (
+    SLACK_OK_STATUSES,
+    delivery_summary,
+    resolve_audience_delivery,
+)
 from src.agent.memory_node import add_remember_node
 from src.agent.state import ReportState
 from src.llm.client import LlmClient
@@ -74,7 +78,7 @@ def build_headcount_graph(
         report = box.get("report")
         report_date = _today_utc().isoformat()
         body = _narrate(report, report_date) + render_headcount_xhtml(report, report_date)
-        short = build_headcount_slack_short(report, report_date=report_date)
+        short = build_headcount_slack_short(report, report_date=report_date, audience=audience)
         return {"report_text": body, "cost_usd": llm_box.get("cost"), "slack_short": short}
 
     def _narrate(report, report_date: str) -> str:
@@ -83,8 +87,8 @@ def build_headcount_graph(
             llm_box["llm"] = llm
             result = llm.complete(
                 build_headcount_narrative_messages(
-                    report, report_date=report_date, persona=context.persona,
-                    project=context.project, memory=context.memory,
+                    report, report_date=report_date, audience=audience,
+                    persona=context.persona, project=context.project, memory=context.memory,
                 )
             )
             llm_box["cost"] = result.cost_usd
@@ -95,19 +99,26 @@ def build_headcount_graph(
     def deliver(state: ReportState) -> dict:
         approved = state.get("approval_decision") == "approve"
         report_date = _today_utc().isoformat()
+        # External routes to the stakeholder channel (raises if unconfigured — never
+        # falls back to the internal channel); internal uses the HR report channel.
+        channel, date_hint = resolve_audience_delivery(audience, "headcount", report_date, config)
         title = f"Báo cáo nhân sự (Headcount) {report_date}"
         conf_result, page = create_report_page(
             title, state.get("report_text", ""), gateway=gw, config=config,
-            report_date=report_date, rationale="HR headcount report (detail)", approved=approved,
+            report_date=date_hint, rationale=f"HR headcount report (detail, {audience})",
+            approved=approved,
         )
         detail_url = page.url if page else None
+        # RED LINE (same as PM resource): never hand the internal detail-page link to an
+        # external stakeholder — inject None so the external short is link-free.
+        short_url = None if audience == "external" else detail_url
         short = inject_link(
-            state.get("slack_short", ""), detail_url,
+            state.get("slack_short", ""), short_url,
             text="Xem báo cáo nhân sự chi tiết trên Confluence",
         )
         slack_result = deliver_report(
-            short, gateway=gw, config=config, channel=config.slack_report_channel,
-            report_date=report_date, rationale="HR headcount report (short + link)",
+            short, gateway=gw, config=config, channel=channel,
+            report_date=date_hint, rationale=f"HR headcount report (short + link, {audience})",
             approved=approved,
         )
         ok = (

@@ -37,21 +37,33 @@ def _gws_sheet_rows(spreadsheet_id: str, cell_range: str) -> list[list[str]]:
     Mirrors github_read's `gh` spawn: run a CLI subprocess, parse its JSON. `gws`
     prints a one-line keyring banner before the JSON, so we slice from the first `{`.
     """
-    proc = subprocess.run(
-        [
-            "gws", "sheets", "spreadsheets", "values", "get",
-            "--params", json.dumps({"spreadsheetId": spreadsheet_id, "range": cell_range}),
-        ],
-        capture_output=True, text=True, timeout=60, check=False,
-    )
+    try:
+        proc = subprocess.run(
+            [
+                "gws", "sheets", "spreadsheets", "values", "get",
+                "--params", json.dumps({"spreadsheetId": spreadsheet_id, "range": cell_range}),
+            ],
+            capture_output=True, text=True, timeout=60, check=False,
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError(
+            "gws CLI not found — install the Google Workspace CLI to read HR sheets."
+        ) from exc
     if proc.returncode != 0:
         raise RuntimeError(f"gws sheets read failed: {proc.stderr.strip() or proc.stdout.strip()}")
     out = proc.stdout
     brace = out.find("{")
     if brace == -1:
-        return []
+        raise RuntimeError(f"gws sheets read returned no JSON: {out.strip()[:200]}")
     data = json.loads(out[brace:])
-    return [[str(c) for c in row] for row in data.get("values", [])]
+    # A successful read has a `values` key (possibly empty for a blank sheet). Its ABSENCE
+    # means gws returned an error-shaped object with exit 0 — fail loud, don't treat as
+    # an empty sheet (which would publish a false zero-headcount report).
+    if "values" not in data:
+        raise RuntimeError(
+            f"gws sheets read returned no values (error response?): {out.strip()[:200]}"
+        )
+    return [[str(c) for c in row] for row in data["values"]]
 
 
 def _rows_to_tasks(rows: list[list[str]], *, source: str) -> list[Task]:
@@ -158,12 +170,20 @@ class HrToolProvider:
     """
 
     def read(self, kind: str, config: Any, settings: Any) -> list[Task]:
-        tasks: list[Task] = []
         sheet_id = os.environ.get(_SHEET_ID_ENV, "").strip()
+        page_id = os.environ.get(_CONFLUENCE_PAGE_ENV, "").strip()
+        # Fail loud on a missing data source: a headcount run with no sheet AND no
+        # Confluence page is a misconfiguration, not an empty team — never let it
+        # silently publish a "0 nhân sự" report.
+        if not sheet_id and not page_id:
+            raise RuntimeError(
+                f"HR headcount needs a data source: set {_SHEET_ID_ENV} and/or "
+                f"{_CONFLUENCE_PAGE_ENV} in the environment."
+            )
+        tasks: list[Task] = []
         if sheet_id:
             cell_range = os.environ.get(_SHEET_RANGE_ENV, "").strip() or _DEFAULT_RANGE
             tasks += _rows_to_tasks(_gws_sheet_rows(sheet_id, cell_range), source="sheet")
-        page_id = os.environ.get(_CONFLUENCE_PAGE_ENV, "").strip()
         if page_id:
             tasks += _rows_to_tasks(_confluence_table_rows(page_id, config), source="confluence")
         return tasks

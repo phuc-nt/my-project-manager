@@ -15,16 +15,20 @@ from src.packs.registry import load_pack_prompt
 from src.profile.context import build_context_block, prepend_persona
 
 _SYSTEM = load_pack_prompt("hr", "headcount-narrative-system")
+_EXTERNAL_SYSTEM = load_pack_prompt("hr", "headcount-narrative-external-system")
 
 
 def build_headcount_narrative_messages(
-    report, *, report_date: str, persona: str = "", project: str = "", memory: str = ""
+    report, *, report_date: str, audience: str = "internal",
+    persona: str = "", project: str = "", memory: str = "",
 ) -> list[dict]:
-    """Messages for the headcount narrative (internal audience).
+    """Messages for the headcount narrative.
 
     Feeds the model the DETERMINISTIC counts as context and asks for a short qualitative
-    summary — it must not invent numbers. Persona goes to the system message; project+
-    memory prepend the user message (internal only).
+    summary — it must not invent numbers. For `audience="external"` the external system
+    prompt (stakeholder tone, high-level only) is authoritative and project/memory are
+    NOT injected — the same PII red line PM uses (internal facts never reach a
+    stakeholder summary). Both audiences see aggregate counts only (no names).
     """
     status_lines = "\n".join(f"- {g.label}: {g.count}" for g in report.by_status)
     dept_lines = "\n".join(f"- {g.label}: {g.count}" for g in report.by_department)
@@ -34,13 +38,22 @@ def build_headcount_narrative_messages(
         f"Theo trạng thái:\n{status_lines or '- (không có)'}\n\n"
         f"Theo phòng ban:\n{dept_lines or '- (không có)'}"
     )
-    context_block = build_context_block(project, memory)
-    user = (
-        f"{context_block}Dưới đây là số liệu nhân sự đã tính sẵn. Viết MỘT đoạn tóm tắt "
-        f"định tính ngắn (2-4 câu) về tình hình nhân sự — KHÔNG lặp lại con số cụ thể "
-        f"(bảng đã có riêng), chỉ nêu xu hướng/điểm đáng chú ý.\n\n{facts}"
-    )
+    if audience == "external":
+        # External: stakeholder-tone, no project/memory injection (internal-fact red line).
+        system = _EXTERNAL_SYSTEM
+        user = (
+            "Dưới đây là số liệu nhân sự tổng hợp. Viết MỘT đoạn cập nhật ngắn (2-3 câu) "
+            "cho stakeholder về tình hình nhân sự ở mức TỔNG QUAN — KHÔNG con số chi tiết "
+            f"theo phòng ban, chỉ nêu quy mô + xu hướng chung.\n\n{facts}"
+        )
+    else:
+        system = prepend_persona(_SYSTEM, persona)
+        user = (
+            f"{build_context_block(project, memory)}Dưới đây là số liệu nhân sự đã tính "
+            "sẵn. Viết MỘT đoạn tóm tắt định tính ngắn (2-4 câu) về tình hình nhân sự — "
+            f"KHÔNG lặp lại con số cụ thể (bảng đã có riêng), chỉ nêu xu hướng.\n\n{facts}"
+        )
     return [
-        {"role": "system", "content": prepend_persona(_SYSTEM, persona)},
+        {"role": "system", "content": system},
         {"role": "user", "content": user},
     ]

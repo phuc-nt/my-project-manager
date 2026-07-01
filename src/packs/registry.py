@@ -16,6 +16,7 @@ two seams (ToolProvider in S3, allowlist/write handlers in S4) and pack assets
 from __future__ import annotations
 
 import importlib.util
+import logging
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -24,6 +25,8 @@ from types import ModuleType
 from typing import Any
 
 from src.config.settings import REPO_ROOT
+
+logger = logging.getLogger(__name__)
 
 #: A report-kind graph builder, called uniformly by the core:
 #: build(checkpointer, *, config, settings, context, audience, store, remember).
@@ -76,7 +79,13 @@ def all_report_kinds() -> frozenset[str]:
     registry = PackRegistry()
     kinds: set[str] = set()
     for domain in registry.known_domains():
-        kinds.update(registry.load(domain).report_kinds)
+        try:
+            kinds.update(registry.load(domain).report_kinds)
+        except Exception:  # noqa: BLE001
+            # A broken/partial pack must not block kind-validation for every agent —
+            # skip it and let the healthy packs' kinds through. The per-agent worker
+            # still fails loudly for an agent whose own pack is broken.
+            logger.warning("skipping pack %r in kind union: failed to load", domain, exc_info=True)
     return frozenset(kinds)
 
 

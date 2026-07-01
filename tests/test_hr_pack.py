@@ -10,6 +10,8 @@ Covers:
 
 from __future__ import annotations
 
+import pytest
+
 from src.actions.hard_block import BlockCategory, classify
 from src.packs import PackRegistry
 from src.packs.registry import _load_pack_module
@@ -135,3 +137,59 @@ def test_hr_default_deny_undeclared_server():
     )
     assert verdict.blocked
     assert verdict.category == BlockCategory.NOT_ALLOWLISTED
+
+
+# --- external audience: same PII red line as PM (aggregate only, coarser short) ---
+
+
+def test_external_short_drops_department_drilldown():
+    an = _hr_module("analyzers")
+    r = an.build_headcount(_people())
+    internal = an.build_headcount_slack_short(r, report_date="2026-07-01", audience="internal")
+    external = an.build_headcount_slack_short(r, report_date="2026-07-01", audience="external")
+    assert "Phòng ban" in internal  # internal drills into departments
+    assert "Phòng ban" not in external  # external is total + top status only
+
+
+def test_external_narrative_omits_project_memory():
+    pb = _hr_module("prompts_build")
+    an = _hr_module("analyzers")
+    r = an.build_headcount(_people())
+    msgs = pb.build_headcount_narrative_messages(
+        r, report_date="2026-07-01", audience="external",
+        persona="P", project="SECRET-PROJ", memory="SECRET-MEM",
+    )
+    blob = msgs[0]["content"] + msgs[1]["content"]
+    # External must not carry internal project/memory (the PM red line).
+    assert "SECRET-PROJ" not in blob and "SECRET-MEM" not in blob
+
+
+# --- fail-loud on misconfiguration (no silent zero-headcount) ---
+
+
+def test_read_raises_when_no_data_source(monkeypatch):
+    tools = _hr_module("tools")
+    monkeypatch.delenv("HR_SHEET_ID", raising=False)
+    monkeypatch.delenv("HR_CONFLUENCE_PAGE_ID", raising=False)
+    with pytest.raises(RuntimeError, match="needs a data source"):
+        tools.TOOL_PROVIDER.read("headcount", None, None)
+
+
+# --- H2: a broken pack does not break kind validation for all ---
+
+
+def test_all_report_kinds_isolates_broken_pack(monkeypatch):
+    from src.packs import registry
+
+    real_load = registry.PackRegistry.load
+
+    def flaky_load(self, domain):
+        if domain == "hr":
+            raise RuntimeError("simulated broken hr pack")
+        return real_load(self, domain)
+
+    monkeypatch.setattr(registry.PackRegistry, "load", flaky_load)
+    kinds = registry.all_report_kinds()
+    # PM kinds still present even though hr blew up.
+    assert {"daily", "weekly", "okr", "resource"} <= kinds
+    assert "headcount" not in kinds  # the broken pack contributed nothing

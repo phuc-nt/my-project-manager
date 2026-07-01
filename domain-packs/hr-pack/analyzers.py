@@ -90,15 +90,21 @@ def _group_table(heading: str, groups: tuple[HeadcountGroup, ...]) -> str:
     )
 
 
-def build_headcount_slack_short(report: HeadcountReport, *, report_date: str) -> str:
-    """URL-free Slack short (mrkdwn). The Confluence link is injected at deliver."""
+def build_headcount_slack_short(
+    report: HeadcountReport, *, report_date: str, audience: str = "internal"
+) -> str:
+    """URL-free Slack short (mrkdwn). The Confluence link is injected at deliver (and
+    withheld for the external audience). Both audiences see only aggregate counts —
+    headcount never exposes individual names — so the external short is a coarser
+    summary (total + top status), no per-department drill-down."""
     top_status = report.by_status[0] if report.by_status else None
-    top_dept = report.by_department[0] if report.by_department else None
     lines = [f"*Báo cáo nhân sự — {report_date}*", f"Tổng: *{report.total}* nhân sự"]
     if top_status:
         lines.append(f"• Trạng thái nhiều nhất: {top_status.label} ({top_status.count})")
-    if top_dept:
-        lines.append(f"• Phòng ban đông nhất: {top_dept.label} ({top_dept.count})")
+    if audience != "external":
+        top_dept = report.by_department[0] if report.by_department else None
+        if top_dept:
+            lines.append(f"• Phòng ban đông nhất: {top_dept.label} ({top_dept.count})")
     return "\n".join(lines)
 
 

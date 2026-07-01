@@ -8,8 +8,22 @@
 
 ## Overview
 - **Priority:** P0 — đây là *bài kiểm tra* abstraction M5, không phải feature phụ.
-- **Status:** ⬜ Planned (chốt Unresolved trong plan.md trước khi cook).
+- **Status:** ✅ DONE (2026-07-01). hr-pack `git diff src/`=rỗng, E2E live, 839 test xanh, review DONE_WITH_CONCERNS→4 finding đã vá.
 - **Mục tiêu:** Xây `hr-pack` chạy thật trên cùng lõi, **KHÔNG sửa lõi**. Nếu phải sửa lõi → M5 chưa đủ generic, quay lại M5.
+
+## As-built notes (kết quả M6)
+**GATE ĐẠT có điều kiện:** hr-pack commit (`2f268fc`) `git diff src/`=**rỗng tuyệt đối**. NHƯNG thêm HR lộ **3 M5 seam thiếu** — vá bằng 3 commit generic RIÊNG (0 HR logic), đúng tinh thần plan R1:
+1. `discover_domains()` — pack discovery từ filesystem (bỏ hardcode `_KNOWN_DOMAINS`). Commit `0eea7c0`.
+2. `_ensure_pack_package()` — load pack thành importable package `domain_pack_<x>` để module trong pack import lẫn nhau (PM không cần vì chỉ gọi src.*; HR cần vì có analyzer/render/prompts riêng). Commit `2174eb7`.
+3. `all_report_kinds()` — kind validation (CLI+API) theo union mọi pack thay hardcode PM set (nếu không, `headcount` bị reject trước khi worker load). Commit `25db918`.
+
+→ **Bài học M5→M6:** "git diff src/=rỗng" literal KHÔNG đạt được với pack self-contained đầu tiên; nhưng *intent* (0 domain logic in core) ĐẠT. 3 seam trên là hạ tầng pack generic, không phải HR-specific. Pack thứ 3+ (admin M8) sẽ `git diff src/`=rỗng thật (hạ tầng đã đủ).
+
+**gws CLI thay gspread:** HR đọc Google Sheet qua `gws` CLI (`gws sheets spreadsheets values get`) spawn như `gh` — nhất quán triết lý CLI-based, auth CLI tự quản (không token trong .env/pack), chạy được cả cron. Tốt hơn gspread+service-account của plan gốc.
+
+**HR config env-only:** `HR_SHEET_ID`/`HR_SHEET_RANGE`/`HR_CONFLUENCE_PAGE_ID` — pack tự đọc env (không thêm field vào core config). Fail-loud nếu vắng nguồn.
+
+**Review fix (`285d5fa`):** HR external red-line (strip Confluence link + prompt external riêng + stakeholder channel, giống PM resource) · pack-load isolation (pack hỏng ≠ chặn validation mọi agent) · fail-loud reads (không publish "0 nhân sự" giả).
 
 ## Key Insights
 - Giá trị thật của M6 không phải "có HR agent" mà là **chứng minh thêm domain = thêm pack, lõi bất động**.
@@ -67,12 +81,12 @@ Generic `Task`/`Event` (từ M5) dùng lại: HR map entity (headcount row: ngư
 
 ## Todo List
 - [x] S0 Scope HR đã chốt (Confluence+GSheet / headcount / Slack)
-- [ ] S1 hr-pack manifest + headcount kind
-- [ ] S2 HR ToolProvider: confluence_read reuse + Google Sheet adapter MỚI + Task mapping
-- [ ] S3 Headcount analyzer + prompt assets
-- [ ] S4 Slack HR write + allowlist + RED LINE test
-- [ ] S5 E2E thật: Confluence+GSheet → headcount → Slack (dry-run → live)
-- [ ] S6 `git diff src/` = rỗng (GATE) + pm-pack byte-identical
+- [x] S1 hr-pack manifest + headcount kind
+- [x] S2 HR ToolProvider: confluence_read reuse + **gws CLI** Sheet adapter MỚI + Task mapping
+- [x] S3 Headcount analyzer + prompt assets (internal + external)
+- [x] S4 Slack+Confluence HR write + allowlist + RED LINE test
+- [x] S5 E2E thật: gws Sheet (10 người) → headcount → Confluence 3211265 + Slack ts=1782916805
+- [x] S6 `git diff src/` = rỗng cho hr-pack (GATE ĐẠT) + pm-pack byte-identical
 
 ## Success Criteria
 - hr-pack chạy ≥1 report kind E2E thật trên hệ thống HR thật.

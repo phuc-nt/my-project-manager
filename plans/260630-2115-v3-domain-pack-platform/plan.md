@@ -28,7 +28,7 @@ Core **60% generic / 40% PM-hardcoded**. Generic 100%: web UI, Action Gateway, p
 | MS | Tên | Trạng thái | Mục tiêu | Phase file |
 |----|-----|-----------|----------|------------|
 | **M5** | Domain-pack abstraction + pm-pack | ✅ DONE (2026-06-30) | Tách 3 seam; PM hiện tại thành `pm-pack` chạy byte-identical | [phase-m5](phase-m5-domain-pack-abstraction.md) |
-| **M6** | hr-pack (ép abstraction) | ⬜ Planned | Pack thứ 2 (HR) chạy thật trên cùng lõi — chứng minh abstraction đúng | [phase-m6](phase-m6-hr-pack-proof.md) |
+| **M6** | hr-pack (ép abstraction) | ✅ DONE (2026-07-01) | Pack thứ 2 (HR) chạy thật; `git diff src/`=rỗng cho pack + 3 M5 seam generic vá riêng | [phase-m6](phase-m6-hr-pack-proof.md) |
 | **M7** | UI low-tech (create + onboard) | ⬜ Planned | Wizard tạo agent + chọn domain + setup token/schedule qua web, không sửa YAML/CLI | [phase-m7](phase-m7-low-tech-ui.md) |
 | **M8** | admin-pack + đa-agent team view | ⬜ Planned (defer-able) | Pack thứ 3 (Admin) + all-agents dashboard | [phase-m8](phase-m8-admin-pack-team-view.md) |
 

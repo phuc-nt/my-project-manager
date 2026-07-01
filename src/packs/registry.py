@@ -32,18 +32,36 @@ GraphBuilder = Callable[..., Any]
 #: pre-v3 (PM) profile loading and dispatching exactly as before.
 DEFAULT_DOMAIN = "pm"
 
-#: Domains the registry recognizes. S1 listed only PM; M6 adds "hr", M8 adds "admin".
-#: An unknown domain is a load error, not a silent default.
-_KNOWN_DOMAINS = (DEFAULT_DOMAIN,)
-
 #: Where in-repo packs live (✅ CHỐT 2026-06-30: in-repo folder, not a plugin
 #: entry-point). A domain `x` resolves to `domain-packs/x-pack/`.
 _PACKS_DIR = REPO_ROOT / "domain-packs"
+
+#: A `graphs.py` is the marker of a real pack folder (every pack has one). Discovery
+#: keys off it so an empty/partial dir is not mistaken for a domain.
+_PACK_MARKER = "graphs.py"
 
 
 def pack_dir(domain: str) -> Path:
     """Absolute path to a domain's pack folder (`domain-packs/<domain>-pack/`)."""
     return _PACKS_DIR / f"{(domain or DEFAULT_DOMAIN).strip() or DEFAULT_DOMAIN}-pack"
+
+
+def discover_domains() -> tuple[str, ...]:
+    """The domains that have a real pack on disk — `domain-packs/<x>-pack/graphs.py`.
+
+    v3 M6: pack discovery is filesystem-based, so adding a new domain is dropping a
+    `<x>-pack/` folder — NO core edit (this is what makes M6's `git diff src/` = empty
+    gate reachable). An unknown domain (no folder) still fails loudly in `load()`, so
+    default-DENY holds: a typo'd `domain:` never silently runs as PM.
+    """
+    if not _PACKS_DIR.exists():
+        return (DEFAULT_DOMAIN,)
+    found = sorted(
+        p.name[: -len("-pack")]
+        for p in _PACKS_DIR.iterdir()
+        if p.is_dir() and p.name.endswith("-pack") and (p / _PACK_MARKER).exists()
+    )
+    return tuple(found)
 
 
 def pack_skills_dir(domain: str) -> Path:
@@ -140,11 +158,13 @@ class PackRegistry:
     builders/tools/handlers per domain here (or have each pack self-register).
     """
 
-    def __init__(self, known_domains: tuple[str, ...] = _KNOWN_DOMAINS) -> None:
+    def __init__(self, known_domains: tuple[str, ...] | None = None) -> None:
+        # None ⇒ discover from disk (the normal path). An explicit tuple is for tests
+        # that want to pin the domain set without touching the filesystem.
         self._known = known_domains
 
     def known_domains(self) -> tuple[str, ...]:
-        return self._known
+        return self._known if self._known is not None else discover_domains()
 
     def load(self, domain: str | None) -> Pack:
         """Return the pack for `domain` (None/blank ⇒ the default PM domain).
@@ -152,13 +172,14 @@ class PackRegistry:
         Raises ValueError for an unrecognized domain so a typo'd `domain:` fails
         loudly rather than silently running as PM. Populates the pack's report-kind
         builders from the pack's `graphs.py` (S2); the remaining seams (tools,
-        allowlist, prompts, skills) are filled in later slices and stay empty here.
+        allowlist, prompts, skills) are filled from the pack's other modules/assets.
         """
         resolved = (domain or DEFAULT_DOMAIN).strip() or DEFAULT_DOMAIN
-        if resolved not in self._known:
+        known = self.known_domains()
+        if resolved not in known:
             raise ValueError(
                 f"Unknown domain {resolved!r}: no pack registered. "
-                f"Known domains: {', '.join(self._known)}."
+                f"Known domains: {', '.join(known)}."
             )
         graphs = _load_pack_module(resolved, "graphs")
         report_kinds: dict[str, GraphBuilder] = dict(getattr(graphs, "REPORT_KINDS", {}))

@@ -72,8 +72,16 @@ def test_registry_blank_resolves_to_default():
 
 
 def test_registry_unknown_domain_raises():
-    with pytest.raises(ValueError, match="Unknown domain 'hr'"):
-        PackRegistry().load("hr")  # hr pack arrives in M6, not registered yet
+    # A domain with no domain-packs/<x>-pack/ folder fails loudly (default-DENY holds).
+    with pytest.raises(ValueError, match="Unknown domain 'nope'"):
+        PackRegistry().load("nope")
+
+
+def test_registry_discovers_pm_from_filesystem():
+    # Discovery is filesystem-based (M6): pm is found via its pack folder, not a hardcode.
+    from src.packs.registry import discover_domains
+
+    assert "pm" in discover_domains()
 
 
 # --- S2: pm-pack registers its report kinds, other seams still empty ---

@@ -16,6 +16,7 @@ two seams (ToolProvider in S3, allowlist/write handlers in S4) and pack assets
 from __future__ import annotations
 
 import importlib.util
+import sys
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -104,20 +105,56 @@ def _scan_pack_skill_names(domain: str) -> tuple[str, ...]:
     return tuple(sorted(p.stem for p in skills_dir.glob("*.md")))
 
 
-def _load_pack_module(domain: str, module_name: str) -> ModuleType:
-    """Import `domain-packs/<domain>-pack/<module_name>.py` by file path.
+def _pack_package_name(domain: str) -> str:
+    """A valid Python package name for a pack (folder is hyphenated, not importable).
 
-    Packs use hyphenated folder names (`pm-pack`), which are not importable as normal
-    Python packages, so each module is loaded via importlib from its file. The module
-    can still `import src.*` because the repo root is on sys.path at run time.
+    `hr-pack` on disk ⇒ the importable package `domain_pack_hr`, so a pack's own modules
+    can import siblings (`from domain_pack_hr.analyzers import ...`) — which PM never
+    needed (its builders call src.* only) but a self-contained pack like HR does.
     """
+    return f"domain_pack_{domain}"
+
+
+def _ensure_pack_package(domain: str) -> None:
+    """Register `domain-packs/<domain>-pack/` as an importable package in sys.modules.
+
+    Idempotent. Sets the package `__path__` to the pack folder so `import
+    domain_pack_<domain>.<mod>` resolves the pack's sibling modules. This is the generic
+    mechanism that lets a pack be self-contained; it adds no domain knowledge to core.
+    """
+    pkg = _pack_package_name(domain)
+    if pkg in sys.modules:
+        return
+    pack_root = _PACKS_DIR / f"{domain}-pack"
+    if not (pack_root / _PACK_MARKER).exists():
+        raise ImportError(f"No pack for domain {domain!r} at {pack_root}.")
+    spec = importlib.util.spec_from_file_location(
+        pkg, pack_root / "__init__.py", submodule_search_locations=[str(pack_root)]
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[pkg] = module
+    # A pack need not ship an __init__.py; if it does, exec it, else leave the namespace.
+    if spec.loader is not None and (pack_root / "__init__.py").exists():
+        spec.loader.exec_module(module)
+
+
+def _load_pack_module(domain: str, module_name: str) -> ModuleType:
+    """Import a pack's `<module_name>.py` as `domain_pack_<domain>.<module_name>`.
+
+    Registers the pack as a package first (so sibling imports work), then imports the
+    submodule normally. The module can `import src.*` (repo root on sys.path) and
+    `from domain_pack_<domain>.<other> import ...` (the package registered here).
+    """
+    _ensure_pack_package(domain)
     path = _PACKS_DIR / f"{domain}-pack" / f"{module_name}.py"
     if not path.exists():
         raise ImportError(f"Pack module not found: {path} (domain {domain!r}).")
-    spec = importlib.util.spec_from_file_location(f"_pack_{domain}_{module_name}", path)
+    qualified = f"{_pack_package_name(domain)}.{module_name}"
+    spec = importlib.util.spec_from_file_location(qualified, path)
     if spec is None or spec.loader is None:
         raise ImportError(f"Cannot load pack module {path}.")
     module = importlib.util.module_from_spec(spec)
+    sys.modules[qualified] = module
     spec.loader.exec_module(module)
     return module
 

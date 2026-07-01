@@ -84,6 +84,18 @@ def test_registry_discovers_pm_from_filesystem():
     assert "pm" in discover_domains()
 
 
+def test_pack_loads_as_importable_package():
+    # A pack is registered as an importable package (domain_pack_<domain>) so its own
+    # modules can import siblings — needed by self-contained packs (HR), harmless to PM.
+    import sys
+
+    from src.packs.registry import _load_pack_module, _pack_package_name
+
+    _load_pack_module("pm", "graphs")
+    assert _pack_package_name("pm") in sys.modules  # package registered
+    assert f"{_pack_package_name('pm')}.graphs" in sys.modules  # submodule loaded
+
+
 # --- S2: pm-pack registers its report kinds, other seams still empty ---
 
 

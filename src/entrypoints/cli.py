@@ -53,6 +53,19 @@ def _parse_profile(args: list[str]) -> str:
     return _flag_value(args, "--profile") or _DEFAULT_PROFILE
 
 
+def _strip_flag_value(args: list[str], flag: str) -> list[str]:
+    """Return args with `--flag <value>` removed, so subcommand dispatch sees a clean
+    args[0]. `--profile <id>` may precede the subcommand (e.g. `--profile x report`);
+    without stripping it, the `args[0] == "report"` check would miss and the invocation
+    would fall through to the hello path (sending the raw argv as the LLM prompt)."""
+    if flag not in args:
+        return args
+    i = args.index(flag)
+    # Drop the flag and, if present, its value.
+    end = i + 2 if i + 1 < len(args) else i + 1
+    return args[:i] + args[end:]
+
+
 def _load_or_exit(args: list[str]):
     """Load `profiles/<--profile>/`. Returns the LoadedProfile, or None on failure.
 
@@ -293,6 +306,13 @@ def main(argv: list[str] | None = None) -> int:
     if loaded is None:
         return 1
     settings, config = loaded.settings, loaded.config
+
+    # `--profile <id>` may sit before the subcommand; strip it so args[0] is the
+    # subcommand ("report"/"audit"/…). Without this, `--profile x report` would fall
+    # through to the hello path and send the raw argv to the LLM as a prompt.
+    args = _strip_flag_value(args, "--profile")
+    if not args:
+        return _run_hello("", settings)
 
     # Commands that do NOT need an OpenRouter key (audit + approval management).
     if args[0] == "audit":

@@ -17,6 +17,7 @@ Every field defaults to "", so an empty profile yields byte-identical v1 prompts
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -51,14 +52,26 @@ class ProfileContext:
 EMPTY = ProfileContext()
 
 
+#: Strip HTML comments (the scaffolded profile placeholders like
+#: `<!-- Persona. Empty ⇒ ... -->`) so a comment-only file counts as empty and never
+#: leaks its meta-text into the prompt. Real persona/context text (non-comment) survives.
+_HTML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
+
+
+def _strip_meta(text: str) -> str:
+    """Remove HTML comments + surrounding whitespace. A placeholder-only file → ""."""
+    return _HTML_COMMENT.sub("", text).strip()
+
+
 def prepend_persona(system: str, persona: str) -> str:
     """Prepend the persona to a system message. Empty persona ⇒ `system` unchanged.
 
     The original `system` stays the authoritative tail (its rules, incl. external
     PII-sanitization, are stated AFTER the persona), so persona sets tone but cannot
-    override the system's hard rules.
+    override the system's hard rules. A scaffolded file that holds only an HTML-comment
+    placeholder counts as empty (its meta-text must not reach the model).
     """
-    persona = persona.strip()
+    persona = _strip_meta(persona)
     if not persona:
         return system
     return f"{persona}\n\n{system}"
@@ -69,9 +82,10 @@ def build_context_block(project: str, memory: str) -> str:
 
     Returns "" when both are empty (⇒ user message unchanged). Never call this on the
     external path — project/memory carry internal facts a stakeholder must not see.
+    A comment-only placeholder file counts as empty (no meta-text injected).
     """
-    project = project.strip()
-    memory = memory.strip()
+    project = _strip_meta(project)
+    memory = _strip_meta(memory)
     parts: list[str] = []
     if project:
         parts.append(f"--- Bối cảnh dự án ---\n{project}")

@@ -1,0 +1,16 @@
+# hr-pack manifest (v3 M6) — the second domain, proving the pack abstraction.
+#
+# HR runs on the SAME core as PM: adding this pack required NO src/ change (the M6
+# gate). It contributes one report kind (headcount), reads Confluence (reused) + a
+# Google Sheet (a NEW adapter the core never knew about — the real ToolProvider test),
+# and writes to a Slack HR channel through the same Action Gateway (Lớp A/B unchanged).
+id: hr
+name: Human Resources
+# Report kinds this pack serves — must match the --report values the worker accepts.
+report_kinds:
+  - headcount
+# Write targets this pack contributes to the gateway allowlist. MUST match the servers
+# in write_handlers.py:ALLOWLIST (the load-bearing source of truth).
+servers:
+  - slack
+  - confluence

@@ -11,19 +11,13 @@ the real committed files.
 from __future__ import annotations
 
 import json
-import shutil
 import sys
 from pathlib import Path
 
 from src.profile.loader import _PROFILES_DIR, load_profile
 from src.runtime.agent_paths import _validate_agent_id, agent_data_dir
 from src.runtime.registry import _REGISTRY_PATH, load_registry
-
-_PLACEHOLDER_MD = {
-    "SOUL.md": "<!-- Persona. Empty ⇒ the v1 system prompt is used unchanged. -->\n",
-    "PROJECT.md": "<!-- Project context. Empty ⇒ no extra context added. -->\n",
-    "MEMORY.md": "<!-- Agent memory. Empty by default; read verbatim into context. -->\n",
-}
+from src.runtime.registry_edit import append_registry, scaffold_profile_dir
 
 
 def _last_run(data_dir: Path) -> str:
@@ -59,22 +53,6 @@ def run_list(
     return 0
 
 
-def _scaffold_profile_dir(profiles_dir: Path, agent_id: str) -> None:
-    """Create profiles/<id>/ from the default template + placeholder md files."""
-    target = profiles_dir / agent_id
-    target.mkdir(parents=True)
-    shutil.copyfile(profiles_dir / "default" / "profile.yaml", target / "profile.yaml")
-    for name, content in _PLACEHOLDER_MD.items():
-        (target / name).write_text(content, encoding="utf-8")
-
-
-def _append_registry(registry_path: Path, agent_id: str) -> None:
-    """Text-append one agent block (preserves existing comments/entries), then re-validate."""
-    with registry_path.open("a", encoding="utf-8") as fh:
-        fh.write(f"  - id: {agent_id}\n    enabled: true\n")
-    load_registry(registry_path)  # re-parse; raises if the append broke the file
-
-
 def run_register(
     args: list[str], *, registry_path: Path | None = None, profiles_dir: Path | None = None
 ) -> int:
@@ -99,7 +77,7 @@ def run_register(
         print(f"error: {agent_id!r} is already in the registry.", file=sys.stderr)
         return 1
 
-    _scaffold_profile_dir(pdir, agent_id)
-    _append_registry(reg, agent_id)
+    scaffold_profile_dir(pdir, agent_id)
+    append_registry(reg, agent_id)
     print(f"registered {agent_id}: profiles/{agent_id}/ + registry.yaml")
     return 0

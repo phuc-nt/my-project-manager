@@ -21,6 +21,7 @@ from fastapi.staticfiles import StaticFiles
 
 from src.server import (
     routes_agents,
+    routes_agents_admin,
     routes_ops_json,
     routes_runs,
     routes_visualize,
@@ -48,6 +49,8 @@ def create_app() -> FastAPI:
     app.include_router(routes_visualize.router)
     # M4-S4: JSON ops API (approve/reject/config) — the real gateway-routed write path.
     app.include_router(routes_ops_json.router)
+    # M7: agent admin (packs list / create wizard / lifecycle / integration health).
+    app.include_router(routes_agents_admin.router)
     # Legacy /static assets (kept for any non-SPA asset; the SPA's own assets live under
     # static/app and are served by the SPA mount below).
     app.mount(

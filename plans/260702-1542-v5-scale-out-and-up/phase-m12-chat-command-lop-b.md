@@ -11,7 +11,7 @@
 
 ## Overview
 - **Priority:** P1 — bậc 3 thang trách nhiệm: báo cáo → trả lời → **hành động theo lệnh, có người duyệt**.
-- **Status:** ⬜ Planned.
+- **Status:** ✅ **DONE (2026-07-02).** As-built: S5 notify-thread-sau-duyệt DEFER (approve qua CLI/web đã in kết quả; ghi chú). Core thêm 2 primitive generic: `ActionGateway.enqueue_for_approval` (Lớp A/allowlist check trước, refuse-not-queue) + jira dispatch (`jira_write.py` — jira allowlisted từ v1 nhưng chưa từng dispatch được). 940 test (18 mới); E2E live: mention tiếng Việt tự nhiên → approval #23 (Jira untouched) → người duyệt → **SCRUM-23 tạo thật** → re-poll không double. Review DONE (0 HIGH) → vá M1 (classifier re-raise infra error — không biến lệnh thành câu hỏi khi provider sập), M2+L5 (validate build_args callable + COMMANDS rỗng fail-loud ở load).
 - **Mục tiêu:** Mention agent với một YÊU CẦU ("tạo ticket cho bug X") → agent nhận diện lệnh khớp **catalog pack khai báo** → build action bằng CODE từ args đã validate → **ép enqueue Lớp B** (không bao giờ thực thi thẳng) → reply thread "chờ duyệt #id" → người duyệt (CLI/web như mọi approval) → action chạy thật → báo kết quả vào thread.
 
 ## Key Insights
@@ -47,12 +47,12 @@
 6. **S6 — E2E live**: "@default tạo ticket …" → approval xuất hiện (Jira CHƯA có gì) → approve → issue thật trên Jira → (S5) thread báo xong → cleanup issue test.
 
 ## Todo List
-- [ ] S1 catalog seam + validate-at-load
-- [ ] S2 intent classifier (fallback = question)
-- [ ] S3 build args → enqueue Lớp B + reply chờ duyệt
-- [ ] S4 wire nhánh inbox (Q&A nguyên vẹn)
-- [ ] S5 notify thread sau duyệt (hoặc defer có ghi chú)
-- [ ] S6 E2E live + pytest xanh + red-line tests
+- [x] S1 catalog seam + validate-at-load (Pack.commands; probe classify; build_args callable; COMMANDS rỗng fail-loud)
+- [x] S2 intent classifier (JSON, fallback=question; INFRA_ERRORS re-raise để inbox giữ watermark)
+- [x] S3 validate args → build ở CODE → `enqueue_for_approval` (redact + audit pending) + reply "⏳ chờ duyệt #id"; dedup theo mention-ts trong reason
+- [x] S4 wire vào answer_mention trước QA (pack không catalog → không gọi classifier, M11 nguyên vẹn)
+- [x] S5 DEFER: notify thread sau duyệt (approve CLI/web in kết quả; làm khi có nhu cầu thật)
+- [x] S6 E2E live: approval #23 → approve → SCRUM-23 thật; 940 pytest + red-line tests xanh
 
 ## Success Criteria
 - Lệnh hợp lệ từ chat → approval #id, KHÔNG side-effect nào trước duyệt; approve → hành động thật đúng args; reject → không gì xảy ra.

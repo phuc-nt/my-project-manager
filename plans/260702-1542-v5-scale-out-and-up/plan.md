@@ -1,6 +1,6 @@
 ---
 title: v5 — Scale đội agent theo chiều ngang (M8) và chiều dọc (M12)
-status: in-progress
+status: completed
 priority: P1
 effort: large
 branch: main
@@ -23,7 +23,7 @@ created: 2026-07-02
 | MS | Chiều | Trạng thái | Mục tiêu | Phase file |
 |----|-------|-----------|----------|------------|
 | **M8** | Ngang | ✅ DONE (2026-07-02) | admin-pack: 3 kind giám sát đội + team alerts; gate src/ generic-only | [v3 phase-m8](../260630-2115-v3-domain-pack-platform/phase-m8-admin-pack-team-view.md) |
-| **M12** | Dọc | ⬜ Planned | Lệnh từ chat → catalog command → Lớp B queue → duyệt → thực thi; KHÔNG BAO GIỜ thực thi thẳng từ chat | [phase-m12](phase-m12-chat-command-lop-b.md) |
+| **M12** | Dọc | ✅ DONE (2026-07-02) | Lệnh từ chat → catalog command → Lớp B queue → duyệt → thực thi; KHÔNG BAO GIỜ thực thi thẳng từ chat | [phase-m12](phase-m12-chat-command-lop-b.md) |
 
 ## Thứ tự + lý do
 

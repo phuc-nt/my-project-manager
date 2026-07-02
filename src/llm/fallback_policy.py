@@ -25,6 +25,12 @@ class ProviderCallError(RuntimeError):
     """A model's call failed after the client's bounded transient retries."""
 
 
+#: Failures that are the INFRASTRUCTURE's fault (provider/budget/network), not the
+#: work item's. Batch consumers (inbox poll, chat classifier) must stop-and-retry on
+#: these instead of misclassifying/skipping the item.
+INFRA_ERRORS = (BudgetExceededError, APIConnectionError, APITimeoutError, ProviderCallError)
+
+
 #: Status codes where trying another model cannot help (key-level, not model-level).
 _NO_FALLBACK_STATUS = frozenset({401, 403})
 

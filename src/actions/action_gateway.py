@@ -284,6 +284,43 @@ class ActionGateway:
         """List Lớp B actions awaiting human approval."""
         return self._approvals.list_pending()
 
+    def enqueue_for_approval(
+        self, action: dict[str, Any], *, reason: str, rationale: str = ""
+    ) -> GatewayResult:
+        """Force Lớp B for an action REGARDLESS of `needs_interrupt` (v5 M12).
+
+        The origin-based approval path: a chat-requested action always waits for a
+        human, even one a scheduled run may execute directly. This does NOT alter
+        `classify()`/`needs_interrupt()` semantics — it is strictly MORE restrictive:
+        Lớp A + the default-DENY allowlist are checked first and a blocked action is
+        refused outright (audited as deny), never queued. Execution later goes through
+        `approve()`, which re-applies Lớp A + audit + dedup as for any approval.
+        """
+        if not isinstance(action, dict):
+            raise ValueError(
+                f"action must be a dict, got {type(action).__name__}; refused un-queued."
+            )
+        action_type = str(action.get("type", "")).lower()
+        if action_type not in _MUTATING_TYPES:
+            raise ValueError(
+                f"ActionGateway only handles mutating actions {_MUTATING_TYPES}; "
+                f"got type={action_type!r}."
+            )
+        tool = _label(action)
+        verdict = classify(action, allowlist=self._mcp_allowlist)
+        if verdict.blocked:
+            self._record(action_type, tool, "deny", verdict.reason, action, rationale)
+            return GatewayResult(
+                status="skipped", summary=f"hard-denied, not queued: {verdict.reason}"
+            )
+        approval_id = self._approvals.enqueue(action, reason=reason, rationale=rationale)
+        self._record(action_type, tool, "pending", reason, action, rationale)
+        return GatewayResult(
+            status="pending_approval",
+            summary=f"{tool} queued for approval (id={approval_id}): {reason}",
+            approval_id=approval_id,
+        )
+
     def close(self) -> None:
         """Close the gateway's SQLite stores (approvals + dedup).
 

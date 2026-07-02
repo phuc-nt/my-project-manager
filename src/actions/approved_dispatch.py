@@ -25,6 +25,12 @@ def dispatch_approved_action(action: dict, config) -> str:
     # M3-P11 (C3): an approved Linear comment routes to the Linear write handler. The
     # server spec comes from the injected config (token-bearing env stays in the closure,
     # never on the persisted action). Lazy import keeps the monkeypatch target stable.
+    # v5 M12: an approved Jira write (chat-command createIssue/addComment) routes to
+    # the Jira MCP server from the injected config — same closure posture as Slack.
+    if action.get("type") == "mcp_tool" and action.get("server") == "jira":
+        from src.actions.jira_write import make_jira_tool_handler
+
+        return make_jira_tool_handler(config.jira_server)(action)
     if action.get("type") == "mcp_tool" and action.get("server") == "linear":
         from src.actions.linear_write import make_linear_comment_handler
 

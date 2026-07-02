@@ -11,7 +11,7 @@
 
 ## Overview
 - **Priority:** P1 — năng lực định nghĩa "coworker": human PM/HR bị hỏi ad-hoc hằng ngày; agent chỉ báo cáo 1 chiều thì chưa "thay người".
-- **Status:** ⬜ Planned. Cook SAU M7 (khuyến nghị sau cả v4 M9 — trả lời sai giờ vì provider chết là hỏng trải nghiệm).
+- **Status:** ✅ **DONE (2026-07-02).** As-built: QA = pipeline thuần (không LangGraph — gateway tự enqueue nếu cần); **internal-only chặt hơn plan** (channel external → fail lúc load, vì prompt inject persona/memory); pm-pack thêm `read()` chuẩn ToolProvider (sửa pack, 0 domain logic vào core). 909 test (24 mới); E2E live: mention `@default` → reply thật trong thread, grounded 2 PR stale thật; re-poll không double. Review DONE_WITH_CONCERNS → vá H1 (sanitize_reply chống self-loop structural, không chỉ prompt), M1 (search `after:` window), M2 (lỗi infra giữ watermark, kill-switch bỏ poll không đốt LLM), L1–L5/L8.
 - **Mục tiêu:** Mention agent trong Slack channel nó phụ trách → agent đọc dữ liệu thật (qua pack tools) → trả lời trong thread. **Read-only Q&A** ở milestone này.
 
 ## Key Insights
@@ -53,12 +53,12 @@
 6. **S6 — E2E live:** mention agent hr/pm trong channel test → nhận reply đúng số liệu thật, dedup verified.
 
 ## Todo List
-- [ ] S1 config `inbox:` opt-in
-- [ ] S2 inbox poller + dedup ts
-- [ ] S3 Q&A graph (reply qua gateway)
-- [ ] S4 scheduler wire
-- [ ] S5 write-request refusal
-- [ ] S6 E2E live + pytest xanh
+- [x] S1 config `inbox:` opt-in (loader `_parse_inbox`, internal-only, editor validate)
+- [x] S2 inbox poller (`runtime/inbox.py`: search `in:<name> "@<id>" after:<wm>`, watermark atomic, bootstrap không trả backlog, cap 3/poll, infra-error giữ watermark)
+- [x] S3 Q&A pipeline (`agent/qa_answer.py`: pack.tools.read → snapshot 6k → LLM → gateway post thread reply, dedup theo mention ts, `sanitize_reply` chống self-loop + broadcast)
+- [x] S4 wire: worker kind `inbox` + service `_effective_schedule` (cron */N) + mpm run cmd
+- [x] S5 write-request refusal (prompt rule 3 + structural: chỉ post_message tới được, default-DENY giữ)
+- [x] S6 E2E live: mention → reply thật grounded PR data thật; re-poll no double; 909 pytest + ruff xanh
 
 ## Success Criteria
 - Mention agent trong Slack → nhận reply đúng dữ liệu thật trong ≤ poll interval + runtime.

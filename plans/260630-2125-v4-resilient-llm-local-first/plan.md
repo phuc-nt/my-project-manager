@@ -26,7 +26,7 @@ Làm tầng LLM **bền (resilient)** và **giảm phụ thuộc API trả tiề
 
 | MS | Tên | Trạng thái | Mục tiêu | Phase file |
 |----|-----|-----------|----------|------------|
-| **M9** | Multi-provider fallback chain | ⬜ Planned | Model chính lỗi/402/timeout → tự fallback model kế; budget-aware | [phase-m9](phase-m9-multi-provider-fallback.md) |
+| **M9** | Multi-provider fallback chain | ✅ DONE (2026-07-02) | Model chính lỗi/402/timeout → tự fallback model kế; budget-aware | [phase-m9](phase-m9-multi-provider-fallback.md) |
 | **M10** | Local model offline | ⬜ Planned (nặng) | Chạy model local không cần API key (compose/select nhẹ) | [phase-m10](phase-m10-local-model-offline.md) |
 
 ## Thứ tự + lý do

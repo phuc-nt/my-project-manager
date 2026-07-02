@@ -10,7 +10,7 @@
 
 ## Overview
 - **Priority:** P1 — rẻ, ROI cao, giải nỗi đau 402 ngay.
-- **Status:** ⬜ Planned.
+- **Status:** ✅ **DONE (2026-07-02).** As-built GỌN hơn plan: chain nằm TRONG `LlmClient.complete` theo `settings.model_chain` (không tách ModelChain wrapper) → **0 call site sửa**, chain 1 phần tử = byte-identical. S4 budget-aware = re-check cap trước MỖI attempt + operator tự xếp thứ tự chain (không reorder theo giá — không có bảng giá, YAGNI). S6 observability = WARNING log `FALLBACK:` + `LlmResult.fallback_from` (run-event integration defer — single-operator đọc log đủ). 885 test; E2E live: model hỏng → 400 → fallback minimax → report delivered. Review DONE_WITH_CONCERNS → vá M1 (fail-loud non-string entry), M2 (warn chain override model), L1/L2.
 - **Mục tiêu:** Model chính lỗi (402/429/5xx/timeout) → tự fallback sang model kế trong chain, budget-aware, có log. Thuần Python, chỉ chạm `src/llm/`.
 
 ## Key Insights
@@ -62,13 +62,13 @@ src/llm/
 6. **S6 — Observability** run-event + audit mỗi fallback. Test log xuất hiện.
 
 ## Todo List
-- [ ] S1 FallbackPolicy (classify lỗi)
-- [ ] S2 ModelChain (thử lần lượt + gom cost)
-- [ ] S3 `model_chain` config (default backward-compat)
-- [ ] S4 Budget-aware ordering
-- [ ] S5 Wire call sites (compose/select)
-- [ ] S6 Fallback observability (run-event/audit)
-- [ ] pytest xanh; E2E: primary 402 → fallback chạy report thật
+- [x] S1 FallbackPolicy (`fallback_policy.py`: 402/4xx/5xx/timeout/empty → next; 401/403/Budget → raise)
+- [x] S2 Chain walk trong `LlmClient.complete` (as-built: không tách wrapper; gom cost mọi attempt billed)
+- [x] S3 `model_chain` config (profile list / env comma; default = 1 model, byte-identical)
+- [x] S4 Budget cap re-check trước MỖI attempt (as-built: không reorder theo giá — operator xếp chain)
+- [x] S5 Wire call sites — KHÔNG CẦN (chain trong client, 0 call site đổi)
+- [x] S6 Observability: WARNING `FALLBACK:` log + `LlmResult.fallback_from` (run-event defer)
+- [x] pytest 885 xanh; E2E live: primary invalid → 400 → fallback → report delivered ($0.0019)
 
 ## Success Criteria
 - Primary model 402/timeout → agent tự dùng fallback, report vẫn ra (không crash silent).

@@ -45,6 +45,20 @@ def _real_spawn(argv: list[str]) -> subprocess.Popen:
     return subprocess.Popen(argv)  # noqa: S603
 
 
+def _effective_schedule(loaded) -> tuple[dict[str, str], tuple[str, ...]]:
+    """The agent's cron schedule + reports gate, with the M11 inbox poll folded in.
+
+    An `inbox:` block synthesizes a pseudo-kind `inbox` at `*/poll_minutes` and admits
+    it through the reports gate — reusing the one scheduler path instead of a second
+    polling loop. No inbox ⇒ returns the profile values unchanged (pre-M11 identical).
+    """
+    if not getattr(loaded, "inbox", None):
+        return loaded.schedule, loaded.reports
+    schedule = dict(loaded.schedule)
+    schedule["inbox"] = f"*/{loaded.inbox['poll_minutes']} * * * *"
+    return schedule, (*loaded.reports, "inbox")
+
+
 def _worker_argv(agent_id: str, kind: str, audience: str) -> list[str]:
     return [
         sys.executable, "-m", "src.runtime.worker",
@@ -96,7 +110,8 @@ class Service:
             loaded = load_profile(entry.id)
             if not loaded.enabled:
                 continue
-            for kind in loaded.schedule:
+            schedule, _ = _effective_schedule(loaded)
+            for kind in schedule:
                 self._last_fire.setdefault((entry.id, kind), now)
         self._seeded = True
 
@@ -112,9 +127,10 @@ class Service:
             loaded = load_profile(entry.id)
             if not loaded.enabled:
                 continue
+            schedule, reports = _effective_schedule(loaded)
             per_kind = {k: self._last_fire[(entry.id, k)]
-                        for k in loaded.schedule if (entry.id, k) in self._last_fire}
-            for kind, audience in due_reports(loaded.schedule, loaded.reports, now, per_kind):
+                        for k in schedule if (entry.id, k) in self._last_fire}
+            for kind, audience in due_reports(schedule, reports, now, per_kind):
                 if spawned >= self._cap:
                     logger.info("tick cap %d reached; deferring %s/%s", self._cap, entry.id, kind)
                     break

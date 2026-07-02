@@ -50,6 +50,19 @@ class PmToolProvider:
 
         return github_read.get_recent_ci(config=config)
 
+    def read(self, kind: str, config: Any, settings: Any) -> dict[str, Any]:
+        """Uniform `ToolProvider.read` (v3 M11): one project snapshot for QA grounding.
+
+        The report graphs keep calling the granular methods above; this exists so the
+        generic ask-agent path can ground an answer without knowing PM internals. Any
+        `kind` returns the same snapshot — open issues + open PRs is what ad-hoc PM
+        questions are about.
+        """
+        return {
+            "open_issues": self.get_open_issues(config=config),
+            "open_prs": self.get_open_prs(config=config),
+        }
+
 
 #: The pack's tool provider instance. Loaded by PackRegistry into Pack.tools (S3).
 TOOL_PROVIDER = PmToolProvider()

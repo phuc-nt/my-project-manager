@@ -6,8 +6,8 @@
 - Phụ thuộc M5 (abstraction), M6 (đã chứng minh pack thứ 2), M7 (wizard + team view cơ bản).
 
 ## Overview
-- **Priority:** P2 — **defer-able**. Mục tiêu đa-domain đã đạt ở M6 (PM+HR). M8 là pack thứ 3 + team view nâng cao, làm nếu còn ngân sách/thời gian.
-- **Status:** ⬜ Planned (optional).
+- **Priority:** P2 — defer-able, nhưng được kích hoạt 2026-07-02 làm bước "chiều ngang" của v5 (đội sắp đông + sắp có quyền hành động → cần giám sát trước).
+- **Status:** ✅ **DONE (2026-07-02).** GATE PASS: src/ chỉ +`runtime/agent_state_reader.py` (accessor read-only dự liệu) + `GET /api/team/alerts` (generic, cache 30s) — 0 domain logic. admin-pack tự chứa 100% (3 kind, Slack-only delivery — bỏ Confluence page, digest ngắn). 922 test (14 mới); E2E live: agent admin tạo qua wizard API (domain=admin) → cost-rollup post Slack thật số liệu đội thật. Review DONE_WITH_CONCERNS → vá H1 (**pack allowlist chưa wire vào runtime gateway — gap có sẵn ở cả hr-pack, vá cả hai** + test runtime-path), H2 (state reader degrade mọi lỗi profile + sqlite read-only `mode=ro` — không DDL vào dir agent khác), M2 (cache endpoint).
 - **Mục tiêu:** admin-pack (agent giám sát vận hành: cost tổng, guardrail health, audit toàn hệ) + dashboard đa-agent nâng cao.
 
 ## Key Insights
@@ -56,13 +56,13 @@ domain-packs/admin-pack/
 6. **S6 — Gate:** `git diff src/` chỉ chứa generic additions (state reader + team API), 0 domain logic trong lõi.
 
 ## Todo List
-- [ ] S1 agent_state_reader (read-only cross-agent)
-- [ ] S2 admin-pack cost-rollup
-- [ ] S3 Admin ToolProvider
-- [ ] S4 guardrail-health + audit-digest
-- [ ] S5 Team dashboard alerts
-- [ ] S6 Gate: src/ chỉ generic additions
-- [ ] pytest + vitest xanh; E2E admin agent rollup mọi agent
+- [x] S1 agent_state_reader (read-only cross-agent; sqlite mode=ro, degrade mọi lỗi)
+- [x] S2 admin-pack cost-rollup
+- [x] S3 Admin ToolProvider (đọc qua state reader, kèm team_alerts)
+- [x] S4 guardrail-health + audit-digest (1 builder parametrized, 3 kind)
+- [x] S5 Team dashboard alerts (GET /api/team/alerts cache 30s + banner Team view)
+- [x] S6 Gate PASS: src/ chỉ accessor + alerts API generic
+- [x] pytest 922 + vitest 30 xanh; E2E live: admin agent rollup 2 agent thật → Slack
 
 ## Success Criteria
 - admin-pack chạy ≥1 kind (cost-rollup) tổng hợp mọi agent.

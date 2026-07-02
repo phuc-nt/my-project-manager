@@ -41,6 +41,8 @@ Dòng thời gian phát triển kiến trúc + tính năng (repo vừa-làm-vừ
 
 | 2026-07-02 | [v3 M11 — ask-agent Slack inbox](260702-v3-m11-ask-agent-inbox.md) | ✅ Done | Agent thành "đồng nghiệp" hỏi được: mention `@<agent-id>` trong channel internal → poll (search MCP, watermark, bootstrap không dội backlog, cap 3/poll) → QA pipeline ground trên `pack.tools.read` (pm-pack thêm `read()`, 0 core change) → reply thread qua Action Gateway (dedup theo mention ts). Internal-only chặt hơn plan (external channel fail lúc load). Review bắt H1 đắt giá: self-loop nếu LLM echo "@id" — vá structural `sanitize_reply`, không tin prompt. 909 test; E2E live: hỏi PR mở → trả lời đúng 2 PR stale thật trong thread, re-poll không double. |
 
+| 2026-07-02 | [v3 M8 — admin-pack (fleet watch)](260702-v3-m8-admin-pack-fleet-watch.md) | ✅ Done | Domain thứ 3, nhìn VÀO TRONG: giám sát cả đội (cost-rollup/guardrail-health/audit-digest) qua accessor generic read-only (`agent_state_reader`, sqlite mode=ro) + team alerts banner (budget≥80%, approval treo 24h, deny spike). GATE PASS: src/ chỉ 2 bổ sung generic dự liệu. Review bắt H1 systemic: pack allowlist chưa wire vào runtime gateway (hr-pack cũng dính từ M6) — vá cả hai + test runtime-path; bài học: test classifier riêng = phantom guarantee. 922 test; E2E live: agent admin TẠO QUA WIZARD M7 → post Slack số liệu đội thật. |
+
 ## Template entry (`YYMMDD-<slug>.md`)
 
 ```markdown

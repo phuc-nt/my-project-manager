@@ -166,11 +166,71 @@ backend. Không node nào của định nghĩa harness bị thiếu.
 
 **M4 ships a Vite + TypeScript React SPA** replacing the M2-P7 HTMX server-rendered dashboard. Built as static assets committed to `src/server/static/app/`, served at `/` by FastAPI's catch-all (zero extra process, zero Node.js at serve time). **The invariant holds**: M4 is a window only.
 
-- **New JSON API layer** (`src/server/routes_visualize.py`): 5 read-only endpoints (`/api/{runs,cost,memory,automation,audit}/{id}`) each projecting to a non-PII allowlist mirroring `summarize_node`. Memory internal-only (external → no facts; `?audience` gated). No guardrail change.
+- **Observability JSON API layer** (`src/server/routes_visualize.py`): 5 read-only endpoints (`/api/{runs,cost,memory,automation,audit}/{id}`) each projecting to a non-PII allowlist mirroring `summarize_node`. Memory internal-only (external → no facts; `?audience` gated). No guardrail change.
 - **Ops JSON routes** (`src/server/routes_ops_json.py`): approve/reject/config reads calling the identical `gw.approve(handler=dispatch_approved_action)` / `profile_editor` functions; shared `ops_helpers.py` extracted from CLI dispatcher.
 - **React surfaces**: Timeline, Cost (react-chartjs-2), Guardrail (verdict + audit), Memory (internal), Automation (internal). Read-only; approvals trigger via the existing gateway-routed endpoint (no new write authority).
 - **What's deleted**: `routes_dashboard.py`, `routes_approvals.py`, `routes_audit.py`, `routes_profile.py` (HTML routers), `src/server/templates/`, htmx static + 5 htmx tests. Coverage guard: every unique edge-case re-asserted in a JSON test first.
 - **M4 is shipped**: 5 slices (S1 JSON API, S2 React shell, S3 visual views, S4 ops surfaces, S5 wiring), 785 pytest green, vitest 11, ruff clean.
+
+## 13. Low-Tech Agent Creation & Lifecycle (v3 M7, 2026-07-02)
+
+**v3 M7 adds non-technical web surfaces for agent creation, configuration, and lifecycle management.** Positions "technical setup" (uv, MCP builds, `.env` tokens) as one-time infrastructure; "day-to-day agent ops" (create/pause/resume/delete) entirely via web — zero terminal/YAML/secrets exposure.
+
+### M7 Backend (4 new modules, ~450 LOC)
+
+**`src/runtime/registry_edit.py`** — shared registry mutations (CLI + API reuse):
+- `scaffold_agent(id)`: create `profiles/<id>/` with default `profile.yaml`, `SOUL.md`, `PROJECT.md`, `MEMORY.md`
+- `append_registry(agent_id, ...)`: validate-before-replace (build in-memory, parse-check, atomic write) — never corrupt
+- `toggle_agent_enabled(id, enabled)`: set registry enabled flag
+- `remove_agent(id)`: keep profile dir as archive (safety), refuse to delete `default`
+
+**`src/server/agent_create.py`** — wizard backend:
+- `list_available_packs()`: read from `domain-packs/*/pack.yaml` (no import — broken pack doesn't 500 the picker)
+- `create_agent_from_request(request)`: build profile.yaml from wizard input, validate using **exact same config builders** that `load_profile` uses before writing (fail-fast, never write invalid config)
+
+**`src/server/integration_health.py`** — health check panel:
+- Boolean presence: env vars (`OPENROUTER_API_KEY` set?), MCP dist paths exist, `gh auth status` (parsed via stdout), `which gws` (for hr-pack users)
+- **Never returns secret values**, cache 30s
+- Used by `/api/health/integrations` endpoint
+
+**`src/server/routes_agents_admin.py`** — 5 new config-only endpoints (all localhost, no auth, validate-before-replace, atomic):
+
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/api/packs` | GET | List available domain packs from `pack.yaml` manifests |
+| `/api/agents/create` | POST | Create new agent: body = `{domain, agent_id, name, persona, report_kinds, schedule, bindings}` → validates, scaffolds, returns 201 on success or 400/409 (id exists) |
+| `/api/agents/{agent_id}/enabled` | PATCH | Toggle enabled flag in registry; returns `{effective_enabled}` = registry AND profile both enabled (UX clarity) |
+| `/api/agents/{agent_id}` | DELETE | Mark agent disabled in registry; keeps `profiles/{agent_id}/` as archive for audit; refuses to delete `default` |
+| `/api/health/integrations` | GET | Return boolean map of integration presence (no secret values) |
+
+### M7 Frontend (wizard + Team view)
+
+**Create-Agent wizard** (`web/src/wizard/`):
+- **Step 1 — Domain**: Select pm, hr, or future custom pack
+- **Step 2 — Identity**: Enter agent ID (regex validated client=server), human name, optional persona paragraph
+- **Step 3 — Reports & Schedule**: Pick report kinds available for the selected domain, build cron via visual `ScheduleBuilder` (pick day+time → 5-field cron string, displayed for transparency)
+- **Step 4 — Bindings**: Fill project/repo/channel/space fields; **ScheduleBuilder** renders cron visually
+- **Step 5 — Review**: Show all fields, render `.env` variable-name template ("Copy these names to your tech operator, they'll fill values"), confirmation button
+
+**Team view** (`web/src/views/Team.tsx`):
+- Table: agent ID, name, status (enabled/paused), budget usage, pending approvals count
+- **Actions per row**: Pause/Resume (PATCH `/api/agents/{id}/enabled`), Delete (with confirm), drill-down to full Config
+- **IntegrationHealthPanel**: health status (env presence, MCP dist, gh auth, gws availability) at top; hint text for non-technical users ("GitHub auth missing — ask your operator to run `gh auth login`")
+
+### Invariants Held
+
+- **Config-only writes** (no external mutations): all routes mutate `profiles/` + `registry.yaml` only, never call Jira/GitHub/Slack → no Action Gateway involvement (gateway is for external writes; local config is internal safety gate)
+- **Validate-before-replace + atomic**: request failure never leaves registry/profile corrupt; if parse fails, rollback
+- **No secret exposure**: POST/PATCH/DELETE never accept or return token values; health endpoint returns only boolean presence
+- **Localhost-only, no-auth**: M2 posture maintained (auth layer deferred)
+- **CLI reuses API code**: `mpm agent register` imports `registry_edit.scaffold_agent` + `append_registry` — single DRY path for both UI and CLI
+
+### v3 M7 Test Coverage
+
+- **pytest 863** (up from 776): new `test_registry_edit.py`, `test_agent_create.py`, `test_integration_health.py`, `test_routes_agents_admin.py`
+- **vitest 30** (new): wizard steps, ScheduleBuilder, persona template, env template, Team view
+- **E2E live**: create agent via POST → verify GET /api/agents lists it → PATCH pause → DELETE → registry.yaml byte-identical after round-trip
+- **ruff clean**, **tsc no errors**
 
 ## 12. Domain-pack abstraction (v3 M5 + M6)
 

@@ -5,28 +5,54 @@
 
 ## Trạng thái hiện tại
 
-- **Phase 0–5 HOÀN TẤT** — đầy đủ READ (jira/github qua MCP/gh) + report (daily/weekly/okr/resource/audience-split) + write qua Action Gateway. Python 3.12 (uv).
-- Hello-agent: `python -m src.entrypoints.cli "hello"`; report: `cli report --daily|--weekly|--okr|--resource [--audience internal|external]`. Cần `OPENROUTER_API_KEY` cho LLM.
-- Guardrail core: Action Gateway (allowlist + Lớp A hard-deny + Lớp B approve), audit JSONL append-only + redaction secret, budget tracker $50/tháng, DRY_RUN + kill-switch, dedup bền. Xem `action-gateway-explainer.md`.
-- Test: `uv run pytest` (269 tests, không cần network). `uv run ruff check src tests`. Ruff clean.
+- **v2 Phase 0–5 + v3 M7 HOÀN TẤT** — đầy đủ READ (jira/github qua MCP/gh) + report (daily/weekly/okr/resource/audience-split) + write qua Action Gateway. Multi-agent + web dashboard + low-tech create/lifecycle. Python 3.12 (uv), React SPA.
+- v2 CLI: `cli report --daily|--weekly|--okr|--resource [--audience internal|external]`. v3 M7: Web UI at `/create` (wizard) + `/team` (lifecycle table). Cần `OPENROUTER_API_KEY` cho LLM.
+- Guardrail core: Action Gateway (allowlist + Lớp A hard-deny + Lớp B approve), audit JSONL append-only + redaction secret, budget tracker per-agent, DRY_RUN + kill-switch, dedup bền. Xem `action-gateway-explainer.md`.
+- Test: `uv run pytest` (863 tests, không cần network). `uv run vitest` (30 tests, web). `uv run ruff check src tests`. Ruff clean.
 
 ## Cây thư mục (đã build)
 
 ```
 src/
-├── agent/        # LangGraph graph + nodes + state — LÕI
-├── tools/        # *_read.py: jira/github/slack/confluence (READ)
-├── actions/      # action_gateway.py + *_write.py (WRITE, qua guardrail)
-├── llm/          # provider config + prompts
-├── config/       # env loading, settings
-├── audit/        # audit log (append-only)
-└── entrypoints/  # cli.py, cron.py (sau: slack.py, server.py)
+├── agent/         # LangGraph graph + nodes + state — LÕI
+├── tools/         # *_read.py: jira/github/slack/confluence (READ)
+├── actions/       # action_gateway.py + *_write.py (WRITE, qua guardrail)
+├── llm/           # provider config + prompts
+├── config/        # env loading, settings
+├── audit/         # audit log (append-only)
+├── runtime/       # scheduler, worker, registry_edit (M7 — shared CLI+API)
+├── packs/         # PackRegistry, ToolProvider protocol (M5+)
+├── server/        # FastAPI routes + MCP adapter (M2+)
+│   ├── routes_visualize.py    # observability read-only API
+│   ├── routes_ops_json.py     # approval/config ops
+│   ├── routes_agents_admin.py # M7 create/pause/delete/health endpoints
+│   ├── agent_create.py        # M7 wizard backend
+│   ├── integration_health.py  # M7 health check
+│   └── static/app/            # React SPA (M4+, Vite build)
+├── domain-packs/  # pluggable domains (M5+)
+│   ├── pm-pack/   # Project Management default
+│   └── hr-pack/   # Human Resources (M6)
+└── entrypoints/   # cli.py, cron.py, server.py
+```
+
+```
+web/src/           # React SPA (Vite + TypeScript)
+├── views/         # page components: Overview, Timeline, Team, CreateAgent, etc.
+├── wizard/        # CreateAgent wizard (M7): steps, builders
+├── components/    # reusable: IntegrationHealthPanel, ScheduleBuilder, etc.
+└── App.tsx        # routing: /, /create, /team, /guardrail, etc.
 ```
 
 ## Bản đồ "tìm gì ở đâu" (điền dần)
 
 | Cần tìm | Ở |
 |---|---|
+| Tạo agent (CLI+API dùng chung) | `src/runtime/registry_edit.py` (scaffold_agent, append_registry, toggle_enabled, remove_agent — atomic, validate-before-replace) |
+| Wizard backend | `src/server/agent_create.py` (list_available_packs, create_agent_from_request — validate using load_profile builders before write) |
+| Health check (env/MCP/gh) | `src/server/integration_health.py` (boolean presence, no secrets, 30s cache) |
+| M7 API routes | `src/server/routes_agents_admin.py` (GET /api/packs, POST /api/agents/create, PATCH /api/agents/{id}/enabled, DELETE /api/agents/{id}, GET /api/health/integrations) |
+| Wizard UI components | `web/src/wizard/` (IdentityStep, ReportsStep, BindingsStep, ReviewStep; env-template, persona-template, use-create-agent-wizard hook) |
+| Team view | `web/src/views/Team.tsx` (agent table, pause/resume/delete, IntegrationHealthPanel) |
 | Flow agent (graph) | `src/agent/report_graph.py` (perceive→analyze→compose→deliver, `report_kind` daily/weekly, deliver 2 bước Confluence+Slack, injectable ReportDeps); hello-graph cũ ở `src/agent/graph.py`. State: `src/agent/state.py` (chỉ primitive), checkpoint: `src/agent/checkpoint.py` |
 | Cách đọc Jira | `src/tools/jira_read.py` (get_open_issues, parse_issue; + sprint: get_active_sprint/get_sprint_issues/parse_sprint); adapter MCP ở `src/adapters/mcp_adapter.py` (langchain-mcp-adapters 0.3.0, spawn stdio; `_coerce_result` bóc content-block) |
 | Cách đọc GitHub | `src/tools/github_read.py` (get_open_prs, get_recent_ci, staleness); adapter CLI `src/adapters/cli_adapter.py` (run_gh subprocess + JSON parse) |

@@ -58,6 +58,10 @@ class LoadedProfile:
     skills: tuple[str, ...] = ()  # M3-P10: per-agent skill candidate pool (names)
     project_group: str | None = None  # M3-P9: sibling group slug (None ⇒ no siblings)
     domain: str = "pm"  # v3 M5: which domain pack drives this agent (absent ⇒ "pm")
+    # v3 M11: ask-agent Slack inbox (opt-in). None ⇒ no polling, byte-identical pre-M11.
+    # Shape: {"channel": "<slack channel ID>", "poll_minutes": int>=1}. INTERNAL channel
+    # only in M11 — an external channel is rejected at load (see _parse_inbox).
+    inbox: dict | None = None
 
 
 def _read_md(profile_dir: Path, name: str) -> str:
@@ -115,6 +119,7 @@ def load_profile(
     schedule_map = (
         {str(k): str(v) for k, v in schedule.items()} if isinstance(schedule, dict) else {}
     )
+    inbox = _parse_inbox(yaml_doc.get("inbox"), config)
     return LoadedProfile(
         profile_id=profile_id,
         name=str(yaml_doc.get("name") or profile_id),
@@ -129,4 +134,34 @@ def load_profile(
         skills=tuple(str(s) for s in skills) if isinstance(skills, list) else (),
         project_group=project_group,
         domain=domain,
+        inbox=inbox,
     )
+
+
+def _parse_inbox(raw: object, config: ReportingConfig) -> dict | None:
+    """Validate the optional `inbox:` block (v3 M11). Absent/empty ⇒ None.
+
+    Fail-loud on shape errors, and REJECT an external channel: the QA reply prompt
+    injects persona/memory (internal-only context per the audience red line), so M11
+    supports internal channels only — answering stakeholders needs the external prompt
+    split first (deferred, see phase-m11).
+    """
+    if raw is None or raw == {} or raw == "":
+        return None
+    if not isinstance(raw, dict):
+        raise RuntimeError("profile inbox: must be a mapping {channel, poll_minutes}.")
+    channel = str(raw.get("channel") or "").strip()
+    if not channel:
+        raise RuntimeError("profile inbox: needs a Slack channel id (channel:).")
+    if channel in config.slack_external_channels:
+        raise RuntimeError(
+            f"profile inbox: channel {channel!r} is an EXTERNAL channel — the M11 ask-agent"
+            " inbox is internal-only (persona/memory context must not reach stakeholders)."
+        )
+    try:
+        poll = int(raw.get("poll_minutes", 5))
+    except (TypeError, ValueError):
+        raise RuntimeError("profile inbox: poll_minutes must be an integer >= 1.") from None
+    if poll < 1:
+        raise RuntimeError("profile inbox: poll_minutes must be an integer >= 1.")
+    return {"channel": channel, "poll_minutes": poll}

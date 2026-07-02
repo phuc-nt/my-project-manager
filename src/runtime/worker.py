@@ -160,6 +160,27 @@ def main(argv: list[str] | None = None, *, run_report: RunReport = _default_run_
             append_event=append_run_event, make_event=_event,
         )
 
+    # v3 M11: the ask-agent inbox poll is a generic run kind, not a pack report kind —
+    # it never builds a report graph, so it branches before the graph dispatch.
+    if kind == "inbox":
+        from src.runtime.inbox import run_inbox
+
+        try:
+            result = run_inbox(loaded, settings)
+        except Exception as exc:  # noqa: BLE001 — record the failure, never crash
+            logger.exception("worker %s/inbox failed", agent_id)
+            append_run_event(data_dir, _event(agent_id, kind, "internal", "error", None, False))
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        append_run_event(
+            data_dir,
+            _event(agent_id, kind, "internal", result["status"], result.get("cost_usd"),
+                   bool(result.get("delivered"))),
+        )
+        logger.info("worker %s inbox: %s (replied=%s)", agent_id, result["status"],
+                    result.get("replied"))
+        return 0  # a poll with zero mentions is a SUCCESS, unlike an undelivered report
+
     thread_id = agent_thread_id(agent_id, kind, audience)
     try:
         result = run_report(loaded, settings, kind, audience, thread_id)

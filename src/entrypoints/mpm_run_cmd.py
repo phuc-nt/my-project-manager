@@ -37,7 +37,9 @@ def run_agent(args: list[str], *, spawn=None, timeout: int = _DEFAULT_TIMEOUT) -
     # enforces that the agent's own pack serves the kind.
     from src.packs.registry import all_report_kinds
 
-    valid_kinds = all_report_kinds()
+    # `inbox` is a generic run kind (M11 ask-agent poll), not a pack report kind — the
+    # worker handles it before graph dispatch, so it is always a valid --report value.
+    valid_kinds = all_report_kinds() | {"inbox"}
     if kind not in valid_kinds:
         print(
             f"error: --report must be one of {sorted(valid_kinds)}; got {kind!r}.",

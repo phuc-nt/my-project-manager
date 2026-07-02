@@ -53,7 +53,12 @@ def save_profile_yaml(agent_id: str, new_text: str) -> None:
         raise ValueError("profile.yaml must be a YAML mapping (key: value), not a list/scalar.")
     # Run the real builders — they raise on bad config. Nothing is written yet.
     build_settings_from_dict(build_settings_dict(doc, agent_data_dir(agent_id)))
-    build_reporting_config_from_dict(build_reporting_dict(doc))
+    config = build_reporting_config_from_dict(build_reporting_dict(doc))
+    # v3 M11: the inbox block is parsed by load_profile — validate it here too so a bad
+    # edit 400s in the editor instead of crashing the next scheduled load.
+    from src.profile.loader import _parse_inbox
+
+    _parse_inbox(doc.get("inbox"), config)
     _atomic_write(_profile_dir(agent_id) / "profile.yaml", new_text)
 
 

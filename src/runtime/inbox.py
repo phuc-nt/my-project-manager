@@ -25,11 +25,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from openai import APIConnectionError, APITimeoutError
-
 from src.adapters.mcp_adapter import call_tool
-from src.llm.budget_tracker import BudgetExceededError
-from src.llm.fallback_policy import ProviderCallError
+from src.llm.fallback_policy import INFRA_ERRORS
 from src.profile.loader import LoadedProfile
 
 logger = logging.getLogger(__name__)
@@ -114,7 +111,7 @@ def run_inbox(loaded: LoadedProfile, settings: Any) -> dict:
     Returns {"status", "replied", "cost_usd", "delivered"} for the worker's run event.
     A message-specific failure is logged and SKIPPED (watermark advances past it — one
     poison message must not wedge the inbox); an INFRASTRUCTURE failure (provider/
-    budget/network, `_INFRA_ERRORS`) stops the poll and HOLDS the watermark so the
+    budget/network, `INFRA_ERRORS`) stops the poll and HOLDS the watermark so the
     question is retried. Note: under `dry_run` a mention IS consumed (reply logged, not
     posted) — dry-run means "show what would happen", and it did.
     """
@@ -165,7 +162,7 @@ def run_inbox(loaded: LoadedProfile, settings: Any) -> dict:
                 outcome, cost = answer_mention(
                     loaded, settings, mention=mention, pack=pack, gateway=gateway
                 )
-            except _INFRA_ERRORS:
+            except INFRA_ERRORS:
                 # Provider/budget/network down — NOT this message's fault. Stop the poll
                 # and hold the watermark so the question is retried next poll.
                 logger.exception(
@@ -200,7 +197,3 @@ def run_inbox(loaded: LoadedProfile, settings: Any) -> dict:
         "cost_usd": total_cost if have_cost else None,
         "delivered": replied > 0,
     }
-
-
-#: Failures that are the INFRASTRUCTURE's fault, not the message's: retry next poll.
-_INFRA_ERRORS = (BudgetExceededError, ProviderCallError, APIConnectionError, APITimeoutError)

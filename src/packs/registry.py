@@ -209,6 +209,11 @@ class Pack:
     # Pack assets (S5): prompt texts by logical name, and the bundled skill .md pool.
     prompts: dict[str, str] = field(default_factory=dict)
     skills: tuple[str, ...] = ()
+    # v5 M12: chat-command catalog — the ONLY actions a chat mention may request.
+    # Validated at load against the pack's own allowlist + Lớp A (see _load_commands):
+    # a catalog can never name a red-line or non-allowlisted tool. Empty ⇒ the pack's
+    # agents answer questions only (M11 behavior).
+    commands: dict[str, dict] = field(default_factory=dict)
 
 
 class PackRegistry:
@@ -250,7 +255,47 @@ class PackRegistry:
         allowlist: dict[str, tuple[str, ...]] = dict(getattr(wh, "ALLOWLIST", {}))
         skills = _scan_pack_skill_names(resolved)
         prompts = _scan_pack_prompts(resolved)
+        commands = _load_commands(resolved, allowlist)
         return Pack(
             domain=resolved, report_kinds=report_kinds, tools=tools,
-            allowlist=allowlist, skills=skills, prompts=prompts,
+            allowlist=allowlist, skills=skills, prompts=prompts, commands=commands,
         )
+
+
+def _load_commands(domain: str, allowlist: dict[str, tuple[str, ...]]) -> dict[str, dict]:
+    """Load a pack's optional chat-command catalog (`commands.py:COMMANDS`) — validated.
+
+    FAIL-LOUD at load if any command names a tool the pack's own allowlist + Lớp A
+    would not permit: the catalog is the ceiling of what chat can request, so a
+    red-line tool must be impossible to even declare, not merely denied later.
+    """
+    if not (pack_dir(domain) / "commands.py").exists():
+        return {}
+    module = _load_pack_module(domain, "commands")
+    commands = dict(getattr(module, "COMMANDS", {}))
+    if not commands:
+        # A commands.py that exports nothing is a typo'd catalog, not "no catalog" —
+        # deleting the file is how a pack opts out. Fail loud, don't silently disable.
+        raise RuntimeError(f"pack {domain!r} has commands.py but exports no COMMANDS")
+    from src.actions.hard_block import classify
+
+    for command_id, spec in commands.items():
+        build_args = spec.get("build_args")
+        if build_args is not None and not callable(build_args):
+            raise RuntimeError(
+                f"pack {domain!r} command {command_id!r}: build_args must be callable "
+                "— it is the hook that confines requester args (e.g. pins projectKey)."
+            )
+        probe = {
+            "type": "mcp_tool",
+            "server": str(spec.get("server", "")),
+            "tool": str(spec.get("tool", "")),
+            "args": {},
+        }
+        verdict = classify(probe, allowlist=allowlist)
+        if verdict.blocked:
+            raise RuntimeError(
+                f"pack {domain!r} command {command_id!r} names a forbidden tool "
+                f"{probe['server']}:{probe['tool']} ({verdict.category}): {verdict.reason}"
+            )
+    return commands

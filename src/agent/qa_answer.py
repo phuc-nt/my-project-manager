@@ -116,6 +116,39 @@ def answer_mention(
 
         pack = PackRegistry().load(loaded.domain)
 
+    channel = loaded.inbox["channel"]  # loader guarantees shape + internal-only
+    gw = gateway or ActionGateway(
+        settings,
+        external_channels=loaded.config.slack_external_channels,
+        mcp_allowlist=pack.allowlist or None,
+    )
+    client = llm or LlmClient(settings)
+    try:
+        # v5 M12: a command mention branches BEFORE the QA grounding — the reply is the
+        # "queued for approval #id" text (or a refusal), never a direct execution.
+        from src.agent.chat_command import maybe_handle_command
+
+        handled = maybe_handle_command(
+            loaded=loaded, config=loaded.config, mention=mention,
+            pack=pack, gateway=gw, llm=client,
+        )
+        if handled is not None:
+            reply_text, cost = handled
+            outcome = _post_reply(gw, loaded, mention, channel, reply_text)
+            return outcome, cost
+        return _answer_question(
+            loaded, settings, mention=mention, pack=pack, gateway=gw,
+            llm=client, channel=channel,
+        )
+    finally:
+        if gateway is None:
+            gw.close()
+
+
+def _answer_question(
+    loaded, settings, *, mention, pack, gateway, llm, channel
+) -> tuple[GatewayResult, float | None]:
+    """The M11 read-only Q&A path: ground → compose → threaded reply."""
     payload = pack.tools.read(_primary_kind(loaded, pack), loaded.config, settings)
     data_text = render_snapshot(payload)
 
@@ -127,20 +160,21 @@ def answer_mention(
         + f"DATA:\n{data_text}\n\nCÂU HỎI (nguyên văn từ Slack):\n{question}"
     )
 
-    client = llm or LlmClient(settings)
-    result = client.complete(
+    result = llm.complete(
         [{"role": "system", "content": system}, {"role": "user", "content": user}]
     )
-    reply = sanitize_reply(result.content.strip(), loaded.profile_id)
-    if not reply:
+    reply = result.content.strip()
+    if not reply.strip():
         raise RuntimeError("QA compose returned empty content — not posting an empty reply.")
+    outcome = _post_reply(gateway, loaded, mention, channel, reply)
+    return outcome, result.cost_usd
 
-    channel = loaded.inbox["channel"]  # loader guarantees shape + internal-only
-    gw = gateway or ActionGateway(
-        settings,
-        external_channels=loaded.config.slack_external_channels,
-        mcp_allowlist=pack.allowlist or None,
-    )
+
+def _post_reply(gw, loaded, mention: dict, channel: str, reply: str) -> GatewayResult:
+    """Sanitize + post one threaded reply through the gateway (shared QA/command path)."""
+    reply = sanitize_reply(reply.strip(), loaded.profile_id)
+    if not reply:
+        raise RuntimeError("empty reply after sanitize — not posting.")
     # Thread root: when the mention is itself a thread reply, Slack wants the PARENT ts
     # as thread_ts — fall back to the mention's own ts for a top-level message.
     thread_root = str(mention.get("thread_ts") or mention["ts"])
@@ -151,13 +185,8 @@ def answer_mention(
         "args": {"channel": channel, "text": reply, "thread_ts": thread_root},
         "dedup_hint": _reply_dedup_hint(channel, str(mention["ts"])),
     }
-    try:
-        outcome = gw.execute(
-            action,
-            handler=make_slack_post_handler(loaded.config.slack_server),
-            rationale=f"ask-agent reply to mention ts={mention['ts']}",
-        )
-    finally:
-        if gateway is None:
-            gw.close()
-    return outcome, result.cost_usd
+    return gw.execute(
+        action,
+        handler=make_slack_post_handler(loaded.config.slack_server),
+        rationale=f"ask-agent reply to mention ts={mention['ts']}",
+    )

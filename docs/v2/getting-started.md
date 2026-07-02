@@ -8,11 +8,29 @@ created: 2026-06-28
 # Getting Started — Add a New Agent & Project
 
 > Register a PM agent for a new Jira project, GitHub repo, and Slack channel. Takes 10 minutes.
+> **New in M7**: You can now create agents via the web UI (non-technical). See §Web UI below. Otherwise, follow the CLI steps.
 > Back to [v2 README](README.md).
 
 ---
 
-## Part 1: Register the Agent
+## Web UI Method (New in M7)
+
+If you have the web dashboard running on localhost, you can create agents without touching the terminal:
+
+1. Open http://localhost:8765/create
+2. **Step 1**: Select your domain (pm, hr, or custom)
+3. **Step 2**: Enter agent ID and name; optionally fill persona
+4. **Step 3**: Choose report kinds and build a cron schedule
+5. **Step 4**: Fill bindings (Jira project, GitHub repo, Slack channel, Confluence space)
+6. **Step 5**: Review and get a `.env` template to copy-paste to your technical operator
+
+The wizard validates everything before saving. On completion, the agent appears in the Team view.
+
+---
+
+## CLI Method (Traditional)
+
+### Part 1: Register the Agent
 
 The registration command scaffolds a new agent directory from the default template and adds it to the registry.
 

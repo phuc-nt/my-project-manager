@@ -10,10 +10,11 @@ tags: [v2, vision, roadmap, multi-agent, langgraph, web-ui]
 
 # v2 Vision + Roadmap — my-project-manager
 
-> Status: **v2 COMPLETE** (2026-06-27, M1+M2+M3 = 776 tests, final live E2E verified).
+> Status: **v2 COMPLETE** (2026-06-27, M1+M2+M3 = 776 tests). **v3 M7** (2026-07-02, +863 tests): Create agent wizard + Team view + low-tech UI, 100% non-technical operation via web.
 > - **M1**: Multi-agent core (P1–P4, profiles + registry/worker + scheduler + CLI), 414 tests.
 > - **M2**: Platform (P5–P8, interrupts + FastAPI/SSE + dashboard + Postgres opt-in), 545 tests.
 > - **M3**: Extensibility (P10/P9/P11/P12, skills + cross-agent memory + integrations/multi-channel + automation/observability), 776 tests, live E2E: Jira 21 issue, real Confluence + Slack post, Postgres facts, replay+automate via gateway.
+> - **M7** (v3): Low-tech UI — Create-agent wizard (5-step, domain→id/name/persona→reports/schedule→bindings→review) + Team view (all-agents table, pause/resume/delete, integration health panel) + 5 new API endpoints; 863 tests, live E2E round-trip (create→pause→delete, registry byte-identical).
 >
 > Mở rộng [`../v1/project-roadmap.md`](../v1/project-roadmap.md) (v1 Phase 0–5 đã xong). v1 = single-agent, single-project.
 > v2 = **nhiều agent, mỗi agent một project, XONG TOÀN BỘ (multi-agent core + interrupts + streaming + optional Postgres + web dashboard + skills + integrations + automation), guardrail giữ nguyên per-agent.**

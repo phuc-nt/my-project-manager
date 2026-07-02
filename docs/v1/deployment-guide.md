@@ -142,14 +142,28 @@ Artifacts ở `deploy/launchd/`: 4 plist template (placeholder `__REPO_DIR__`) +
 - Mặc định `.env` có `DRY_RUN=true` (chỉ log). **Để cron post thật, đặt `DRY_RUN=false` trong `.env`.**
 - `install.sh` bake đường dẫn clone tuyệt đối vào plist ở `~/Library/LaunchAgents/` (launchd cần path tuyệt đối + không expand biến). Pull template mới thì chạy lại `install.sh`.
 
-## 6. Đường lên service (Phase 5 — chưa làm)
+## 6. Web Dashboard (M7+)
 
-- Đóng container, deploy backend + Slack bot.
-- Checkpointer SQLite → Postgres.
-- Per-user/per-project isolation.
-Xem `system-architecture.md §7`.
+FastAPI server (`src/server/app.py`) runs on **localhost:8765** (override with `PORT` env) and serves a React SPA. Non-technical users access:
+- `/create` — wizard to create new agents (5 steps: domain → identity → reports/schedule → bindings → review)
+- `/team` — view all agents, pause/resume, delete, see integration health
+- Other routes (observability): `/`, `/timeline`, `/cost`, `/memory`, `/guardrail`, `/approvals`, `/config`, `/trigger`
 
-## 7. Unresolved (deploy)
+**Start server:**
+```bash
+uv run python -m src.server.app
+```
+
+Then open http://localhost:8765 in a browser. Server is **localhost-only** (no authentication, no remote access).
+
+## 7. Đường lên service (Phase 5+ — chưa làm)
+
+- Đóng container, deploy backend + Slack bot + web.
+- Checkpointer SQLite → Postgres (multi-machine).
+- Per-user/per-project isolation + auth layer.
+Xem `system-architecture.md` + v2 `architecture.md`.
+
+## 8. Unresolved (deploy)
 
 1. Có Jira/GitHub/Slack/Confluence instance thật để test chưa, hay cần sandbox/mock? (PDR §9.1)
 2. Chạy cron trên máy nào (máy cá nhân / server)?

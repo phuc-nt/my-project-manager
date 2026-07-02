@@ -54,4 +54,4 @@ M9 trước: rẻ, ROI cao, giải nỗi đau 402 ngay, thuần Python (chỉ lo
 ## Unresolved còn lại (quyết lúc cook)
 
 1. Fallback trigger nào tính "lỗi"? (402 / 429 / 5xx / timeout / empty) — quyết ở M9 (đề xuất: tất cả + empty response).
-2. v4 cook trước/sau v3 M7? (đề xuất: sau M6, song song M7 — fallback độc lập UI).
+2. ~~v4 cook trước/sau v3 M7?~~ ✅ CHỐT 2026-07-02: **M9 cook ngay SAU M7, TRƯỚC v3 M11** (ask-agent cần nền LLM bền — agent "thay người" không được chết im lặng khi bị hỏi). M10 defer-able sau M11.

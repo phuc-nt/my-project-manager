@@ -29,12 +29,15 @@ Core **60% generic / 40% PM-hardcoded**. Generic 100%: web UI, Action Gateway, p
 |----|-----|-----------|----------|------------|
 | **M5** | Domain-pack abstraction + pm-pack | ✅ DONE (2026-06-30) | Tách 3 seam; PM hiện tại thành `pm-pack` chạy byte-identical | [phase-m5](phase-m5-domain-pack-abstraction.md) |
 | **M6** | hr-pack (ép abstraction) | ✅ DONE (2026-07-01) | Pack thứ 2 (HR) chạy thật; `git diff src/`=rỗng cho pack + 3 M5 seam generic vá riêng | [phase-m6](phase-m6-hr-pack-proof.md) |
-| **M7** | UI low-tech (create + onboard) | ⬜ Planned | Wizard tạo agent + chọn domain + setup token/schedule qua web, không sửa YAML/CLI | [phase-m7](phase-m7-low-tech-ui.md) |
+| **M7** | UI low-tech (create + onboard + lifecycle) | ✅ DONE (2026-07-02) | Wizard tạo agent + chọn domain + schedule qua web; pause/resume/delete + health panel — không sửa YAML/CLI | [phase-m7](phase-m7-low-tech-ui.md) |
 | **M8** | admin-pack + đa-agent team view | ⬜ Planned (defer-able) | Pack thứ 3 (Admin) + all-agents dashboard | [phase-m8](phase-m8-admin-pack-team-view.md) |
+| **M11** | Ask-agent Slack inbox | ⬜ Planned (thêm 2026-07-02) | Mention agent trong Slack → trả lời ad-hoc bằng dữ liệu thật (read-only Q&A) — năng lực "coworker" | [phase-m11](phase-m11-ask-agent-inbox.md) |
 
 ## Thứ tự + lý do
 
-M5 trước (nền — không có abstraction thì HR vẫn hardcode). M6 ngay sau, **song song M5 ở mức thiết kế**: HR là bài kiểm tra abstraction — nếu HR cần sửa lõi → M5 sai, quay lại. M7 chỉ làm khi đã có ≥2 pack (wizard phải có domain để chọn). M8 defer-able (admin = nice-to-have, demo đa-domain đã đạt ở M6).
+M5 trước (nền — không có abstraction thì HR vẫn hardcode). M6 ngay sau, **song song M5 ở mức thiết kế**: HR là bài kiểm tra abstraction — nếu HR cần sửa lõi → M5 sai, quay lại. M7 chỉ làm khi đã có ≥2 pack (wizard phải có domain để chọn). Sau M7: **v4 M9** (fallback — agent "thay người" không được chết im lặng) → **M11** (ask-agent — cần nền LLM bền trước khi trả lời ad-hoc). M8 defer-able (admin = nice-to-have, demo đa-domain đã đạt ở M6); M10 defer-able.
+
+**Định vị low-tech (chốt 2026-07-02):** setup hạ tầng (uv/MCP/.env) = việc kỹ thuật 1 lần; vận hành hằng ngày = low-tech 100% qua web. Xem gap assessment: [`../reports/plan-assessment-260702-0617-v3-v4-multi-purpose-gap-report.md`](../reports/plan-assessment-260702-0617-v3-v4-multi-purpose-gap-report.md).
 
 ## Nguyên tắc xuyên suốt (giữ từ v1/v2)
 

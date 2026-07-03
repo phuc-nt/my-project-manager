@@ -123,6 +123,110 @@ def _run_get_status(slots: dict[str, str]) -> str:
     return "\n".join(lines)
 
 
+def _task_store_for(agent_id: str):
+    """Open the assigned-task store for one agent. Raises ValueError if the agent is
+    unknown, so the ops reply is a clean message rather than a 500."""
+    from src.profile.loader import load_profile
+    from src.runtime.agent_paths import agent_data_dir
+    from src.runtime.task_scheduling import _store_path
+    from src.runtime.task_store import TaskStore
+
+    try:
+        load_profile(agent_id, data_dir=agent_data_dir(agent_id))
+    except (FileNotFoundError, RuntimeError):
+        # Wrap, don't interpolate: a FileNotFoundError carries the full profile PATH, which
+        # should not leak into a chat reply (M2). The id alone is enough for the operator.
+        raise ValueError(f"không tìm thấy agent '{agent_id}'") from None
+    return TaskStore(_store_path(agent_data_dir(agent_id)))
+
+
+def _run_watch_pr(slots: dict[str, str]) -> str:
+    """Assign a watch-task: agent tracks a PR until it merges/closes, reminding on cadence."""
+    from src.profile.loader import load_profile
+    from src.runtime.agent_paths import agent_data_dir
+
+    agent_id = slots["agent_id"]
+    try:
+        number = int(slots["pr_number"])
+    except (KeyError, ValueError):
+        raise ValueError("số PR không hợp lệ") from None
+    loaded = None
+    try:
+        loaded = load_profile(agent_id, data_dir=agent_data_dir(agent_id))
+    except (FileNotFoundError, RuntimeError):
+        raise ValueError(f"không tìm thấy agent '{agent_id}'") from None
+    if not loaded.config.github_repo:
+        raise ValueError(f"agent '{agent_id}' chưa cấu hình github_repo — không theo dõi PR được")
+
+    store = _task_store_for(agent_id)
+    try:
+        params = {"target": "pr", "number": number}
+        note = slots.get("note")
+        if note:
+            params["note"] = note
+        task_id = store.create(kind="watch", params=params, schedule="0 8 * * *",
+                               assigned_by="ceo-chat")
+    except RuntimeError as exc:  # open-task cap
+        raise ValueError(str(exc)) from None
+    finally:
+        store.close()
+    return (f"Đã giao việc #{task_id} cho '{agent_id}': theo dõi PR #{number} "
+            f"({loaded.config.github_repo}) tới khi merge/đóng, nhắc mỗi ngày.")
+
+
+def _preview_watch_pr(slots: dict[str, str]) -> str:
+    note = slots.get("note")
+    lines = [
+        "Mình sẽ GIAO một việc theo dõi:",
+        f"- Agent: {slots['agent_id']}",
+        f"- Theo dõi: PR #{slots.get('pr_number')}",
+        "- Nhịp nhắc: mỗi ngày, tới khi PR merge/đóng (tối đa 14 ngày)",
+    ]
+    if note:
+        lines.append(f"- Ghi chú: {note}")
+    lines.append("\nXác nhận giao? (trả lời: xác nhận / huỷ)")
+    return "\n".join(lines)
+
+
+def _run_list_tasks(slots: dict[str, str]) -> str:
+    """Read-only: list an agent's open assigned tasks."""
+    store = _task_store_for(slots["agent_id"])
+    try:
+        tasks = store.list_open()
+    finally:
+        store.close()
+    if not tasks:
+        return f"Agent '{slots['agent_id']}' hiện không có việc nào đang mở."
+    lines = [f"Việc đang mở của '{slots['agent_id']}':"]
+    for t in tasks:
+        target = f"PR #{t.params.get('number')}" if t.params.get("target") == "pr" else t.kind
+        lines.append(f"- #{t.id}: {t.kind} {target} ({t.status})")
+    return "\n".join(lines)
+
+
+def _run_cancel_task(slots: dict[str, str]) -> str:
+    store = _task_store_for(slots["agent_id"])
+    try:
+        try:
+            task_id = int(slots["task_id"])
+        except (KeyError, ValueError):
+            raise ValueError("mã việc không hợp lệ") from None
+        task = store.get(task_id)
+        if task is None:
+            raise ValueError(f"không có việc #{task_id} của '{slots['agent_id']}'")
+        if task.status not in ("open", "running"):
+            return f"Việc #{task_id} đã ở trạng thái '{task.status}', không cần huỷ."
+        store.set_status(task_id, "cancelled")
+    finally:
+        store.close()
+    return f"Đã huỷ việc #{task_id} của '{slots['agent_id']}'."
+
+
+def _preview_cancel_task(slots: dict[str, str]) -> str:
+    return (f"Mình sẽ HUỶ việc #{slots.get('task_id')} của agent '{slots['agent_id']}'.\n"
+            "Xác nhận? (trả lời: xác nhận / huỷ)")
+
+
 #: command_id → spec. slots = ordered {name: {prompt, required, max_len?, pattern?}}.
 OPS_COMMANDS: dict[str, dict] = {
     "create_agent": {
@@ -180,6 +284,40 @@ OPS_COMMANDS: dict[str, dict] = {
         "readonly": True,
         "slots": {},
         "run": _run_get_cost,
+    },
+    "watch_pr": {
+        "description": "Giao việc theo dõi một PR tới khi merge/đóng, nhắc mỗi ngày",
+        "readonly": False,
+        "slots": {
+            "agent_id": {"prompt": "Giao cho agent nào (mã agent có github_repo)?",
+                         "required": True, "max_len": 40, "lower": True},
+            "pr_number": {"prompt": "Số PR cần theo dõi?", "required": True, "max_len": 10,
+                          "pattern": r"[0-9]+", "hint": "chỉ con số (vd '45')"},
+            "note": {"prompt": "Ghi chú thêm (tuỳ chọn)?", "required": False, "max_len": 200},
+        },
+        "run": _run_watch_pr,
+        "preview": _preview_watch_pr,
+    },
+    "list_tasks": {
+        "description": "Xem các việc đang mở của một agent",
+        "readonly": True,
+        "slots": {
+            "agent_id": {"prompt": "Xem việc của agent nào?", "required": True,
+                         "max_len": 40, "lower": True},
+        },
+        "run": _run_list_tasks,
+    },
+    "cancel_task": {
+        "description": "Huỷ một việc đã giao",
+        "readonly": False,
+        "slots": {
+            "agent_id": {"prompt": "Việc thuộc agent nào?", "required": True,
+                         "max_len": 40, "lower": True},
+            "task_id": {"prompt": "Mã việc cần huỷ (số)?", "required": True, "max_len": 10,
+                        "pattern": r"[0-9]+", "hint": "chỉ con số"},
+        },
+        "run": _run_cancel_task,
+        "preview": _preview_cancel_task,
     },
 }
 

@@ -54,12 +54,24 @@ def _effective_schedule(loaded) -> tuple[dict[str, str], tuple[str, ...]]:
     path instead of a second polling loop. No transport ⇒ profile values unchanged.
     """
     from src.runtime.inbox_dispatch import has_any_inbox, inbox_poll_minutes
+    from src.runtime.task_scheduling import has_open_tasks, tasks_cron
 
-    if not has_any_inbox(loaded):
-        return loaded.schedule, loaded.reports
     schedule = dict(loaded.schedule)
-    schedule["inbox"] = f"*/{inbox_poll_minutes(loaded)} * * * *"
-    return schedule, (*loaded.reports, "inbox")
+    reports = list(loaded.reports)
+    changed = False
+    if has_any_inbox(loaded):
+        schedule["inbox"] = f"*/{inbox_poll_minutes(loaded)} * * * *"
+        reports.append("inbox")
+        changed = True
+    # v6 M15: an agent with open assigned tasks synthesizes a `tasks` pseudo-kind that the
+    # runner services on a cadence (per-day reminder dedup bounds it to one/day per task).
+    if has_open_tasks(loaded):
+        schedule["tasks"] = tasks_cron(loaded)
+        reports.append("tasks")
+        changed = True
+    if not changed:
+        return loaded.schedule, loaded.reports  # byte-identical when nothing synthesized
+    return schedule, tuple(reports)
 
 
 def _worker_argv(agent_id: str, kind: str, audience: str) -> list[str]:

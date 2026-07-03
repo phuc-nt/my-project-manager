@@ -73,3 +73,13 @@ button:disabled { cursor: default; opacity: 0.6; }
 .tasks-table th, .tasks-table td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid #eee; }
 .tasks-table th { color: #888; font-weight: 600; }
 .tasks-last { color: #555; max-width: 30rem; }
+
+/* v6 M16: login screen + logout */
+.login-screen { display: flex; align-items: center; justify-content: center; min-height: 80vh; }
+.login-box { display: flex; flex-direction: column; gap: 0.85rem; width: 300px; padding: 1.5rem; border: 1px solid #ddd; border-radius: 8px; }
+.login-box h1 { margin: 0 0 0.25rem; font-size: 1.3rem; }
+.login-box label { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.9rem; color: #555; }
+.login-box input { padding: 0.5rem; border: 1px solid #ccc; border-radius: 5px; }
+.login-box button { padding: 0.55rem; background: #1a1a1a; color: #fff; border: none; border-radius: 5px; cursor: pointer; }
+.login-box button:disabled { opacity: 0.5; cursor: default; }
+.logout-btn { margin-left: auto; padding: 0.35rem 0.7rem; background: none; border: 1px solid #ccc; border-radius: 5px; cursor: pointer; font-size: 0.85rem; }

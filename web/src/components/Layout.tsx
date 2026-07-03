@@ -1,7 +1,16 @@
 // App shell: top nav linking the 5 view groups + the agent picker. The selected agent id
 // lives in the shared agent context (useAgent); Layout renders nav + the routed <Outlet/>.
 import { NavLink, Outlet } from 'react-router'
+import { api } from '../api/client'
 import { AgentPicker } from './AgentPicker'
+
+async function logout() {
+  try {
+    await api.logout()
+  } finally {
+    window.location.reload() // simplest: reload → App re-checks /api/me → login screen
+  }
+}
 
 const NAV = [
   { to: '', label: 'Overview' },
@@ -24,6 +33,9 @@ export function Layout() {
       <header className="app-header">
         <h1>my-project-manager · agent dashboard</h1>
         <AgentPicker />
+        <button type="button" className="logout-btn" onClick={() => void logout()}>
+          Đăng xuất
+        </button>
       </header>
       <nav className="app-nav">
         {NAV.map((n) => (

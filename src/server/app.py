@@ -1,15 +1,13 @@
-"""FastAPI app factory for the multi-agent web service (v2 M2-P6).
+"""FastAPI app factory for the multi-agent web service (v2 M2-P6; auth added v6 M16).
 
-SECURITY POSTURE (M2 sandbox): this service is LOCALHOST-ONLY and has NO AUTH. It can
-trigger real report runs (which write to Slack/Confluence through the per-agent Action
-Gateway), so it must NOT be exposed beyond 127.0.0.1 without adding authentication —
-that is deliberately deferred. The guardrail still applies per-agent (Lớp A/B + audit +
-budget + dedup), DRY_RUN default still holds, and external audience still routes through
-Lớp B approval.
+SECURITY POSTURE: localhost dev runs with NO auth (byte-identical to pre-M16). For a real
+deployment, set `WEB_AUTH_PASSWORD_HASH` + `WEB_SESSION_SECRET` (v6 M16) — then every route
+except /health + login requires a signed session, and binding to a non-loopback host with
+auth OFF is refused at startup (`auth.assert_bind_safe`). The per-agent guardrail (Lớp A/B +
+audit + budget + dedup) applies regardless; auth protects the web's Lớp B approve surface.
 
 `create_app()` builds the app; `app = create_app()` is the module-level ASGI target for
-both `uvicorn src.server.app:app` and FastAPI's TestClient. The uvicorn `__main__` runner
-(binding 127.0.0.1) is added in Slice 3.
+both `uvicorn src.server.app:app` and FastAPI's TestClient.
 """
 
 from __future__ import annotations
@@ -20,6 +18,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from src.server import (
+    auth,
     routes_agents,
     routes_agents_admin,
     routes_ops_chat,
@@ -43,6 +42,30 @@ def create_app() -> FastAPI:
         version="0.0.0",
     )
     app.state.run_manager = RunManager()
+    # v6 M16: single-user session auth. SessionMiddleware signs the cookie; AuthMiddleware
+    # gates every non-public route. Both are no-ops when auth is disabled (no password hash
+    # configured) → byte-identical to pre-M16 on localhost dev. add_middleware runs middleware
+    # in REVERSE add-order, so AuthMiddleware must be added FIRST (runs last, inside) and
+    # SessionMiddleware SECOND (runs first, outside) — otherwise AuthMiddleware would read the
+    # session before SessionMiddleware populated it.
+    import os
+
+    from starlette.middleware.sessions import SessionMiddleware
+
+    # Weak-secret refusal at APP-BUILD time (not just in main()): the docstring advertises
+    # `uvicorn src.server.app:app` as a target, which skips main()'s assert_bind_safe — so
+    # the "auth ON but no real session secret ⇒ forgeable cookie" check must also fire here,
+    # on every entry path (review M1). auth OFF ⇒ the dev fallback secret is fine.
+    auth.assert_session_secret_safe()
+    app.add_middleware(auth.AuthMiddleware)
+    app.add_middleware(
+        SessionMiddleware,
+        secret_key=os.environ.get("WEB_SESSION_SECRET") or auth._DEV_SESSION_SECRET,
+        https_only=False,  # LAN/localhost HTTP; TLS is a reverse-proxy concern (see docs)
+        same_site="lax",
+    )
+    app.include_router(auth.router)
+
     # API routers first so /api/* and the /static mount keep precedence over the SPA
     # catch-all mounted LAST below.
     app.include_router(routes_agents.router)
@@ -99,18 +122,27 @@ def _register_spa_catchall(app: FastAPI, spa_dir: Path) -> None:
 app = create_app()
 
 
-def main() -> None:
-    """Run the service with uvicorn, bound to 127.0.0.1 ONLY (localhost sandbox).
+@app.get("/health")
+def health() -> dict:
+    """Liveness probe — public (no auth), so install.sh / launchd can check the service."""
+    return {"ok": True}
 
-    Port from the `PORT` env var (default 8765). NEVER bind 0.0.0.0 here — this
-    service has no auth and can trigger real writes; exposing it needs auth first.
+
+def main() -> None:
+    """Run the service with uvicorn.
+
+    Host from `BIND_HOST` (default 127.0.0.1), port from `PORT` (default 8765). Binding to a
+    non-loopback host (LAN) is REFUSED unless web auth is enabled (`assert_bind_safe`, R3):
+    an unauthenticated dashboard on the network could approve Lớp B actions.
     """
     import os
 
     import uvicorn
 
+    host = os.environ.get("BIND_HOST", "127.0.0.1")
+    auth.assert_bind_safe(host)
     port = int(os.environ.get("PORT", "8765"))
-    uvicorn.run(app, host="127.0.0.1", port=port)
+    uvicorn.run(app, host=host, port=port)
 
 
 if __name__ == "__main__":

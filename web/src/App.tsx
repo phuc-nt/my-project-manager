@@ -1,8 +1,11 @@
 // Router root. browser-router at `/` — the SPA is served at the root by FastAPI's
 // StaticFiles(html=True) mount (S5); client routes deep-link via the index.html catch-all.
+// v6 M16: on load, /api/me decides login vs dashboard; a 401 anywhere flips back to login.
+import { useCallback, useEffect, useState } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router'
 import './App.css'
 import { AgentProvider } from './agent-context'
+import { api, setUnauthorizedHandler } from './api/client'
 import { Layout } from './components/Layout'
 import { Approvals } from './views/Approvals'
 import { Chat } from './views/Chat'
@@ -10,6 +13,7 @@ import { Config } from './views/Config'
 import { Cost } from './views/Cost'
 import { CreateAgent } from './views/CreateAgent'
 import { Guardrail } from './views/Guardrail'
+import { Login } from './views/Login'
 import { MemoryAutomation } from './views/MemoryAuto'
 import { Overview } from './views/Overview'
 import { Tasks } from './views/Tasks'
@@ -18,6 +22,24 @@ import { Timeline } from './views/Timeline'
 import { Trigger } from './views/Trigger'
 
 function App() {
+  // null = still checking; true/false = authenticated or not.
+  const [authed, setAuthed] = useState<boolean | null>(null)
+
+  const check = useCallback(() => {
+    api
+      .getMe()
+      .then((m) => setAuthed(m.authenticated))
+      .catch(() => setAuthed(false))
+  }, [])
+
+  useEffect(() => {
+    check()
+    setUnauthorizedHandler(() => setAuthed(false)) // any 401 → back to login
+  }, [check])
+
+  if (authed === null) return <p style={{ padding: '2rem' }}>Đang tải…</p>
+  if (!authed) return <Login onLoggedIn={check} />
+
   return (
     <BrowserRouter>
       <AgentProvider>

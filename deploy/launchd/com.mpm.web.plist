@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.mpm.web</string>
+    <!-- v6 M16: the web dashboard service (FastAPI + served SPA, one process). Reads
+         WEB_AUTH_PASSWORD_HASH / WEB_SESSION_SECRET / BIND_HOST / PORT from .env (loaded
+         by the app). Binding a non-loopback BIND_HOST with auth OFF is refused at startup
+         (assert_bind_safe), so a LAN deploy must have auth configured first. -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/uv</string>
+        <string>run</string>
+        <string>python</string>
+        <string>-m</string>
+        <string>src.server.app</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>__REPO_DIR__</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>__REPO_DIR__/.data/web.log</string>
+    <key>StandardErrorPath</key>
+    <string>__REPO_DIR__/.data/web.err.log</string>
+</dict>
+</plist>

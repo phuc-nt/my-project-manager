@@ -40,6 +40,11 @@ def _flag_value(args: list[str], flag: str) -> str | None:
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     args = argv if argv is not None else sys.argv[1:]
+    # v6 M16: `mpm web hash-password` — generate a bcrypt hash for WEB_AUTH_PASSWORD_HASH.
+    if len(args) >= 2 and args[0] == "web":
+        from src.entrypoints.mpm_web_cmd import run_web
+
+        return run_web(args[1], args[2:])
     if len(args) < 2 or args[0] != "agent":
         print(_USAGE, file=sys.stderr)
         return 2

@@ -33,8 +33,19 @@ class ApiError extends Error {
   }
 }
 
+// v6 M16: when any call returns 401 the session expired/absent — notify the app shell so it
+// can show the login screen instead of a broken view. A view can register one handler.
+let onUnauthorized: (() => void) | null = null
+export function setUnauthorizedHandler(fn: () => void) {
+  onUnauthorized = fn
+}
+
 async function request<T>(path: string): Promise<T> {
   const res = await fetch(path, { headers: { Accept: 'application/json' } })
+  if (res.status === 401) {
+    onUnauthorized?.()
+    throw new ApiError(401, 'chưa đăng nhập')
+  }
   if (!res.ok) {
     throw new ApiError(res.status, `${res.status} ${res.statusText} for ${path}`)
   }
@@ -51,6 +62,10 @@ async function mutate<T>(path: string, method: 'POST' | 'PATCH' | 'DELETE', body
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
   })
+  if (res.status === 401 && path !== '/api/login') {
+    onUnauthorized?.()
+    throw new ApiError(401, 'chưa đăng nhập')
+  }
   if (!res.ok) {
     // surface the backend's exact detail (e.g. the config validation message)
     let detail = `${res.status} ${res.statusText}`
@@ -104,6 +119,11 @@ export const api = {
   getTasks: () => request<TasksPayload>('/api/tasks'),
   cancelTask: (agentId: string, taskId: number) =>
     post<{ status: string }>(`/api/tasks/${encodeURIComponent(agentId)}/${taskId}/cancel`),
+  // v6 M16: auth.
+  getMe: () => request<{ authenticated: boolean; user?: string; auth?: string }>('/api/me'),
+  login: (username: string, password: string) =>
+    post<{ ok: boolean }>('/api/login', { username, password }),
+  logout: () => post<{ ok: boolean }>('/api/logout'),
 }
 
 export { ApiError }

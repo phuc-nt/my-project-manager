@@ -30,6 +30,60 @@ The wizard validates everything before saving. On completion, the agent appears 
 
 > **Chat-command (M12):** if the agent's pack ships a command catalog (pm: `create_issue`), a mention like "tạo ticket: …" is queued for HUMAN approval (never executed directly); approve it at /approvals or `mpm agent approve <id> <n>` and the action runs for real.
 
+> **Telegram identity (M13):** each agent can have its OWN Telegram bot (own name + avatar — a real separate identity, unlike the shared Slack browser account). See §Telegram bot per agent below.
+
+---
+
+## Telegram Bot per Agent (New in M13)
+
+Give an agent its own Telegram identity in ~5 minutes. Through its bot the agent (1) answers questions with real data (like M11), (2) takes commands that queue for your approval (like M12), and (3) delivers its scheduled reports as messages.
+
+### 1. Create the bot (BotFather)
+
+1. In Telegram, open **@BotFather** → send `/newbot`.
+2. Name it after the agent (e.g. `Acme PM Agent`), pick a username (e.g. `acme_pm_bot`).
+3. Copy the token BotFather returns (`123456:ABC-...`).
+4. Optional but recommended: `/setuserpic` to give the agent a face, `/setdescription` for its role.
+5. **If the bot will sit in a GROUP** (not just DMs): send BotFather `/setprivacy` → select the bot → **Disable**. New bots ship with privacy mode ON, which hides ordinary group messages from the bot — with it on, `@<agent-id>` mentions in a group NEVER reach the agent and the feature silently does nothing. If the bot was already in the group before you disabled privacy, **remove it and re-add it** (Telegram caches the old setting per group). DMs are unaffected either way.
+
+### 2. Get your chat id
+
+Message your new bot once (anything), then run:
+
+```bash
+curl -s "https://api.telegram.org/bot<TOKEN>/getUpdates" | python3 -m json.tool | grep -A1 '"chat"'
+```
+
+The `"id"` number is your chat id (a DM id is positive; a group id is negative).
+
+### 3. Wire it into the profile
+
+`.env` (the token value NEVER goes in profile.yaml):
+
+```bash
+ACME_TELEGRAM_BOT_TOKEN=123456:ABC-...
+```
+
+`profiles/acme-web/profile.yaml`:
+
+```yaml
+telegram:
+  bot_token_env: ACME_TELEGRAM_BOT_TOKEN
+  chat_ids: ["123456789"]      # DM and/or group ids the bot may talk in — an allowlist
+  poll_minutes: 2
+```
+
+`chat_ids` is enforced BOTH ways: messages from any other chat are ignored, and the bot refuses to send anywhere else — even if dragged into a stranger's group, it can neither read nor speak there.
+
+### 4. Use it
+
+- **DM the bot** → every message is answered (no @mention needed).
+- **In a group** → address it with `@<agent-id>` (e.g. `@acme-web tiến độ sao rồi?`).
+- **Commands** (pm pack): "tạo ticket giúp mình: …" → the bot replies "⏳ chờ duyệt #N" — nothing happens until you approve at /approvals or `mpm agent approve <id> <N>`.
+- **Reports**: while the coordinating service runs, scheduled reports for the **pm-pack kinds** (daily/weekly/okr/resource) are ALSO sent to every allowlisted chat — internal audience only. (hr/admin pack graphs don't wire extra channels yet, same as email.)
+
+Every outbound message passes the Action Gateway (audit, dry-run, dedup, kill switch) exactly like Slack posts.
+
 ---
 
 ## CLI Method (Traditional)

@@ -256,14 +256,18 @@ def _post_reply(gw, loaded, mention: dict, channel: str, reply: str) -> GatewayR
             rationale=f"ask-agent reply to telegram message {mention['ts']}",
         )
 
-    # Thread root: when the mention is itself a thread reply, Slack wants the PARENT ts
-    # as thread_ts — fall back to the mention's own ts for a top-level message.
-    thread_root = str(mention.get("thread_ts") or mention["ts"])
+    # Thread root: when the mention is itself a thread reply, Slack wants the PARENT ts as
+    # thread_ts — fall back to the mention's own ts for a top-level message. A SYNTHETIC
+    # mention (a qa-task, v6 M15b) has no real Slack ts, so it posts TOP-LEVEL (no thread_ts)
+    # — passing a fabricated ts as thread_ts would make Slack reject/misroute the reply.
+    args = {"channel": channel, "text": reply}
+    if not mention.get("synthetic"):
+        args["thread_ts"] = str(mention.get("thread_ts") or mention["ts"])
     action = {
         "type": "mcp_tool",
         "server": "slack",
         "tool": "post_message",
-        "args": {"channel": channel, "text": reply, "thread_ts": thread_root},
+        "args": args,
         "dedup_hint": _reply_dedup_hint(channel, str(mention["ts"])),
     }
     return gw.execute(

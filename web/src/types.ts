@@ -220,3 +220,29 @@ export interface OpsChatReply {
   reply: string
   agent_id: string
 }
+
+// v6 M15b: assigned-tasks board.
+export interface TaskHistoryEntry {
+  ts: string
+  summary: string
+  cost_usd: number | null
+}
+
+export interface AssignedTask {
+  id: number
+  kind: 'watch' | 'report' | 'qa'
+  params: Record<string, unknown>
+  status: 'open' | 'running' | 'done' | 'cancelled' | 'stalled'
+  created_at: string
+  assigned_by: string
+  history: TaskHistoryEntry[]
+}
+
+export interface AgentTasks {
+  agent_id: string
+  tasks: AssignedTask[]
+}
+
+export interface TasksPayload {
+  agents: AgentTasks[]
+}

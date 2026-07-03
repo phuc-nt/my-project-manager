@@ -6,6 +6,7 @@ import { AgentPicker } from './AgentPicker'
 const NAV = [
   { to: '', label: 'Overview' },
   { to: 'chat', label: 'Trợ lý' },
+  { to: 'tasks', label: 'Việc đã giao' },
   { to: 'timeline', label: 'Timeline' },
   { to: 'cost', label: 'Cost' },
   { to: 'memory', label: 'Memory & Automation' },

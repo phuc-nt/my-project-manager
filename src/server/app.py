@@ -25,6 +25,7 @@ from src.server import (
     routes_ops_chat,
     routes_ops_json,
     routes_runs,
+    routes_tasks,
     routes_visualize,
 )
 from src.server.run_manager import RunManager
@@ -54,6 +55,8 @@ def create_app() -> FastAPI:
     app.include_router(routes_agents_admin.router)
     # v6 M14b: CEO chat-ops web endpoint (same engine as the Telegram DM path).
     app.include_router(routes_ops_chat.router)
+    # v6 M15b: assigned-tasks board (view + cancel; assigning stays on the chat path).
+    app.include_router(routes_tasks.router)
     # Legacy /static assets (kept for any non-SPA asset; the SPA's own assets live under
     # static/app and are served by the SPA mount below).
     app.mount(

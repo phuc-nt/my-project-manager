@@ -19,6 +19,7 @@ import type {
   OpsChatReply,
   PacksPayload,
   RunsPayload,
+  TasksPayload,
   TeamAlertsPayload,
   TriggerResult,
 } from '../types'
@@ -99,6 +100,10 @@ export const api = {
   // v6 M14b: CEO chat-ops — same engine + shared conversation as the Telegram DM path.
   opsChatAvailable: () => request<OpsChatAvailable>('/api/ops/chat/available'),
   opsChat: (message: string) => post<OpsChatReply>('/api/ops/chat', { message }),
+  // v6 M15b: assigned-tasks board.
+  getTasks: () => request<TasksPayload>('/api/tasks'),
+  cancelTask: (agentId: string, taskId: number) =>
+    post<{ status: string }>(`/api/tasks/${encodeURIComponent(agentId)}/${taskId}/cancel`),
 }
 
 export { ApiError }

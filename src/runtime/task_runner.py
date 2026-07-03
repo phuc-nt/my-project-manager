@@ -13,7 +13,9 @@ Watermark discipline mirrors the inbox:
   consecutive ones ⇒ `stalled` + a notice (surfaced, not silently looped).
 - A watch whose stop condition fires ⇒ `done` + a final notice.
 
-Only `watch` tasks exist in M15a; report/qa dispatch is added in M15b via the same loop.
+Task kinds (v6): `watch` (M15a — track a PR to close), `report`/`qa` (M15b — recurring work
+until deadline/cancel). All flow through the same loop; only `_run_one`'s per-kind dispatch
+differs.
 """
 
 from __future__ import annotations
@@ -86,10 +88,16 @@ def run_tasks(loaded: LoadedProfile, settings: Any, *, now: datetime | None = No
 
 
 def _run_one(task: Task, loaded, gateway, store: TaskStore, *, now: datetime | None) -> bool:
-    """Check one task; post reminder/done via the gateway. Returns True if it posted."""
-    if task.kind != "watch":
-        logger.warning("tasks %s: unknown task kind %r (skipped)", loaded.profile_id, task.kind)
-        return False
+    """Run one task tick; post its notice via the gateway. Returns True if it posted."""
+    if task.kind == "watch":
+        return _run_watch(task, loaded, gateway, store, now=now)
+    if task.kind in ("report", "qa"):
+        return _run_recurring(task, loaded, gateway, store, now=now)
+    logger.warning("tasks %s: unknown task kind %r (skipped)", loaded.profile_id, task.kind)
+    return False
+
+
+def _run_watch(task: Task, loaded, gateway, store: TaskStore, *, now: datetime | None) -> bool:
     from src.adapters.cli_adapter import run_gh
     from src.runtime.watch_task import check_pr_watch, watch_reminder_dedup
 
@@ -111,9 +119,56 @@ def _run_one(task: Task, loaded, gateway, store: TaskStore, *, now: datetime | N
         return True
     if result.remind:
         store.append_history(task.id, HistoryEntry(_now_iso(now), result.reason))
-        posted = _post(gateway, loaded, result.reason,
-                       dedup=watch_reminder_dedup(task.id))
+        posted = _post(gateway, loaded, result.reason, dedup=watch_reminder_dedup(task.id))
         return posted
+    return False
+
+
+def _run_recurring(task: Task, loaded, gateway, store: TaskStore, *, now: datetime | None) -> bool:
+    """report-task/qa-task: recurring work with no natural end — run until deadline/cancel.
+
+    The deadline is a CODE stop (like watch's), so an open-ended task cannot run forever
+    (R1). report-task delivers through the existing report graph; qa-task through the M11
+    answer path. Both cost tokens, tracked into history."""
+    from src.runtime.recurring_task import run_qa_task, run_report_task
+    from src.runtime.watch_task import DEFAULT_DEADLINE_DAYS, _deadline_passed
+
+    deadline_days = int(task.params.get("deadline_days") or DEFAULT_DEADLINE_DAYS)
+    if _deadline_passed(task.created_at, deadline_days, now=now):
+        store.set_status(task.id, "done")
+        msg = f"Việc định kỳ #{task.id} ({task.kind}) hết hạn sau {deadline_days} ngày, mình dừng."
+        store.append_history(task.id, HistoryEntry(_now_iso(now), msg))
+        _post(gateway, loaded, f"✅ {msg}", dedup=f"recurring-task-done:{task.id}")
+        return True
+
+    # Per-day gate (review M1): the service fires `tasks` HOURLY, but a report/qa task should
+    # run at most ONCE per calendar day — otherwise report-task re-composes an LLM report ~24×
+    # a day and only the delivery dedup saves the post. If this task already ran today (a
+    # history entry stamped today), skip the expensive recompute entirely.
+    if _ran_today(task, now=now):
+        return False
+
+    if task.kind == "report":
+        summary, cost = run_report_task(task.params, loaded, loaded.settings)
+    else:  # qa
+        summary, cost = run_qa_task(task.params, loaded, loaded.settings, gateway=gateway)
+    store.set_fail_streak(task.id, 0)
+    store.append_history(task.id, HistoryEntry(_now_iso(now), summary, cost))
+    # report-task delivers inside the graph; qa-task posts inside run_qa_task — both already
+    # went through the gateway, so we don't post again here (return True = work happened).
+    return True
+
+
+def _ran_today(task: Task, *, now: datetime | None) -> bool:
+    """True if this task already has a history entry stamped on today's UTC date — the
+    per-day cadence gate for recurring tasks. Failure/deadline entries count too: if the
+    task did anything today, it should not run its expensive body again until tomorrow."""
+    from datetime import UTC
+
+    today = (now or datetime.now(UTC)).date().isoformat()
+    for entry in task.history:
+        if str(entry.ts).startswith(today):
+            return True
     return False
 
 

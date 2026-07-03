@@ -188,6 +188,61 @@ def _preview_watch_pr(slots: dict[str, str]) -> str:
     return "\n".join(lines)
 
 
+def _run_report_task(slots: dict[str, str]) -> str:
+    """Assign a report-task: agent runs a report kind on its own cadence until cancelled."""
+    from src.profile.loader import load_profile
+    from src.runtime.agent_paths import agent_data_dir
+
+    agent_id = slots["agent_id"]
+    kind = slots["kind"]
+    try:
+        loaded = load_profile(agent_id, data_dir=agent_data_dir(agent_id))
+    except (FileNotFoundError, RuntimeError):
+        raise ValueError(f"không tìm thấy agent '{agent_id}'") from None
+    from src.packs.registry import PackRegistry
+
+    pack = PackRegistry().load(loaded.domain)
+    if kind not in pack.report_kinds:
+        raise ValueError(f"agent '{agent_id}' (domain {loaded.domain}) không có báo cáo "
+                         f"'{kind}' (có: {', '.join(sorted(pack.report_kinds))})")
+    store = _task_store_for(agent_id)
+    try:
+        task_id = store.create(kind="report", params={"kind": kind, "audience": "internal"},
+                               schedule="0 8 * * *", assigned_by="ceo-chat")
+    except RuntimeError as exc:
+        raise ValueError(str(exc)) from None
+    finally:
+        store.close()
+    return f"Đã giao việc #{task_id} cho '{agent_id}': chạy báo cáo '{kind}' định kỳ."
+
+
+def _preview_report_task(slots: dict[str, str]) -> str:
+    return (f"Mình sẽ giao việc định kỳ cho '{slots['agent_id']}': chạy báo cáo "
+            f"'{slots.get('kind')}' mỗi ngày (tối đa 14 ngày).\n"
+            "Xác nhận? (trả lời: xác nhận / huỷ)")
+
+
+def _run_qa_task(slots: dict[str, str]) -> str:
+    """Assign a qa-task: agent answers a fixed recurring question on cadence."""
+    store = _task_store_for(slots["agent_id"])
+    try:
+        question = str(slots["question"]).strip()
+        task_id = store.create(kind="qa", params={"question": question},
+                               schedule="0 8 * * *", assigned_by="ceo-chat")
+    except RuntimeError as exc:
+        raise ValueError(str(exc)) from None
+    finally:
+        store.close()
+    return (f"Đã giao việc #{task_id} cho '{slots['agent_id']}': trả lời định kỳ câu "
+            f"'{question[:60]}'.")
+
+
+def _preview_qa_task(slots: dict[str, str]) -> str:
+    return (f"Mình sẽ giao việc định kỳ cho '{slots['agent_id']}': trả lời câu "
+            f"'{slots.get('question')}' mỗi ngày (tối đa 14 ngày).\n"
+            "Xác nhận? (trả lời: xác nhận / huỷ)")
+
+
 def _run_list_tasks(slots: dict[str, str]) -> str:
     """Read-only: list an agent's open assigned tasks."""
     store = _task_store_for(slots["agent_id"])
@@ -199,9 +254,19 @@ def _run_list_tasks(slots: dict[str, str]) -> str:
         return f"Agent '{slots['agent_id']}' hiện không có việc nào đang mở."
     lines = [f"Việc đang mở của '{slots['agent_id']}':"]
     for t in tasks:
-        target = f"PR #{t.params.get('number')}" if t.params.get("target") == "pr" else t.kind
-        lines.append(f"- #{t.id}: {t.kind} {target} ({t.status})")
+        lines.append(f"- #{t.id}: {_task_summary(t)} ({t.status})")
     return "\n".join(lines)
+
+
+def _task_summary(task) -> str:
+    """One-line what-this-task-does, per kind."""
+    if task.kind == "watch":
+        return f"theo dõi PR #{task.params.get('number')}"
+    if task.kind == "report":
+        return f"báo cáo định kỳ '{task.params.get('kind')}'"
+    if task.kind == "qa":
+        return f"trả lời định kỳ '{str(task.params.get('question') or '')[:40]}'"
+    return task.kind
 
 
 def _run_cancel_task(slots: dict[str, str]) -> str:
@@ -297,6 +362,31 @@ OPS_COMMANDS: dict[str, dict] = {
         },
         "run": _run_watch_pr,
         "preview": _preview_watch_pr,
+    },
+    "report_task": {
+        "description": "Giao việc chạy một báo cáo định kỳ (vd daily/headcount) mỗi ngày",
+        "readonly": False,
+        "slots": {
+            "agent_id": {"prompt": "Giao cho agent nào?", "required": True,
+                         "max_len": 40, "lower": True},
+            "kind": {"prompt": "Loại báo cáo (vd daily, weekly, headcount)?",
+                     "required": True, "max_len": 30, "lower": True,
+                     "hint": "một mã báo cáo viết thường"},
+        },
+        "run": _run_report_task,
+        "preview": _preview_report_task,
+    },
+    "qa_task": {
+        "description": "Giao việc trả lời một câu hỏi định kỳ mỗi ngày",
+        "readonly": False,
+        "slots": {
+            "agent_id": {"prompt": "Giao cho agent nào?", "required": True,
+                         "max_len": 40, "lower": True},
+            "question": {"prompt": "Câu hỏi cần trả lời định kỳ?", "required": True,
+                         "max_len": 300},
+        },
+        "run": _run_qa_task,
+        "preview": _preview_qa_task,
     },
     "list_tasks": {
         "description": "Xem các việc đang mở của một agent",

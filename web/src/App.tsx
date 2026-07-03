@@ -12,6 +12,7 @@ import { CreateAgent } from './views/CreateAgent'
 import { Guardrail } from './views/Guardrail'
 import { MemoryAutomation } from './views/MemoryAuto'
 import { Overview } from './views/Overview'
+import { Tasks } from './views/Tasks'
 import { Team } from './views/Team'
 import { Timeline } from './views/Timeline'
 import { Trigger } from './views/Trigger'
@@ -33,6 +34,7 @@ function App() {
             <Route path="team" element={<Team />} />
             <Route path="create" element={<CreateAgent />} />
             <Route path="chat" element={<Chat />} />
+            <Route path="tasks" element={<Tasks />} />
           </Route>
         </Routes>
       </AgentProvider>

@@ -208,3 +208,15 @@ export interface TeamAlert {
 export interface TeamAlertsPayload {
   alerts: TeamAlert[]
 }
+
+// v6 M14b: CEO chat-ops web endpoint.
+export interface OpsChatAvailable {
+  available: boolean
+  agent_id?: string
+  reason?: string
+}
+
+export interface OpsChatReply {
+  reply: string
+  agent_id: string
+}

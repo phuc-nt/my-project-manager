@@ -53,3 +53,15 @@ button:disabled { cursor: default; opacity: 0.6; }
 .health-dot-ok { background: #1e7e34; }
 .health-dot-fail { background: #b00; }
 .health-detail { margin-left: 1rem; }
+
+/* v6 M14b: CEO chat-ops box */
+.ops-chat-hint { color: #666; font-size: 0.9rem; margin: 0.25rem 0 0.75rem; }
+.ops-chat-log { border: 1px solid #ddd; border-radius: 6px; padding: 0.75rem; min-height: 240px; max-height: 55vh; overflow-y: auto; background: #fafafa; }
+.ops-chat-empty { color: #999; font-style: italic; }
+.ops-chat-turn { margin-bottom: 0.75rem; }
+.ops-chat-who { display: block; font-size: 0.75rem; font-weight: 600; color: #888; margin-bottom: 0.15rem; }
+.ops-chat-ceo .ops-chat-text { background: #1a1a1a; color: #fff; }
+.ops-chat-agent .ops-chat-text { background: #fff; border: 1px solid #ddd; }
+.ops-chat-text { margin: 0; padding: 0.5rem 0.75rem; border-radius: 6px; white-space: pre-wrap; font-family: inherit; font-size: 0.95rem; }
+.ops-chat-input { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+.ops-chat-input input { flex: 1; padding: 0.5rem 0.75rem; border: 1px solid #ccc; border-radius: 6px; }

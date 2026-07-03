@@ -22,6 +22,7 @@ from fastapi.staticfiles import StaticFiles
 from src.server import (
     routes_agents,
     routes_agents_admin,
+    routes_ops_chat,
     routes_ops_json,
     routes_runs,
     routes_visualize,
@@ -51,6 +52,8 @@ def create_app() -> FastAPI:
     app.include_router(routes_ops_json.router)
     # M7: agent admin (packs list / create wizard / lifecycle / integration health).
     app.include_router(routes_agents_admin.router)
+    # v6 M14b: CEO chat-ops web endpoint (same engine as the Telegram DM path).
+    app.include_router(routes_ops_chat.router)
     # Legacy /static assets (kept for any non-SPA asset; the SPA's own assets live under
     # static/app and are served by the SPA mount below).
     app.mount(

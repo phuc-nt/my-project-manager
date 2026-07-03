@@ -15,6 +15,8 @@ import type {
   EnabledResult,
   IntegrationHealthPayload,
   MemoryPayload,
+  OpsChatAvailable,
+  OpsChatReply,
   PacksPayload,
   RunsPayload,
   TeamAlertsPayload,
@@ -94,6 +96,9 @@ export const api = {
   deleteAgent: (id: string) => mutate<DeleteAgentResult>(`/api/agents/${id}`, 'DELETE'),
   getIntegrationHealth: () => request<IntegrationHealthPayload>('/api/health/integrations'),
   getTeamAlerts: () => request<TeamAlertsPayload>('/api/team/alerts'),
+  // v6 M14b: CEO chat-ops — same engine + shared conversation as the Telegram DM path.
+  opsChatAvailable: () => request<OpsChatAvailable>('/api/ops/chat/available'),
+  opsChat: (message: string) => post<OpsChatReply>('/api/ops/chat', { message }),
 }
 
 export { ApiError }

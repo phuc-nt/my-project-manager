@@ -5,6 +5,7 @@ import './App.css'
 import { AgentProvider } from './agent-context'
 import { Layout } from './components/Layout'
 import { Approvals } from './views/Approvals'
+import { Chat } from './views/Chat'
 import { Config } from './views/Config'
 import { Cost } from './views/Cost'
 import { CreateAgent } from './views/CreateAgent'
@@ -31,6 +32,7 @@ function App() {
             <Route path="trigger" element={<Trigger />} />
             <Route path="team" element={<Team />} />
             <Route path="create" element={<CreateAgent />} />
+            <Route path="chat" element={<Chat />} />
           </Route>
         </Routes>
       </AgentProvider>

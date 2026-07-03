@@ -235,6 +235,7 @@ def _build_telegram_mapping(yaml_doc: dict[str, Any]) -> dict[str, Any] | None:
         "bot_token_env": tg.get("bot_token_env"),
         "chat_ids": tg.get("chat_ids"),
         "poll_minutes": tg.get("poll_minutes"),
+        "ops_operator_id": tg.get("ops_operator_id"),
     }
 
 

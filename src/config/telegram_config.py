@@ -23,3 +23,7 @@ class TelegramConfig:
     bot_token_env: str  # env var NAME holding the BotFather token (value in .env only)
     chat_ids: tuple[str, ...]  # allowlisted chat IDs (DM and/or group) — never empty
     poll_minutes: int = 5  # inbox poll cadence (folded into the `inbox` pseudo-kind)
+    # v6 M14: the Telegram user id allowed to issue CEO chat-ops commands to this agent
+    # (only meaningful on an admin-domain agent). Empty ⇒ no operator ⇒ this agent takes
+    # no ops commands, only Q&A. A message from any other user is Q&A/refusal, never ops.
+    ops_operator_id: str = ""

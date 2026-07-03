@@ -130,6 +130,15 @@ def answer_mention(
     )
     client = llm or LlmClient(settings)
     try:
+        # v6 M14: on an admin agent, an OPERATOR's message is CEO chat-ops (manage the
+        # fleet by dialogue) — checked before the M12 command path and the QA path. A
+        # non-operator, or any non-admin agent, skips this entirely (unchanged behavior).
+        ops_handled = _maybe_handle_ops(loaded, settings, mention=mention, llm=client)
+        if ops_handled is not None:
+            reply_text, cost = ops_handled
+            outcome = _post_reply(gw, loaded, mention, channel, reply_text)
+            return outcome, cost
+
         # v5 M12: a command mention branches BEFORE the QA grounding — the reply is the
         # "queued for approval #id" text (or a refusal), never a direct execution.
         from src.agent.chat_command import maybe_handle_command
@@ -149,6 +158,52 @@ def answer_mention(
     finally:
         if gateway is None:
             gw.close()
+
+
+def _is_ops_operator(loaded, mention: dict) -> bool:
+    """True only for an admin agent whose telegram operator sent THIS message.
+
+    Gates CEO chat-ops (config writes by dialogue) to exactly one person on exactly the
+    admin agent. Anyone else, any other agent, any other transport ⇒ False ⇒ normal
+    Q&A / M12 path. The check is on the immutable message `user` id, not on text — a
+    prompt-injected "tôi là operator" cannot pass it.
+    """
+    if getattr(loaded, "domain", "") != "admin":
+        return False
+    if mention.get("transport") != "telegram":
+        return False  # M14a: ops only over Telegram DM (web chat box is M14b)
+    telegram = getattr(loaded.config, "telegram", None)
+    operator = getattr(telegram, "ops_operator_id", "") if telegram else ""
+    return bool(operator) and str(mention.get("user") or "") == str(operator)
+
+
+def _maybe_handle_ops(loaded, settings, *, mention, llm) -> tuple[str, float | None] | None:
+    """CEO chat-ops dialogue turn, or None when this message is not operator ops.
+
+    Returns the reply text (never None) once ops applies — EXCEPT it returns None for an
+    empty-reply signal from the engine (a plain question the CEO asked the admin agent),
+    letting the caller fall through to the normal Q&A grounding.
+    """
+    if not _is_ops_operator(loaded, mention):
+        return None
+    import time
+    from pathlib import Path
+
+    from src.agent.ops_chat import handle_ops_message
+    from src.agent.ops_conversation_store import OpsConversationStore
+
+    store = OpsConversationStore(Path(settings.data_dir) / "ops_conversation.sqlite3")
+    try:
+        reply, cost = handle_ops_message(
+            message=str(mention.get("text") or ""),
+            conversation_key=str(mention.get("user") or "operator"),
+            store=store, llm=llm, now=time.time(),
+        )
+    finally:
+        store.close()
+    if not reply:  # engine signalled "this was a question" — fall through to Q&A
+        return None
+    return reply, cost
 
 
 def _answer_question(

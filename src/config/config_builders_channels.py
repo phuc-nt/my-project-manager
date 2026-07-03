@@ -115,6 +115,7 @@ def build_telegram(d: dict[str, Any]) -> TelegramConfig | None:
         bot_token_env=str(tg.get("bot_token_env")).strip(),
         chat_ids=chat_ids,
         poll_minutes=poll,
+        ops_operator_id=str(tg.get("ops_operator_id") or "").strip(),
     )
 
 

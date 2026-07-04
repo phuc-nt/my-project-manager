@@ -14,7 +14,9 @@ import type {
   DeleteAgentResult,
   EnabledResult,
   IntegrationHealthPayload,
+  KnowledgePayload,
   MemoryPayload,
+  SkillsPayload,
   OpsChatAvailable,
   OpsChatReply,
   PacksPayload,
@@ -56,7 +58,15 @@ async function post<T>(path: string, body?: unknown): Promise<T> {
   return mutate<T>(path, 'POST', body)
 }
 
-async function mutate<T>(path: string, method: 'POST' | 'PATCH' | 'DELETE', body?: unknown): Promise<T> {
+async function put<T>(path: string, body?: unknown): Promise<T> {
+  return mutate<T>(path, 'PUT', body)
+}
+
+async function mutate<T>(
+  path: string,
+  method: 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+  body?: unknown,
+): Promise<T> {
   const res = await fetch(path, {
     method,
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -146,6 +156,20 @@ export const api = {
     post<{ chats: { id: string; name: string }[] }>(
       `/api/agents/${encodeURIComponent(agentId)}/telegram/updates`,
       { token },
+    ),
+  // v7 M18b: knowledge (SOUL/PROJECT) as a form ↔ markdown, + skills picker.
+  getKnowledge: (agentId: string, doc: 'soul' | 'project') =>
+    request<KnowledgePayload>(`/api/agents/${encodeURIComponent(agentId)}/knowledge/${doc}`),
+  putKnowledgeForm: (agentId: string, doc: 'soul' | 'project', fields: Record<string, string>) =>
+    put<{ ok: boolean }>(`/api/agents/${encodeURIComponent(agentId)}/knowledge/${doc}`, { fields }),
+  putKnowledgeRaw: (agentId: string, doc: 'soul' | 'project', raw: string) =>
+    put<{ ok: boolean }>(`/api/agents/${encodeURIComponent(agentId)}/knowledge/${doc}`, { raw }),
+  getSkills: (agentId: string) =>
+    request<SkillsPayload>(`/api/agents/${encodeURIComponent(agentId)}/skills`),
+  putSkills: (agentId: string, names: string[]) =>
+    put<{ ok: boolean; skills: string[] }>(
+      `/api/agents/${encodeURIComponent(agentId)}/skills`,
+      { names },
     ),
 }
 

@@ -125,6 +125,21 @@ export interface TriggerResult {
   thread_id: string
 }
 
+// --- knowledge form + skills picker (v7 M18b) ---
+
+// SOUL/PROJECT as a form: `fields` when the file is marker-parseable, else raw_mode=true
+// and the UI falls back to the raw markdown editor (never overwrites hand-written prose).
+export interface KnowledgePayload {
+  doc: 'soul' | 'project'
+  raw_mode: boolean
+  fields: Record<string, string>
+  raw: string
+}
+
+export interface SkillsPayload {
+  skills: { name: string; description: string; selected: boolean }[]
+}
+
 // --- admin payloads (v3 M7: create wizard, team lifecycle, integration health) ---
 
 export interface Pack {

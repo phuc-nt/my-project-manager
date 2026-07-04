@@ -6,8 +6,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { ApiError, api } from '../api/client'
 import type { AgentStatus, CostPayload, RunsPayload } from '../types'
+import { KnowledgeTab } from './AgentKnowledgeTab'
 
-type Tab = 'activity' | 'telegram'
+type Tab = 'activity' | 'telegram' | 'knowledge'
 
 export function AgentPage() {
   const { id = '' } = useParams()
@@ -56,9 +57,18 @@ export function AgentPage() {
         >
           Kênh Telegram
         </button>
+        <button
+          type="button"
+          className={tab === 'knowledge' ? 'tab-active' : undefined}
+          onClick={() => setTab('knowledge')}
+        >
+          Kiến thức
+        </button>
       </nav>
 
-      {tab === 'activity' ? <ActivityTab id={id} status={status} /> : <TelegramTab id={id} />}
+      {tab === 'activity' && <ActivityTab id={id} status={status} />}
+      {tab === 'telegram' && <TelegramTab id={id} />}
+      {tab === 'knowledge' && <KnowledgeTab id={id} />}
     </section>
   )
 }
@@ -194,3 +204,4 @@ function TelegramTab({ id }: { id: string }) {
     </div>
   )
 }
+

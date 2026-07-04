@@ -1,141 +1,141 @@
-"""Per-agent web writes for Agent Studio (v7 M18) — telegram bind (M18a) + knowledge/skills
-form (M18b). Session-auth-gated (these run AFTER setup, unlike the setup wizard).
+"""Per-agent knowledge + skills form for Agent Studio (v7 M18b). Session-auth-gated.
 
-M18a telegram bind: the wizard collects a bot token and this writes it to .env (under a
-whitelisted `<AGENT>_TELEGRAM_BOT_TOKEN` name) + adds the `telegram:` block to the agent's
-profile.yaml. Because `resolve_bot_token` reads os.environ at CALL time (not once at
-startup), we `load_dotenv(override=True)` the just-written key so the next poll/send sees it
-WITHOUT a restart — unlike the session secret (M16/M17), a per-call env read needs no bounce.
+SOUL/PROJECT are edited as a small FORM instead of raw markdown — the form fields round-trip
+through marker-wrapped markdown (src/agent/knowledge_template). A file hand-edited past the
+markers surfaces as raw_mode and is served/saved raw, never silently overwritten by the form.
 
-The token is validated against Telegram (`getMe`) before persisting, so a typo fails loudly
-in the wizard instead of silently producing a dead bot.
+The skills picker reads the domain's skill catalog + the `skills:` list in profile.yaml, and
+writes the selection back (only catalog names accepted).
 """
 
 from __future__ import annotations
 
-import re
-
 import yaml
-from fastapi import APIRouter, Body, HTTPException
+from fastapi import Body, HTTPException
 
-from src.server import env_writer
+from src.server.routes_agent_studio_shared import _AGENT_ID_RE, router
 
-router = APIRouter(prefix="/api/agents", tags=["agent-studio"])
-
-_AGENT_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
+_DOC_FILE = {"soul": "SOUL.md", "project": "PROJECT.md"}
 
 
-def _token_env_name(agent_id: str) -> str:
-    """The .env key holding this agent's bot token: `<AGENT>_TELEGRAM_BOT_TOKEN` (id upper,
-    non-alnum → underscore) — matches the whitelist pattern env_writer enforces."""
-    slug = re.sub(r"[^A-Z0-9]", "_", agent_id.upper())
-    return f"{slug}_TELEGRAM_BOT_TOKEN"
+def _require_agent(agent_id: str) -> None:
+    """404 if the agent has no profile.yaml — so the knowledge routes never materialize a
+    partial profile dir for an arbitrary (regex-valid) id (review M1). Mirrors the skills
+    routes, which 404 via load_profile."""
+    from src.profile.loader import _PROFILES_DIR
+
+    if not (_PROFILES_DIR / agent_id / "profile.yaml").exists():
+        raise HTTPException(status_code=404, detail=f"không tìm thấy agent {agent_id!r}")
 
 
-@router.post("/{agent_id}/telegram")
-def bind_telegram(
-    agent_id: str,
-    token: str = Body(..., embed=True),
-    chat_ids: list[str] = Body(default=[], embed=True),  # noqa: B008
-) -> dict:
-    """Validate + persist a Telegram bot for this agent, then make it live without a restart.
-
-    Steps: getMe(token) → write `<AGENT>_TELEGRAM_BOT_TOKEN` to .env (whitelisted) → add the
-    `telegram:` block to profile.yaml (validated by save_profile_yaml) → override-load the
-    key so the running process sees it.
-    """
-    if not _AGENT_ID_RE.match(agent_id):
-        raise HTTPException(status_code=400, detail=f"agent id không hợp lệ: {agent_id!r}")
-    token = str(token).strip()
-    if not token:
-        raise HTTPException(status_code=400, detail="token trống")
-    clean_chats = [c for c in chat_ids if str(c).strip()]
-    # Require at least one chat id BEFORE any write (review C1). The telegram config builder
-    # rejects an empty chat_ids at load, so persisting the token first then failing on the
-    # profile would leave a partial write (.env has the token, profile has no block). Failing
-    # early keeps the two in sync. The UI collects a chat id (typed or picked from getUpdates)
-    # before enabling "Gắn bot".
-    if not clean_chats:
-        raise HTTPException(
-            status_code=400,
-            detail="Cần ít nhất một chat id. Nhắn bot một câu rồi bấm 'Lấy chat gần đây', "
-                   "hoặc nhập chat id thủ công.",
-        )
-
-    # 1. Validate against Telegram — a bad token fails HERE, not silently at first poll.
-    from src.actions.telegram_write import api_call
-
-    try:
-        me = api_call(token, "getMe")
-    except Exception as exc:  # noqa: BLE001 — surface the Bot API error to the wizard
-        raise HTTPException(status_code=400, detail=f"token không hợp lệ: {exc}") from None
-    bot_username = me.get("username") if isinstance(me, dict) else None
-
-    # 2. Persist the token under the whitelisted per-agent key name.
-    env_name = _token_env_name(agent_id)
-    try:
-        env_writer.merge_env({env_name: token}, allow=frozenset(), allow_telegram_token=True)
-    except env_writer.DisallowedEnvKey as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from None
-
-    # 3. Add the telegram block to profile.yaml (validated on save).
-    _add_telegram_block(agent_id, env_name, [c for c in chat_ids if str(c).strip()])
-
-    # 4. Make the token live NOW (per-call env read → no restart needed, unlike M17 secret).
-    from dotenv import load_dotenv
-
-    from src.config.settings import REPO_ROOT
-
-    load_dotenv(REPO_ROOT / ".env", override=True)
-    return {"ok": True, "bot_username": bot_username, "env_name": env_name}
-
-
-def _add_telegram_block(agent_id: str, env_name: str, chat_ids: list[str]) -> None:
+@router.get("/{agent_id}/knowledge/{doc}")
+def get_knowledge(agent_id: str, doc: str) -> dict:
+    """Read SOUL/PROJECT as FORM FIELDS (parsed from markers) — or raw_mode when the file was
+    hand-edited past the markers (M18b two-way form)."""
+    if not _AGENT_ID_RE.match(agent_id) or doc not in _DOC_FILE:
+        raise HTTPException(status_code=400, detail="tham số không hợp lệ")
+    _require_agent(agent_id)
+    from src.agent.knowledge_template import parse
     from src.server import profile_editor
+
+    text = profile_editor.read_profile_files(agent_id).get(doc, "")
+    parsed = parse(doc, text)
+    return {"doc": doc, "raw_mode": parsed.raw_mode, "fields": parsed.fields, "raw": parsed.raw}
+
+
+@router.put("/{agent_id}/knowledge/{doc}")
+def put_knowledge(agent_id: str, doc: str, fields: dict | None = Body(default=None, embed=True),  # noqa: B008
+                  raw: str | None = Body(default=None, embed=True)) -> dict:
+    """Write SOUL/PROJECT. If `raw` is given (advanced editor), save it verbatim; otherwise
+    render the form `fields` into marker markdown. Atomic via profile_editor.save_markdown.
+
+    Guards (review C1/H1/H2): a PUT must carry `raw` OR `fields` (empty → 400, no blank
+    overwrite). The form path re-parses the CURRENT file and REFUSES (409) if it's raw_mode —
+    the "is this file form-representable?" check lives server-side, not only in the UI, so a
+    stale tab or a direct caller can't clobber hand-written prose. render() itself rejects
+    marker-injected values (round-trip corruption) → 400."""
+    if not _AGENT_ID_RE.match(agent_id) or doc not in _DOC_FILE:
+        raise HTTPException(status_code=400, detail="tham số không hợp lệ")
+    _require_agent(agent_id)
+    if raw is None and fields is None:
+        raise HTTPException(status_code=400, detail="cần 'raw' hoặc 'fields'")
+    from src.agent.knowledge_template import FIELD_KEYS, MarkerInValueError, parse, render
+    from src.server import profile_editor
+
+    if raw is not None:
+        text = raw
+    else:
+        # An empty/keyless `fields` dict almost always means a stale or buggy client — NOT an
+        # intentional "blank everything". Rendering it would wipe a populated file to empty
+        # markers (H2). A genuine empty form still submits every known key (with "" values),
+        # so require at least one recognized field key before we touch the file.
+        if not (set(fields) & FIELD_KEYS[doc]):
+            raise HTTPException(status_code=400, detail="thiếu trường biểu mẫu")
+        # Form path: don't overwrite a file the form can't represent (H1 — server-side guard).
+        current = profile_editor.read_profile_files(agent_id).get(doc, "")
+        if parse(doc, current).raw_mode:
+            raise HTTPException(
+                status_code=409,
+                detail="File đang ở chế độ nâng cao (đã sửa tay). Lưu bằng chế độ raw để không "
+                       "ghi đè nội dung viết tay.",
+            )
+        try:
+            text = render(doc, {str(k): str(v) for k, v in fields.items()})
+        except MarkerInValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from None
+    profile_editor.save_markdown(agent_id, _DOC_FILE[doc], text)
+    return {"ok": True}
+
+
+@router.get("/{agent_id}/skills")
+def get_skills(agent_id: str) -> dict:
+    """The skill catalog for this agent's domain + which are currently selected in its
+    profile (M18b skills picker). Selected = the `skills:` list in profile.yaml."""
+    if not _AGENT_ID_RE.match(agent_id):
+        raise HTTPException(status_code=400, detail="agent id không hợp lệ")
+    from src.profile.loader import load_profile
+    from src.runtime.agent_paths import agent_data_dir
+    from src.skills.skill_loader import load_skills
+
+    try:
+        loaded = load_profile(agent_id, data_dir=agent_data_dir(agent_id))
+    except (FileNotFoundError, RuntimeError):
+        raise HTTPException(status_code=404, detail=f"không tìm thấy agent {agent_id!r}") from None
+    catalog = load_skills(domain=loaded.domain)
+    selected = set(loaded.skills)
+    return {"skills": [{"name": s.name, "description": s.description,
+                        "selected": s.name in selected} for s in catalog]}
+
+
+@router.put("/{agent_id}/skills")
+def put_skills(agent_id: str, names: list[str] = Body(..., embed=True)) -> dict:  # noqa: B008
+    """Set the agent's selected skills (writes the `skills:` list to profile.yaml). Only names
+    in the domain catalog are accepted — an unknown skill is rejected, not silently written."""
+    if not _AGENT_ID_RE.match(agent_id):
+        raise HTTPException(status_code=400, detail="agent id không hợp lệ")
+    from src.profile.loader import load_profile
+    from src.runtime.agent_paths import agent_data_dir
+    from src.server import profile_editor
+    from src.skills.skill_loader import load_skills
+
+    try:
+        loaded = load_profile(agent_id, data_dir=agent_data_dir(agent_id))
+    except (FileNotFoundError, RuntimeError):
+        raise HTTPException(status_code=404, detail=f"không tìm thấy agent {agent_id!r}") from None
+    valid = {s.name for s in load_skills(domain=loaded.domain)}
+    chosen = [n for n in names if n in valid]
+    unknown = [n for n in names if n not in valid]
+    if unknown:
+        raise HTTPException(status_code=400, detail=f"skill không có: {', '.join(unknown)}")
 
     text = profile_editor.read_profile_files(agent_id).get("profile", "")
     doc = yaml.safe_load(text) or {}
     if not isinstance(doc, dict):
         raise HTTPException(status_code=500, detail="profile.yaml hỏng")
-    # Merge onto any existing telegram block so a re-bind (e.g. rotating the token) does NOT
-    # wipe chat_ids / poll_minutes the operator set earlier. New chat_ids REPLACE only when
-    # provided; an empty chat_ids keeps whatever was there.
-    tg = dict(doc.get("telegram") or {})
-    tg["bot_token_env"] = env_name
-    tg.setdefault("poll_minutes", 2)
-    if chat_ids:
-        tg["chat_ids"] = chat_ids
-    doc["telegram"] = tg
-    new_text = yaml.safe_dump(doc, sort_keys=False, allow_unicode=True)
+    doc["skills"] = chosen
     try:
-        profile_editor.save_profile_yaml(agent_id, new_text)
-    except Exception as exc:  # noqa: BLE001 — validation error → 400
-        raise HTTPException(status_code=400, detail=f"lưu profile lỗi: {exc}") from None
-
-
-@router.post("/{agent_id}/telegram/updates")
-def telegram_recent_chats(agent_id: str, token: str = Body(..., embed=True)) -> dict:
-    """Poll getUpdates with the token the operator just pasted (NOT yet persisted) to surface
-    chat ids that recently messaged the bot — so they can pick a chat id BEFORE binding. This
-    breaks the bind-needs-chat / getUpdates-needs-token deadlock (review C1/M2): the token
-    lives only in this request, nothing is written. Read-only."""
-    if not _AGENT_ID_RE.match(agent_id):
-        raise HTTPException(status_code=400, detail="agent id không hợp lệ")
-    token = str(token).strip()
-    if not token:
-        raise HTTPException(status_code=400, detail="token trống")
-
-    from src.actions.telegram_write import api_call
-
-    try:
-        updates = api_call(token, "getUpdates", {"timeout": 0})
+        profile_editor.save_profile_yaml(agent_id, yaml.safe_dump(doc, sort_keys=False,
+                                                                  allow_unicode=True))
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=400, detail=f"không lấy được tin: {exc}") from None
-    chats: dict[str, str] = {}
-    for u in updates if isinstance(updates, list) else []:
-        chat = (u.get("message") or {}).get("chat") or {}
-        cid = chat.get("id")
-        if cid is not None:
-            chats[str(cid)] = str(chat.get("username") or chat.get("title")
-                                  or chat.get("first_name") or "")
-    return {"chats": [{"id": k, "name": v} for k, v in chats.items()]}
+        raise HTTPException(status_code=400, detail=f"lưu profile lỗi: {exc}") from None
+    return {"ok": True, "skills": chosen}

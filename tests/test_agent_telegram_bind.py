@@ -14,7 +14,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from src.server import routes_agent_knowledge
+from src.server import routes_agent_telegram
 
 
 def _client():
@@ -29,7 +29,7 @@ def agent_env(tmp_path, monkeypatch):
     env = tmp_path / ".env"
     env.write_text("OPENROUTER_API_KEY=x\n", encoding="utf-8")
     monkeypatch.setattr("src.server.env_writer._ENV_PATH", env)
-    monkeypatch.setattr("src.server.routes_agent_knowledge.REPO_ROOT", tmp_path, raising=False)
+    monkeypatch.setattr("src.server.routes_agent_telegram.REPO_ROOT", tmp_path, raising=False)
     monkeypatch.setattr("dotenv.load_dotenv", lambda *a, **k: None)  # don't reload real .env
     saved = {}
     monkeypatch.setattr("src.server.profile_editor.read_profile_files",
@@ -51,8 +51,8 @@ def agent_env(tmp_path, monkeypatch):
 
 
 def test_token_env_name_pattern():
-    assert routes_agent_knowledge._token_env_name("acme-pm") == "ACME_PM_TELEGRAM_BOT_TOKEN"
-    assert routes_agent_knowledge._token_env_name("hr") == "HR_TELEGRAM_BOT_TOKEN"
+    assert routes_agent_telegram._token_env_name("acme-pm") == "ACME_PM_TELEGRAM_BOT_TOKEN"
+    assert routes_agent_telegram._token_env_name("hr") == "HR_TELEGRAM_BOT_TOKEN"
 
 
 def test_bind_validates_token_and_persists(agent_env, monkeypatch):

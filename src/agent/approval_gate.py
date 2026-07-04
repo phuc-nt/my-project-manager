@@ -42,19 +42,26 @@ _APPROVE = "approve"
 
 
 def make_approval_gate(
-    audience: str, *, summary: Callable[[], str]
+    audience: str, *, summary: Callable[[], str],
+    report_kind: str = "", auto_approve: dict | None = None,
 ) -> Callable[[ReportState], dict]:
     """Return the `approval_gate` node closure for the given audience.
 
-    Internal ⇒ pass-through (returns `{}`). External ⇒ calls `interrupt(payload)`
-    with the non-PII `summary()` and writes the resume decision into state. The
-    summary is called lazily (only on the external path) so an internal graph never
-    evaluates it.
-    """
+    Internal ⇒ pass-through (returns `{}`). External ⇒ normally calls `interrupt(payload)`
+    with the non-PII `summary()` and writes the resume decision into state.
+
+    v8 M23 trust ladder: if `report_kind` is in the agent's `auto_approve.scheduled_reports`,
+    the gate AUTO-APPROVES (no interrupt) — writes `approve` + an `auto_approved` flag into
+    state and lets `deliver` run. deliver still posts through the gateway (Lớp A/kill-switch/
+    dry-run re-apply). Absent/empty config ⇒ interrupt as before (byte-identical pre-M23)."""
+    scheduled = set((auto_approve or {}).get("scheduled_reports") or ())
 
     def approval_gate(_state: ReportState) -> dict:
         if audience != "external":
             return {}
+        if report_kind and report_kind in scheduled:
+            # trusted scheduled report → auto-deliver; flag for the CEO's "đã tự duyệt" view.
+            return {_DECISION_KEY: _APPROVE, "auto_approved": True}
         decision = interrupt({"summary": summary()})
         return {_DECISION_KEY: str(decision)}
 
@@ -100,14 +107,20 @@ def add_approval_gate(
     audience: str,
     summary: Callable[[], str],
     deliver_node: str = "deliver",
+    report_kind: str = "",
+    auto_approve: dict | None = None,
 ) -> None:
     """Register the `approval_gate` node + rewire `compose_report → gate → deliver|END`.
 
-    The single wiring site shared by all three report graphs (DRY). Replaces the
-    direct `compose_report → deliver` edge with the gate + a conditional edge.
-    Caller keeps `deliver → END` as before.
-    """
-    builder.add_node("approval_gate", make_approval_gate(audience, summary=summary))
+    The single wiring site shared by all report graphs (DRY). Replaces the direct
+    `compose_report → deliver` edge with the gate + a conditional edge. Caller keeps
+    `deliver → END` as before. `report_kind`/`auto_approve` (v8 M23) enable the trust
+    ladder's scheduled-report auto-approve; omitted ⇒ interrupt as before."""
+    builder.add_node(
+        "approval_gate",
+        make_approval_gate(audience, summary=summary, report_kind=report_kind,
+                           auto_approve=auto_approve),
+    )
     builder.add_edge("compose_report", "approval_gate")
     builder.add_conditional_edges(
         "approval_gate", route_after_gate, {"deliver": deliver_node, END: END}

@@ -95,7 +95,8 @@ def default_resource_deps(
     # non-PM pack serves this kind, so there is no pack allowlist to thread here (unlike
     # the daily/weekly report graph). Thread it like S4 does if that ever changes.
     gw = gateway or ActionGateway(
-        settings, external_channels=config.slack_external_channels
+        settings, external_channels=config.slack_external_channels,
+        auto_approve=getattr(context, "auto_approve", None),  # v8 M23
     )
     llm_box: dict[str, object] = {}
 
@@ -252,7 +253,8 @@ def build_resource_graph(
     builder.add_edge("analyze", "compose_report")
     # M2-P5: Lớp B graph-native interrupt for external audience (see report_graph).
     add_approval_gate(
-        builder, audience=audience, summary=external_summary("resource", audience, config)
+        builder, audience=audience, summary=external_summary("resource", audience, config),
+        report_kind="resource", auto_approve=getattr(context, "auto_approve", None),
     )
     # M2-P8: `remember` node after deliver (internal runs only; self-gates). See report_graph.
     if remember is not None:

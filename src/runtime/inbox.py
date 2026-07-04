@@ -152,6 +152,7 @@ def run_inbox(loaded: LoadedProfile, settings: Any) -> dict:
         settings,
         external_channels=loaded.config.slack_external_channels,
         mcp_allowlist=pack.allowlist or None,
+        auto_approve=getattr(loaded, "auto_approve", None),  # v8 M23: chat-command auto-approve
     )
     replied, total_cost = 0, 0.0
     have_cost = False

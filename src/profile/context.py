@@ -48,6 +48,8 @@ class ProfileContext:
     sibling_selector: SiblingFactSelector | None = field(default=None)  # injectable ranker
     sibling_project: str | None = None  # label slug for the sibling block
     company_docs: tuple[CompanyDoc, ...] = ()  # M19 opted-in company docs (internal only)
+    auto_approve: dict | None = None  # v8 M23 trust-ladder config (None ⇒ OFF); threaded to
+    # the approval gate + the delivery gateway so a trusted scheduled report auto-delivers.
 
 
 #: The no-op context — used as the default everywhere so v1 behavior is unchanged.

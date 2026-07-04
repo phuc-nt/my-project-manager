@@ -26,6 +26,7 @@ beforeEach(() => {
       : { agent_id: 'pm', pending: [] },
   )
   vi.spyOn(api, 'getTasks').mockResolvedValue({ agents: [] } as never)
+  vi.spyOn(api, 'getRuns').mockResolvedValue({ agent_id: 'x', runs: [] } as never)
 })
 
 function renderWork() {
@@ -61,4 +62,27 @@ test('shows empty state when nothing is pending', async () => {
   vi.spyOn(api, 'getApprovals').mockResolvedValue({ agent_id: 'x', pending: [] })
   renderWork()
   expect(await screen.findByText(/Không có việc nào chờ duyệt/)).toBeInTheDocument()
+})
+
+test('shows the "Đã tự duyệt hôm nay" block when auto-approved runs exist (M23)', async () => {
+  const today = new Date().toISOString().slice(0, 10)
+  vi.spyOn(api, 'getRuns').mockImplementation(async (id: string) =>
+    id === 'hr'
+      ? {
+          agent_id: 'hr',
+          runs: [
+            { ts: `${today}T09:30:00+00:00`, kind: 'daily', status: 'delivered', auto_approved: true },
+            { ts: `${today}T08:00:00+00:00`, kind: 'okr', status: 'delivered' }, // not auto → excluded
+          ],
+        }
+      : { agent_id: id, runs: [] },
+  )
+  render(
+    <MemoryRouter>
+      <Work />
+    </MemoryRouter>,
+  )
+  expect(await screen.findByText(/Đã tự duyệt hôm nay/)).toBeInTheDocument()
+  expect(screen.getByText(/báo cáo daily/)).toBeInTheDocument()
+  expect(screen.queryByText(/báo cáo okr/)).not.toBeInTheDocument()
 })

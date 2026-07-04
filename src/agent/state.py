@@ -39,6 +39,10 @@ class ReportState(TypedDict, total=False):
     # `approval_gate` node after a graph-native interrupt resumes. Unset on the
     # internal (pass-through) path. Primitive ⇒ checkpoint-safe.
     approval_decision: str
+    # v8 M23: True when the trust ladder auto-approved a scheduled external report at the
+    # gate (no human interrupt). The worker copies it onto the run event for the CEO's
+    # "đã tự duyệt" view. Unset (⇒ falsy) on every non-auto path.
+    auto_approved: bool
     # M2-P6 Slice 4: the Slack short body built at compose (URL-free), checkpointed so
     # deliver can post the CORRECT short on resume without the closure box (which is
     # empty after a graph rebuild). The detail link is injected in deliver. Primitive.

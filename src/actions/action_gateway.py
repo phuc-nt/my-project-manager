@@ -118,9 +118,14 @@ class ActionGateway:
         approval_store: ApprovalStore | None = None,
         external_channels: frozenset[str] | None = None,
         mcp_allowlist: dict[str, frozenset[str]] | dict[str, tuple[str, ...]] | None = None,
+        auto_approve: dict[str, Any] | None = None,
     ) -> None:
         self._settings = settings
         self._recent_calls: deque[float] = deque()
+        # v8 M23 trust ladder: the agent's auto_approve config (None ⇒ OFF, byte-identical
+        # pre-M23). Consulted ONLY at the Lớp B enqueue points; it can never loosen Lớp A /
+        # kill-switch / dry-run — an auto-approved action re-enters _execute(approved=True).
+        self._auto_approve = auto_approve
         # External/stakeholder channels route Slack posts through Lớp B approval.
         # Injected by every real construction (from the per-flow config); defaults
         # to empty — a gateway with no external channels classifies none via channel.
@@ -212,6 +217,17 @@ class ActionGateway:
             interrupt = needs_interrupt(action, external_channels=self._external_channels)
             is_hard_deny = verdict.blocked and verdict.category != BlockCategory.NOT_ALLOWLISTED
             if interrupt.interrupt and not is_hard_deny:
+                # v8 M23: a scheduled-origin Lớp B action the trust ladder permits (and that
+                # has a free daily slot) runs WITHOUT the human queue — by re-entering with
+                # approved=True, so Lớp A / kill-switch / dry-run / dedup ALL re-apply below.
+                # Only when a real handler is present: a propose-only call (handler=None, e.g.
+                # the automation ProposeStep) must still QUEUE for a human, never auto-skip +
+                # burn a slot on a no-op.
+                if handler is not None:
+                    auto = self._try_auto_approve(action, origin="scheduled")
+                    if auto is not None:
+                        return self._execute(action, handler=handler, rationale=auto,
+                                             approved=True)
                 approval_id = self._approvals.enqueue(
                     action, reason=interrupt.reason, rationale=rationale
                 )
@@ -283,12 +299,41 @@ class ActionGateway:
         )
         return GatewayResult(status="executed", summary=summary)
 
+    def _try_auto_approve(
+        self, action: dict[str, Any], *, origin: str,
+        sender_id: str = "", transport: str = "", chat_id: str = "",
+    ) -> str | None:
+        """Consult the trust ladder for a Lớp B action. Returns the audit rationale to run it
+        auto (after claiming a daily slot), or None to fall back to the human queue.
+
+        A DENIED action never touches the cap (evaluate is pure; the slot is claimed only when
+        allowed). The rationale threads into the re-entrant _execute(approved=True) so the
+        audit line marks it auto (red-team M3). Cap = local-date reservation (M1/M2)."""
+        if not self._auto_approve:
+            return None
+        from datetime import datetime
+
+        from src.actions import auto_approve_policy as policy
+
+        decision = policy.evaluate(
+            action, self._auto_approve, origin=origin,
+            sender_id=sender_id, transport=transport, chat_id=chat_id,
+        )
+        if not decision.allowed:
+            return None
+        if not policy.claim_daily_slot(self._dedup, action, self._auto_approve,
+                                       now=datetime.now()):
+            return None  # daily cap exhausted → human queue
+        return decision.rationale
+
     def pending_approvals(self):
         """List Lớp B actions awaiting human approval."""
         return self._approvals.list_pending()
 
     def enqueue_for_approval(
-        self, action: dict[str, Any], *, reason: str, rationale: str = ""
+        self, action: dict[str, Any], *, reason: str, rationale: str = "",
+        sender_id: str = "", transport: str = "", chat_id: str = "",
+        auto_handler: Handler | None = None,
     ) -> GatewayResult:
         """Force Lớp B for an action REGARDLESS of `needs_interrupt` (v5 M12).
 
@@ -298,6 +343,11 @@ class ActionGateway:
         Lớp A + the default-DENY allowlist are checked first and a blocked action is
         refused outright (audited as deny), never queued. Execution later goes through
         `approve()`, which re-applies Lớp A + audit + dedup as for any approval.
+
+        v8 M23: if the trust ladder permits this action for the (immutable) chat SENDER —
+        a trusted Telegram DM — it runs auto (re-entrant _execute(approved=True), so Lớp A
+        etc. still apply) instead of queuing. Lớp A is checked FIRST here, so a hard-denied
+        action can never auto-run. A stranger / group chat / non-Telegram sender → queue.
         """
         if not isinstance(action, dict):
             raise ValueError(
@@ -316,6 +366,15 @@ class ActionGateway:
             return GatewayResult(
                 status="skipped", summary=f"hard-denied, not queued: {verdict.reason}"
             )
+        # Trust ladder (chat origin): a trusted sender's action runs auto instead of queuing —
+        # but only when the caller supplied the handler that would have run on approval.
+        # Without it we can't execute, so we queue (never a silent no-op).
+        auto = None
+        if auto_handler is not None:
+            auto = self._try_auto_approve(action, origin="chat", sender_id=sender_id,
+                                          transport=transport, chat_id=chat_id)
+        if auto is not None:
+            return self._execute(action, handler=auto_handler, rationale=auto, approved=True)
         approval_id = self._approvals.enqueue(action, reason=reason, rationale=rationale)
         self._record(action_type, tool, "pending", reason, action, rationale)
         return GatewayResult(

@@ -28,8 +28,12 @@ from src.server.agent_views import UnknownAgentError
 _AUDIT_LIMIT_MAX = 200
 _RUN_LIMIT_MAX = 500
 # Run-event fields safe to expose (the run log carries no persona/project text).
-_RUN_FIELDS = ("ts", "kind", "audience", "status", "cost_usd", "delivered")
+# v8 M23: `auto_approved` (a bool flag) rides the run event so the "đã tự duyệt" view can
+# show auto-delivered scheduled reports. report_summary stays EXCLUDED (M22 B3).
+_RUN_FIELDS = ("ts", "kind", "audience", "status", "cost_usd", "delivered", "auto_approved")
 # Audit fields safe to expose (already redacted at write time; still select, don't echo).
+# `rationale`/`result_summary` stay EXCLUDED (a verified privacy decision) — the trust-ladder
+# "đã tự duyệt" view reads the run-event auto_approved flag instead, not the audit rationale.
 _AUDIT_FIELDS = ("timestamp", "action_type", "tool", "verdict", "reason")
 
 

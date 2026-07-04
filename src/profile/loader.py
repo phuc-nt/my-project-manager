@@ -63,6 +63,10 @@ class LoadedProfile:
     # Shape: {"channel": "<slack channel ID>", "poll_minutes": int>=1}. INTERNAL channel
     # only in M11 — an external channel is rejected at load (see _parse_inbox).
     inbox: dict | None = None
+    # v8 M23 trust ladder: auto-approve config. None ⇒ OFF (byte-identical pre-M23).
+    # Shape: {"scheduled_reports": [kind...], "actions": {type: {enabled, max_per_day,
+    # channels|recipients}}, "trusted_senders": {"telegram": [id...]}}. Validated at load.
+    auto_approve: dict | None = None
 
 
 def _read_md(profile_dir: Path, name: str) -> str:
@@ -122,6 +126,7 @@ def load_profile(
         {str(k): str(v) for k, v in schedule.items()} if isinstance(schedule, dict) else {}
     )
     inbox = _parse_inbox(yaml_doc.get("inbox"), config)
+    auto_approve = _parse_auto_approve(yaml_doc.get("auto_approve"))
     return LoadedProfile(
         profile_id=profile_id,
         name=str(yaml_doc.get("name") or profile_id),
@@ -138,7 +143,59 @@ def load_profile(
         project_group=project_group,
         domain=domain,
         inbox=inbox,
+        auto_approve=auto_approve,
     )
+
+
+def _parse_auto_approve(raw: object) -> dict | None:
+    """Validate the optional `auto_approve:` block (v8 M23). Absent/empty ⇒ None (OFF).
+
+    Fail-loud on shape errors so a typo can't silently grant or silently disable trust. The
+    known action-types are the ones the policy classifies (slack_post / email_send); an
+    unknown type is rejected rather than silently ignored (a misfiled grant must not read as
+    'off')."""
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise RuntimeError("auto_approve must be a mapping.")
+    out: dict = {}
+    sched = raw.get("scheduled_reports")
+    if sched is not None:
+        if not isinstance(sched, list):
+            raise RuntimeError("auto_approve.scheduled_reports must be a list of report kinds.")
+        out["scheduled_reports"] = [str(k) for k in sched]
+    actions = raw.get("actions")
+    if actions is not None:
+        if not isinstance(actions, dict):
+            raise RuntimeError("auto_approve.actions must be a mapping of action-type→grant.")
+        known = {"slack_post", "email_send"}
+        clean_actions: dict = {}
+        for atype, grant in actions.items():
+            if atype not in known:
+                raise RuntimeError(f"auto_approve.actions: unknown action-type {atype!r} "
+                                   f"(known: {sorted(known)}).")
+            if not isinstance(grant, dict):
+                raise RuntimeError(f"auto_approve.actions.{atype} must be a mapping.")
+            mpd = grant.get("max_per_day", 0)
+            if not isinstance(mpd, int) or isinstance(mpd, bool) or mpd < 0:
+                raise RuntimeError(f"auto_approve.actions.{atype}.max_per_day must be int>=0.")
+            g: dict = {"enabled": bool(grant.get("enabled", False)), "max_per_day": mpd}
+            dests = grant.get("channels") if atype == "slack_post" else grant.get("recipients")
+            if dests is not None:
+                if not isinstance(dests, list):
+                    raise RuntimeError(f"auto_approve.actions.{atype} destinations must be a list.")
+                key = "channels" if atype == "slack_post" else "recipients"
+                g[key] = [str(d) for d in dests]
+            clean_actions[atype] = g
+        out["actions"] = clean_actions
+    trusted = raw.get("trusted_senders")
+    if trusted is not None:
+        if not isinstance(trusted, dict):
+            raise RuntimeError("auto_approve.trusted_senders must be a mapping of transport→ids.")
+        out["trusted_senders"] = {
+            str(t): [str(i) for i in (ids or [])] for t, ids in trusted.items()
+        }
+    return out or None
 
 
 def _parse_inbox(raw: object, config: ReportingConfig) -> dict | None:

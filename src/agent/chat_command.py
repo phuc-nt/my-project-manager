@@ -158,11 +158,24 @@ def maybe_handle_command(
         "tool": str(spec["tool"]),
         "args": action_args,
     }
+    # v8 M23: thread the immutable chat SENDER + an auto-execute handler so the trust ladder
+    # can run this WITHOUT queuing when the sender is trusted (Telegram DM). The handler is the
+    # same approved-dispatch the human-approval path would use — Lớp A/kill-switch/dry-run/dedup
+    # still re-apply inside the gateway. Non-trusted / non-Telegram / group → queued as before.
+    from src.actions.approved_dispatch import dispatch_approved_action
+
     result = gateway.enqueue_for_approval(
         action,
         reason=f"chat-command '{command_id}' cần người duyệt ({marker})",
         rationale=marker,
+        sender_id=str(mention.get("user") or ""),
+        transport=str(mention.get("transport") or ""),
+        chat_id=str(mention.get("channel") or ""),
+        auto_handler=lambda a: dispatch_approved_action(a, config),
     )
+    if result.status == "executed":
+        return (f"✅ Đã chạy `{command_id}` ({_args_preview(action_args)}) — tự duyệt (bạn "
+                f"trong danh sách tin cậy).", cost)
     if result.status != "pending_approval":
         logger.warning("chat-command %r refused by gateway: %s", command_id, result.summary)
         return (f"Lệnh `{command_id}` bị guardrail từ chối: {result.summary}", cost)

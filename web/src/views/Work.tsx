@@ -5,11 +5,13 @@
 import { useCallback, useState } from 'react'
 import { api } from '../api/client'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { useAutoApproved } from '../hooks/use-auto-approved'
 import { type AgentApproval, usePendingApprovals } from '../hooks/use-pending-approvals'
 import { Tasks } from './Tasks'
 
 export function Work() {
   const { items, loading, error, refresh } = usePendingApprovals()
+  const { rows: autoApproved } = useAutoApproved()
   const [confirming, setConfirming] = useState<AgentApproval | null>(null)
   const [busy, setBusy] = useState(false)
   const [opError, setOpError] = useState<string | null>(null)
@@ -75,6 +77,23 @@ export function Work() {
         <h3>Việc đã giao</h3>
         <Tasks />
       </section>
+
+      {autoApproved.length > 0 && (
+        <section className="work-auto-approved">
+          <h3>Đã tự duyệt hôm nay ({autoApproved.length})</h3>
+          <p className="muted">
+            Các hành động agent tin cậy đã tự chạy (trong hạn mức bạn đặt) — không cần bạn duyệt.
+          </p>
+          <ul className="auto-approved-list">
+            {autoApproved.map((r, i) => (
+              <li key={`${r.agentId}-${i}`}>
+                <strong>{r.agentId}</strong> · báo cáo {r.kind}
+                <span className="muted"> · {r.timestamp.slice(11, 16)}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {confirming && (
         <ConfirmDialog

@@ -100,6 +100,7 @@ def _context_of(loaded, settings, store, registry) -> ProfileContext:
         sibling_facts=sib_facts, sibling_selector=sib_sel,
         sibling_project=loaded.project_group,
         company_docs=load_company_docs(getattr(loaded, "company_docs", ())),
+        auto_approve=getattr(loaded, "auto_approve", None),
     )
 
 

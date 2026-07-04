@@ -104,6 +104,7 @@ def default_report_deps(
         settings,
         external_channels=config.slack_external_channels,
         mcp_allowlist=allowlist,
+        auto_approve=getattr(context, "auto_approve", None),  # v8 M23: deliver posts auto too
     )
     llm = client
     sprint_box: dict[str, object] = {}
@@ -338,6 +339,8 @@ def build_report_graph(
         builder,
         audience=audience,
         summary=external_summary(report_kind, audience, config),
+        report_kind=report_kind,
+        auto_approve=getattr(context, "auto_approve", None),
     )
     # M2-P8: a `remember` node after deliver extracts + persists agent memory (internal
     # runs only — the node self-gates). When no remember node is injected, deliver → END.

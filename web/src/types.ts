@@ -8,6 +8,7 @@ export interface RunEvent {
   status?: string
   cost_usd?: number | null
   delivered?: boolean
+  auto_approved?: boolean // v8 M23: the trust ladder auto-delivered this scheduled report
 }
 
 export interface AgentSummary {
@@ -83,6 +84,7 @@ export interface AuditRow {
   tool?: string
   verdict?: string
   reason?: string
+  rationale?: string // v8 M23: carries the "auto_approve:*" marker for auto-approved actions
 }
 
 export interface AuditPayload {

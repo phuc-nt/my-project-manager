@@ -79,6 +79,7 @@ def build_graph_for(loaded: LoadedProfile, settings: Any, kind: str, audience: s
         sibling_facts=sib_facts, sibling_selector=sib_sel,
         sibling_project=loaded.project_group,
         company_docs=load_company_docs(getattr(loaded, "company_docs", ())),
+        auto_approve=getattr(loaded, "auto_approve", None),
     )
     remember = build_remember_node(loaded.profile_id, settings, audience)
 
@@ -262,7 +263,10 @@ def main(argv: list[str] | None = None, *, run_report: RunReport = _default_run_
         summary = summarize_report(str(result["report_text"]))
     append_run_event(
         data_dir, _event(agent_id, kind, audience, status, cost, delivered,
-                         report_summary=summary),
+                         report_summary=summary,
+                         # v8 M23: the approval gate set this when it auto-delivered a trusted
+                         # scheduled external report — surfaces in the CEO's "đã tự duyệt" view.
+                         auto_approved=bool(result.get("auto_approved"))),
     )
     logger.info(
         "worker %s %s/%s: delivered=%s %s",
@@ -271,15 +275,18 @@ def main(argv: list[str] | None = None, *, run_report: RunReport = _default_run_
     return 0 if delivered else 1
 
 
-def _event(agent_id, kind, audience, status, cost, delivered, *, report_summary="") -> dict:
+def _event(agent_id, kind, audience, status, cost, delivered, *, report_summary="",
+           auto_approved=False) -> dict:
     ev = {
         "agent_id": agent_id, "kind": kind, "audience": audience,
         "status": status, "cost_usd": cost, "delivered": delivered,
     }
-    # Only carry the summary field when there is one — event stays byte-identical for the
+    # Only carry the optional fields when set — event stays byte-identical for the
     # inbox/tasks/ops-alerts pseudo-kinds and for external runs (backward-compat).
     if report_summary:
         ev["report_summary"] = report_summary
+    if auto_approved:
+        ev["auto_approved"] = True
     return ev
 
 

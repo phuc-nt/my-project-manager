@@ -94,7 +94,8 @@ def default_okr_deps(
     # allowlist to thread here (unlike the daily/weekly report graph, which is the seam
     # a future domain reuses). If that changes, thread the pack allowlist like S4 does.
     gw = gateway or ActionGateway(
-        settings, external_channels=config.slack_external_channels
+        settings, external_channels=config.slack_external_channels,
+        auto_approve=getattr(context, "auto_approve", None),  # v8 M23
     )
     llm_box: dict[str, object] = {}
 
@@ -246,7 +247,8 @@ def build_okr_graph(
     builder.add_edge("analyze", "compose_report")
     # M2-P5: Lớp B graph-native interrupt for external audience (see report_graph).
     add_approval_gate(
-        builder, audience=audience, summary=external_summary("okr", audience, config)
+        builder, audience=audience, summary=external_summary("okr", audience, config),
+        report_kind="okr", auto_approve=getattr(context, "auto_approve", None),
     )
     # M2-P8: `remember` node after deliver (internal runs only; self-gates). See report_graph.
     if remember is not None:

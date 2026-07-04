@@ -24,6 +24,7 @@ from src.server import (
     routes_ops_chat,
     routes_ops_json,
     routes_runs,
+    routes_setup,
     routes_tasks,
     routes_visualize,
 )
@@ -65,6 +66,8 @@ def create_app() -> FastAPI:
         same_site="lax",
     )
     app.include_router(auth.router)
+    # v7 M17: first-run Setup Wizard (only active before setup completes; 410 after).
+    app.include_router(routes_setup.router)
 
     # API routers first so /api/* and the /static mount keep precedence over the SPA
     # catch-all mounted LAST below.

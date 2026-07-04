@@ -124,6 +124,18 @@ export const api = {
   login: (username: string, password: string) =>
     post<{ ok: boolean }>('/api/login', { username, password }),
   logout: () => post<{ ok: boolean }>('/api/logout'),
+  // v7 M17: first-run setup wizard.
+  setupStatus: () =>
+    request<{ completed: boolean; keys?: Record<string, boolean> }>('/api/setup/status'),
+  setupEnv: (values: Record<string, string>) =>
+    post<{ ok: boolean; written: string[] }>('/api/setup/env', values),
+  setupTest: (group: string) =>
+    post<{ group: string; ok: boolean; detail: string; hint: string }>(`/api/setup/test/${group}`),
+  setupFinish: (username: string, password: string) =>
+    post<{ ok: boolean; restarting: boolean; message: string }>('/api/setup/finish', {
+      username,
+      password,
+    }),
 }
 
 export { ApiError }

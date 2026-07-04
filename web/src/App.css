@@ -83,3 +83,17 @@ button:disabled { cursor: default; opacity: 0.6; }
 .login-box button { padding: 0.55rem; background: #1a1a1a; color: #fff; border: none; border-radius: 5px; cursor: pointer; }
 .login-box button:disabled { opacity: 0.5; cursor: default; }
 .logout-btn { margin-left: auto; padding: 0.35rem 0.7rem; background: none; border: 1px solid #ccc; border-radius: 5px; cursor: pointer; font-size: 0.85rem; }
+
+/* v7 M17: setup wizard */
+.setup-screen { display: flex; align-items: center; justify-content: center; min-height: 90vh; }
+.setup-box { display: flex; flex-direction: column; gap: 0.75rem; width: 380px; padding: 1.75rem; border: 1px solid #ddd; border-radius: 10px; }
+.setup-box h1 { margin: 0; font-size: 1.35rem; }
+.setup-progress { color: #999; font-size: 0.8rem; }
+.setup-hint { color: #666; font-size: 0.88rem; margin: 0; }
+.setup-box label { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.88rem; color: #555; }
+.setup-box input { padding: 0.5rem; border: 1px solid #ccc; border-radius: 5px; }
+.setup-ok { color: #0a0; font-size: 0.88rem; }
+.setup-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem; }
+.setup-actions button { padding: 0.5rem 0.9rem; border: 1px solid #ccc; border-radius: 5px; background: #fff; cursor: pointer; }
+.setup-primary { background: #1a1a1a !important; color: #fff; border-color: #1a1a1a !important; margin-left: auto; }
+.setup-actions button:disabled { opacity: 0.5; cursor: default; }

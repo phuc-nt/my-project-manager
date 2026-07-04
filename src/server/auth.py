@@ -39,8 +39,8 @@ _SECRET_ENV = "WEB_SESSION_SECRET"
 #: logged-out user can authenticate; /api/me so the SPA can ASK whether it's logged in (the
 #: handler answers {authenticated:false} instead of a 401, which the shell needs to decide
 #: login-vs-dashboard on load); the SPA assets so the login PAGE renders.
-_PUBLIC_PREFIXES = ("/api/login", "/api/logout", "/api/me", "/health", "/assets/",
-                    "/static/", "/favicon", "/icons")
+_PUBLIC_PREFIXES = ("/api/login", "/api/logout", "/api/me", "/api/setup/status", "/health",
+                    "/assets/", "/static/", "/favicon", "/icons")
 #: Rate limit: max failed logins per IP per window (brute-force cap, R1).
 _LOGIN_MAX = 5
 _LOGIN_WINDOW_S = 60.0

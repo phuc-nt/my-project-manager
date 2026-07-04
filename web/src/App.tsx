@@ -16,6 +16,7 @@ import { Guardrail } from './views/Guardrail'
 import { Login } from './views/Login'
 import { MemoryAutomation } from './views/MemoryAuto'
 import { Overview } from './views/Overview'
+import { Setup } from './views/Setup'
 import { Tasks } from './views/Tasks'
 import { Team } from './views/Team'
 import { Timeline } from './views/Timeline'
@@ -24,12 +25,30 @@ import { Trigger } from './views/Trigger'
 function App() {
   // null = still checking; true/false = authenticated or not.
   const [authed, setAuthed] = useState<boolean | null>(null)
+  // v7 M17: first-run setup. null = unknown; false = needs wizard; true = done.
+  const [setupDone, setSetupDone] = useState<boolean | null>(null)
 
   const check = useCallback(() => {
+    // Check setup first: an un-setup server has no auth, so the wizard must precede login.
     api
-      .getMe()
-      .then((m) => setAuthed(m.authenticated))
-      .catch(() => setAuthed(false))
+      .setupStatus()
+      .then((s) => {
+        setSetupDone(s.completed)
+        if (s.completed) {
+          api
+            .getMe()
+            .then((m) => setAuthed(m.authenticated))
+            .catch(() => setAuthed(false))
+        }
+      })
+      .catch(() => {
+        // status should never 401 (public); on any error assume done + fall to auth check
+        setSetupDone(true)
+        api
+          .getMe()
+          .then((m) => setAuthed(m.authenticated))
+          .catch(() => setAuthed(false))
+      })
   }, [])
 
   useEffect(() => {
@@ -37,6 +56,8 @@ function App() {
     setUnauthorizedHandler(() => setAuthed(false)) // any 401 → back to login
   }, [check])
 
+  if (setupDone === null) return <p style={{ padding: '2rem' }}>Đang tải…</p>
+  if (!setupDone) return <Setup onDone={check} />
   if (authed === null) return <p style={{ padding: '2rem' }}>Đang tải…</p>
   if (!authed) return <Login onLoggedIn={check} />
 

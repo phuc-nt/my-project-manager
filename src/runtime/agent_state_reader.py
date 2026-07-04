@@ -19,6 +19,8 @@ import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from croniter import croniter
+
 from src.llm.budget_tracker import _current_month
 from src.profile.loader import load_profile
 from src.runtime.agent_paths import agent_data_dir
@@ -38,6 +40,24 @@ _BUDGET_ALERT_RATIO = 0.8
 _APPROVAL_STUCK_HOURS = 24
 _DENY_SPIKE_COUNT = 3  # >= this many denies inside the audit window
 
+# v8 M21 — "agent chết ngầm" detection (CODE-only, no LLM):
+#: A scheduled kind is "overdue" if its last run is older than max(2× its cron period,
+#: this floor after the scheduled fire). Wide on purpose — a machine asleep / a service
+#: restart near fire time must not cry wolf. See _overdue_kinds.
+_OVERDUE_FLOOR_HOURS = 6
+#: >= this many consecutive error/load_error run-events for one kind ⇒ a `failing` alert.
+_FAILING_STREAK = 3
+#: How many recent run-events to keep PER KIND for the failing streak / last-run check.
+_FAILING_SCAN = 10
+#: Trailing runs.jsonl lines scanned before the per-kind down-sample. Generous so a chatty
+#: poller can't push a report kind out of view (matches the _AUDIT_TAIL_LINES bound style).
+_RUN_EVENT_TAIL = 5000
+#: Run-event statuses that count as a failure for the streak.
+_FAILURE_STATUSES = frozenset({"error", "load_error"})
+#: Kinds that are synthetic pollers, not scheduled reports — never "overdue" (a poll with
+#: nothing to do is a success, and inbox/tasks fire on a fast synthetic cron).
+_NON_REPORT_KINDS = frozenset({"inbox", "tasks", "ops-alerts"})
+
 
 def read_agent_state(agent_id: str) -> dict:
     """One agent's operational snapshot as a plain dict (JSON-able, no secrets).
@@ -46,10 +66,14 @@ def read_agent_state(agent_id: str) -> dict:
     agent must not blind the admin over the whole fleet.
     """
     data_dir = agent_data_dir(agent_id)
+    schedule: dict[str, str] = {}
+    reports: tuple[str, ...] = ()
     try:
         loaded = load_profile(agent_id, data_dir=data_dir)
         name, cap = loaded.name, loaded.settings.monthly_budget_usd
         enabled = loaded.enabled
+        schedule = dict(loaded.schedule)
+        reports = loaded.reports
     except Exception as exc:  # noqa: BLE001 — ANY broken profile (missing file, bad
         # yaml, bad model_chain ValueError, …) degrades to an error row: one
         # misconfigured agent must never blind the admin over the whole fleet.
@@ -66,7 +90,47 @@ def read_agent_state(agent_id: str) -> dict:
         "pending_approvals": _read_pending(data_dir),
         "audit_counts": _read_audit_counts(data_dir),
         "last_run": read_last_run_event(agent_id),
+        # v8 M21: schedule + recent run history feed the missed_schedule / failing alerts.
+        # PER-KIND window (not a global tail): a polling agent floods runs.jsonl with
+        # inbox/tasks events between reports, so a global limit would evict every report
+        # event and blind both alerts. We keep the newest _FAILING_SCAN events of EACH kind.
+        "schedule": schedule,
+        "reports": reports,
+        "run_events": _recent_events_per_kind(agent_id),
     }
+
+
+def _recent_events_per_kind(agent_id: str) -> list[dict]:
+    """Newest-first run-events, keeping at most `_FAILING_SCAN` per kind.
+
+    Scans a bounded TAIL of runs.jsonl and down-samples per kind so a chatty poller
+    (`inbox`/`tasks` fire every few minutes) can't evict the report events a global tail
+    would drop — the defect a single-limit read caused. The tail bound (`_RUN_EVENT_TAIL`)
+    is generous: even a 1-minute poller leaves report events within it for well over a day."""
+    path = agent_data_dir(agent_id) / "runs.jsonl"
+    if not path.exists():
+        return []
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()[-_RUN_EVENT_TAIL:]
+    except OSError:
+        return []
+    per_kind: dict[str, int] = {}
+    kept: list[dict] = []
+    for line in reversed(lines):  # newest-first
+        if not line.strip():
+            continue
+        try:
+            ev = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        kind = ev.get("kind")
+        if not kind:
+            continue
+        n = per_kind.get(kind, 0)
+        if n < _FAILING_SCAN:
+            per_kind[kind] = n + 1
+            kept.append(ev)
+    return kept
 
 
 def read_all_agent_states() -> list[dict]:
@@ -105,7 +169,128 @@ def team_alerts(states: list[dict] | None = None, *, now: datetime | None = None
                 f"{denies} gateway denies in the last {_AUDIT_WINDOW_DAYS} days",
                 "high",
             ))
+        # v8 M21 — "agent chết ngầm". Only for an effectively-enabled agent: a disabled
+        # agent is SUPPOSED to be silent (a paused agent isn't "dead"). States coming from
+        # older callers without schedule/run_events simply skip these (backward-compat).
+        if s.get("enabled"):
+            for kind in _overdue_kinds(s, now):
+                alerts.append(_alert(
+                    "missed_schedule", s["agent_id"],
+                    f"báo cáo '{kind}' quá hạn — chưa chạy đúng lịch",
+                    "high",
+                ))
+            for kind in _failing_kinds(s):
+                alerts.append(_alert(
+                    "failing", s["agent_id"],
+                    f"báo cáo '{kind}' lỗi {_FAILING_STREAK} lần liên tiếp",
+                    "high",
+                ))
     return alerts
+
+
+def _overdue_kinds(state: dict, now: datetime) -> list[str]:
+    """Scheduled report kinds whose last run is older than the overdue threshold.
+
+    Threshold = max(2× the cron period, `_OVERDUE_FLOOR_HOURS`) after the most recent
+    scheduled fire at/before `now`. Wide by design: a machine asleep or a service restart
+    near fire time must not false-alarm. A never-run scheduled kind is overdue once its
+    first scheduled fire is older than the floor. Only kinds also in the `reports` gate and
+    not synthetic pollers are considered."""
+    schedule = state.get("schedule") or {}
+    reports = state.get("reports") or ()
+    last_by_kind = _last_run_ts_by_kind(state.get("run_events") or [])
+    overdue: list[str] = []
+    for kind, cron in schedule.items():
+        if kind in _NON_REPORT_KINDS:
+            continue
+        if reports and kind not in reports:
+            continue
+        if not croniter.is_valid(cron):
+            continue
+        threshold_h = max(_cron_period_hours(cron) * 2, _OVERDUE_FLOOR_HOURS)
+        prev_fire = _prev_fire(cron, now)
+        if prev_fire is None:
+            continue
+        last_ts = last_by_kind.get(kind)
+        # Never ran: overdue only once the first scheduled fire itself is past the floor
+        # (a freshly-created agent isn't instantly "dead").
+        reference = last_ts if last_ts is not None else prev_fire
+        age_h = (now - reference).total_seconds() / 3600.0
+        if age_h >= threshold_h:
+            overdue.append(kind)
+    return overdue
+
+
+def _failing_kinds(state: dict) -> list[str]:
+    """Report kinds whose most recent run-events are `_FAILING_STREAK` consecutive failures.
+
+    Reads newest-first `run_events`; for each kind, counts the leading failure streak among
+    that kind's events. A worker that HANGS writes no terminal event, so a hang surfaces as
+    missed_schedule, not failing (documented limitation)."""
+    events = state.get("run_events") or []
+    streak: dict[str, int] = {}
+    broken: set[str] = set()
+    failing: list[str] = []
+    for ev in events:  # newest-first
+        kind = ev.get("kind")
+        if not kind or kind in _NON_REPORT_KINDS or kind in broken:
+            continue
+        if str(ev.get("status")) in _FAILURE_STATUSES:
+            streak[kind] = streak.get(kind, 0) + 1
+            if streak[kind] >= _FAILING_STREAK and kind not in failing:
+                failing.append(kind)
+        else:
+            broken.add(kind)  # a success breaks the leading streak for this kind
+    return failing
+
+
+def _last_run_ts_by_kind(events: list[dict]) -> dict[str, datetime]:
+    """Newest run-event timestamp per kind (events are newest-first)."""
+    out: dict[str, datetime] = {}
+    for ev in events:
+        kind = ev.get("kind")
+        if not kind or kind in out:
+            continue
+        ts = _parse_ts(ev.get("ts"))
+        if ts is not None:
+            out[kind] = ts
+    return out
+
+
+def _parse_ts(raw: object) -> datetime | None:
+    if not raw:
+        return None
+    try:
+        ts = datetime.fromisoformat(str(raw))
+    except ValueError:
+        return None
+    return ts.replace(tzinfo=UTC) if ts.tzinfo is None else ts
+
+
+def _cron_period_hours(cron: str) -> float:
+    """Approx hours between two consecutive fires of `cron` (from a fixed base)."""
+    try:
+        base = datetime(2000, 1, 3, tzinfo=UTC)  # a Monday, deterministic
+        it = croniter(cron, base)
+        first = it.get_next(datetime)
+        second = it.get_next(datetime)
+        return (second - first).total_seconds() / 3600.0
+    except (ValueError, KeyError):
+        return _OVERDUE_FLOOR_HOURS
+
+
+def _prev_fire(cron: str, now: datetime) -> datetime | None:
+    """The most recent scheduled fire at/before `now`, interpreting the cron in LOCAL time.
+
+    The service scheduler fires crons on naive LOCAL time (`"0 8 * * *"` = 08:00 local), so
+    the overdue check must resolve fires the same way — otherwise a UTC interpretation skews
+    the reference point by the UTC offset. `now` is converted to local-aware; croniter then
+    honors that tz, and the result stays tz-aware so age math against `now` is exact."""
+    try:
+        local_now = now.astimezone()
+        return croniter(cron, local_now).get_prev(datetime)
+    except (ValueError, KeyError):
+        return None
 
 
 def _alert(kind: str, agent_id: str, message: str, severity: str) -> dict:

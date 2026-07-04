@@ -50,3 +50,15 @@ test('shows a badge count when approvals are pending', async () => {
     expect(screen.getByRole('link', { name: /Việc/ })).toHaveTextContent('1'),
   )
 })
+
+test('shows a health badge on Đội when a high-severity alert exists (M21)', async () => {
+  vi.spyOn(api, 'getApprovals').mockResolvedValue({ agent_id: 'hr', pending: [] })
+  vi.spyOn(api, 'getTeamAlerts').mockResolvedValue({
+    alerts: [
+      { kind: 'missed_schedule', agent_id: 'hr', message: 'quá hạn', severity: 'high' },
+      { kind: 'budget', agent_id: 'pm', message: 'b', severity: 'warn' }, // warn not counted
+    ],
+  })
+  renderLayout()
+  await waitFor(() => expect(screen.getByRole('link', { name: /Đội/ })).toHaveTextContent('1'))
+})

@@ -5,6 +5,7 @@
 // (Overview/Timeline/Guardrail/Trigger/Memory/Cost) are reachable under Cài đặt → Nâng cao.
 import { NavLink, Outlet } from 'react-router'
 import { api } from '../api/client'
+import { useTeamHealth } from '../hooks/use-team-health'
 import { useSharedPendingApprovals } from '../pending-approvals-context'
 
 async function logout() {
@@ -17,13 +18,16 @@ async function logout() {
 
 const NAV = [
   { to: 'chat', label: 'Trợ lý' },
-  { to: 'team', label: 'Đội' },
-  { to: 'work', label: 'Việc', badge: true },
+  { to: 'team', label: 'Đội', badge: 'health' as const },
+  { to: 'work', label: 'Việc', badge: 'approvals' as const },
   { to: 'settings', label: 'Cài đặt' },
 ]
 
 export function Layout() {
   const { count } = useSharedPendingApprovals()
+  const { highCount } = useTeamHealth()
+  const badgeFor = (b?: 'health' | 'approvals') =>
+    b === 'approvals' ? count : b === 'health' ? highCount : 0
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -33,12 +37,15 @@ export function Layout() {
         </button>
       </header>
       <nav className="app-nav app-nav-primary">
-        {NAV.map((n) => (
-          <NavLink key={n.label} to={n.to}>
-            {n.label}
-            {n.badge && count > 0 && <span className="nav-badge">{count}</span>}
-          </NavLink>
-        ))}
+        {NAV.map((n) => {
+          const badgeCount = badgeFor(n.badge)
+          return (
+            <NavLink key={n.label} to={n.to}>
+              {n.label}
+              {badgeCount > 0 && <span className="nav-badge">{badgeCount}</span>}
+            </NavLink>
+          )
+        })}
       </nav>
       <main className="app-main">
         <Outlet />

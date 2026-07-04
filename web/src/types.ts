@@ -226,8 +226,9 @@ export interface IntegrationHealthPayload {
 }
 
 // v3 M8: deterministic fleet alerts (budget near cap, stuck approvals, deny spikes).
+// v8 M21 adds the "agent chết ngầm" signals: missed_schedule + failing.
 export interface TeamAlert {
-  kind: 'budget' | 'approval_stuck' | 'deny_spike'
+  kind: 'budget' | 'approval_stuck' | 'deny_spike' | 'missed_schedule' | 'failing'
   agent_id: string
   message: string
   severity: 'warn' | 'high'

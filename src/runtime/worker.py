@@ -205,6 +205,27 @@ def main(argv: list[str] | None = None, *, run_report: RunReport = _default_run_
                     result.get("checked"))
         return 0  # a tick with zero due tasks is a SUCCESS
 
+    # v8 M21: the CEO-observability alert push is a generic run kind (fleet health tick on
+    # the admin agent) — computes team_alerts and DMs the CEO, branching before graph dispatch.
+    if kind == "ops-alerts":
+        from src.runtime.ops_alert_runner import run_ops_alerts
+
+        try:
+            result = run_ops_alerts(loaded, settings)
+        except Exception as exc:  # noqa: BLE001 — record the failure, never crash
+            logger.exception("worker %s/ops-alerts failed", agent_id)
+            append_run_event(data_dir, _event(agent_id, kind, "internal", "error", None, False))
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        append_run_event(
+            data_dir,
+            _event(agent_id, kind, "internal", result["status"], result.get("cost_usd"),
+                   bool(result.get("delivered"))),
+        )
+        logger.info("worker %s ops-alerts: %s (checked=%s)", agent_id, result["status"],
+                    result.get("checked"))
+        return 0  # a tick with zero new alerts is a SUCCESS
+
     thread_id = agent_thread_id(agent_id, kind, audience)
     try:
         result = run_report(loaded, settings, kind, audience, thread_id)

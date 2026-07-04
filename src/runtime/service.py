@@ -69,6 +69,13 @@ def _effective_schedule(loaded) -> tuple[dict[str, str], tuple[str, ...]]:
         schedule["tasks"] = tasks_cron(loaded)
         reports.append("tasks")
         changed = True
+    # v8 M21: the admin agent (fleet overseer with a CEO DM) runs an `ops-alerts` health
+    # tick every 6h — computes team_alerts and pushes "agent chết ngầm" to the CEO. The
+    # per-(agent,kind,day) dedup bounds a still-failing agent to one ping per day.
+    if getattr(loaded, "domain", "") == "admin" and getattr(loaded.config, "telegram", None):
+        schedule["ops-alerts"] = "0 */6 * * *"
+        reports.append("ops-alerts")
+        changed = True
     if not changed:
         return loaded.schedule, loaded.reports  # byte-identical when nothing synthesized
     return schedule, tuple(reports)

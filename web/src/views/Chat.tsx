@@ -4,7 +4,7 @@
 // Telegram DM path, so a dialogue can span both surfaces. No SSE: an ops reply is one short
 // turn (request/response), not a streamed run.
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import { api } from '../api/client'
 import { useSharedPendingApprovals } from '../pending-approvals-context'
 
@@ -21,7 +21,15 @@ export function Chat() {
   const [available, setAvailable] = useState<boolean | null>(null)
   const [unavailableReason, setUnavailableReason] = useState<string>('')
   const [turns, setTurns] = useState<Turn[]>([])
-  const [draft, setDraft] = useState('')
+  // v9 P2: prefill a create-agent starter prompt when arriving from Team's "+ Tạo nhân sự ảo"
+  // (?intent=create-agent). A lazy initializer reads the param ONCE at mount, so it can't
+  // clobber the CEO's later typing if searchParams changes reference.
+  const [searchParams] = useSearchParams()
+  const [draft, setDraft] = useState(() =>
+    searchParams.get('intent') === 'create-agent'
+      ? 'Tạo nhân sự ảo mới. Hãy hỏi mình từng bước cần thiết.'
+      : '',
+  )
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const endRef = useRef<HTMLDivElement>(null)
@@ -78,6 +86,10 @@ export function Chat() {
       <section>
         <h2>Trợ lý điều hành</h2>
         <p className="error">Chưa dùng được: {unavailableReason}</p>
+        {/* v9 P2: never a dead-end — the CEO can always create an agent via the wizard. */}
+        <p>
+          Bạn vẫn có thể <Link to="/create">tạo nhân sự ảo bằng biểu mẫu →</Link>
+        </p>
       </section>
     )
   }

@@ -41,6 +41,7 @@ function CompanyDocsPicker({ id }: { id: string }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
+  const [dirty, setDirty] = useState(false)
 
   useEffect(() => {
     api
@@ -48,17 +49,21 @@ function CompanyDocsPicker({ id }: { id: string }) {
       .then((d) => {
         setDocs(d.docs)
         setChosen(new Set(d.docs.filter((x) => x.selected).map((x) => x.slug)))
+        setDirty(false)
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : 'lỗi'))
   }, [id])
 
-  const toggle = (slug: string) =>
+  const toggle = (slug: string) => {
+    setDirty(true)
+    setSaved(false)
     setChosen((p) => {
       const next = new Set(p)
       if (next.has(slug)) next.delete(slug)
       else next.add(slug)
       return next
     })
+  }
 
   const save = useCallback(async () => {
     setBusy(true)
@@ -67,6 +72,7 @@ function CompanyDocsPicker({ id }: { id: string }) {
     try {
       await api.putAgentCompanyDocs(id, [...chosen])
       setSaved(true)
+      setDirty(false)
     } catch (e: unknown) {
       setError(e instanceof ApiError ? e.message : 'lưu thất bại')
     } finally {
@@ -104,6 +110,7 @@ function CompanyDocsPicker({ id }: { id: string }) {
         <button type="button" disabled={busy} onClick={() => void save()}>
           {busy ? 'Đang lưu…' : 'Lưu tài liệu'}
         </button>
+        {dirty && <span className="unsaved">● Chưa lưu</span>}
         {saved && <span className="ok">✓ Đã lưu</span>}
       </div>
     </section>
@@ -120,6 +127,7 @@ function KnowledgeDoc({ id, doc, title }: { id: string; doc: 'soul' | 'project';
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
+  const [dirty, setDirty] = useState(false)
 
   const load = useCallback(() => {
     api
@@ -128,10 +136,16 @@ function KnowledgeDoc({ id, doc, title }: { id: string; doc: 'soul' | 'project';
         setData(d)
         setFields(d.fields)
         setRawText(d.raw)
+        setDirty(false)
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : 'lỗi'))
   }, [id, doc])
   useEffect(load, [load])
+
+  const edit = () => {
+    setDirty(true)
+    setSaved(false)
+  }
 
   const save = useCallback(async () => {
     setBusy(true)
@@ -141,6 +155,7 @@ function KnowledgeDoc({ id, doc, title }: { id: string; doc: 'soul' | 'project';
       if (data?.raw_mode) await api.putKnowledgeRaw(id, doc, rawText)
       else await api.putKnowledgeForm(id, doc, fields)
       setSaved(true)
+      setDirty(false)
       load() // re-read so raw_mode flips correctly if the edit changed the markers
     } catch (e: unknown) {
       setError(e instanceof ApiError ? e.message : 'lưu thất bại')
@@ -160,7 +175,14 @@ function KnowledgeDoc({ id, doc, title }: { id: string; doc: 'soul' | 'project';
           <p className="muted">
             File này đã được sửa tay (chế độ nâng cao) — chỉnh trực tiếp markdown bên dưới.
           </p>
-          <textarea rows={8} value={rawText} onChange={(e) => setRawText(e.target.value)} />
+          <textarea
+            rows={8}
+            value={rawText}
+            onChange={(e) => {
+              edit()
+              setRawText(e.target.value)
+            }}
+          />
         </>
       ) : (
         KNOWLEDGE_FIELDS[doc].map((f) => (
@@ -170,12 +192,18 @@ function KnowledgeDoc({ id, doc, title }: { id: string; doc: 'soul' | 'project';
               <textarea
                 rows={4}
                 value={fields[f.key] ?? ''}
-                onChange={(e) => setFields((p) => ({ ...p, [f.key]: e.target.value }))}
+                onChange={(e) => {
+                  edit()
+                  setFields((p) => ({ ...p, [f.key]: e.target.value }))
+                }}
               />
             ) : (
               <input
                 value={fields[f.key] ?? ''}
-                onChange={(e) => setFields((p) => ({ ...p, [f.key]: e.target.value }))}
+                onChange={(e) => {
+                  edit()
+                  setFields((p) => ({ ...p, [f.key]: e.target.value }))
+                }}
               />
             )}
           </label>
@@ -185,6 +213,7 @@ function KnowledgeDoc({ id, doc, title }: { id: string; doc: 'soul' | 'project';
         <button type="button" disabled={busy} onClick={() => void save()}>
           {busy ? 'Đang lưu…' : 'Lưu'}
         </button>
+        {dirty && <span className="unsaved">● Chưa lưu</span>}
         {saved && <span className="ok">✓ Đã lưu</span>}
       </div>
     </section>
@@ -197,6 +226,7 @@ function SkillsPicker({ id }: { id: string }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
+  const [dirty, setDirty] = useState(false)
 
   useEffect(() => {
     api
@@ -204,17 +234,21 @@ function SkillsPicker({ id }: { id: string }) {
       .then((d) => {
         setData(d)
         setChosen(new Set(d.skills.filter((s) => s.selected).map((s) => s.name)))
+        setDirty(false)
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : 'lỗi'))
   }, [id])
 
-  const toggle = (name: string) =>
+  const toggle = (name: string) => {
+    setDirty(true)
+    setSaved(false)
     setChosen((p) => {
       const next = new Set(p)
       if (next.has(name)) next.delete(name)
       else next.add(name)
       return next
     })
+  }
 
   const save = useCallback(async () => {
     setBusy(true)
@@ -223,6 +257,7 @@ function SkillsPicker({ id }: { id: string }) {
     try {
       await api.putSkills(id, [...chosen])
       setSaved(true)
+      setDirty(false)
     } catch (e: unknown) {
       setError(e instanceof ApiError ? e.message : 'lưu thất bại')
     } finally {
@@ -258,6 +293,7 @@ function SkillsPicker({ id }: { id: string }) {
         <button type="button" disabled={busy} onClick={() => void save()}>
           {busy ? 'Đang lưu…' : 'Lưu kỹ năng'}
         </button>
+        {dirty && <span className="unsaved">● Chưa lưu</span>}
         {saved && <span className="ok">✓ Đã lưu</span>}
       </div>
     </section>

@@ -2,7 +2,7 @@
 // DELETE, and the integration health panel renders ok/fail states. Mocked api (no
 // network), matching the rest of the SPA's test style.
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { MemoryRouter } from 'react-router'
+import { MemoryRouter, Route, Routes } from 'react-router'
 import { beforeEach, expect, test, vi } from 'vitest'
 import { api } from '../api/client'
 import { Team } from './Team'
@@ -35,6 +35,44 @@ beforeEach(() => {
 function wrap(ui: React.ReactElement) {
   return render(<MemoryRouter>{ui}</MemoryRouter>)
 }
+
+// Render Team inside a router that has landing routes for /chat and /create so we can assert
+// where the "+ Tạo nhân sự ảo" button navigates.
+function wrapWithRoutes() {
+  return render(
+    <MemoryRouter initialEntries={['/team']}>
+      <Routes>
+        <Route path="/team" element={<Team />} />
+        <Route path="/chat" element={<div>CHAT LANDING</div>} />
+        <Route path="/create" element={<div>WIZARD LANDING</div>} />
+      </Routes>
+    </MemoryRouter>,
+  )
+}
+
+test('+ Tạo nhân sự ảo → chat when ops-chat is available', async () => {
+  vi.spyOn(api, 'getAgents').mockResolvedValue([])
+  vi.spyOn(api, 'opsChatAvailable').mockResolvedValue({ available: true, agent_id: 'admin' })
+  wrapWithRoutes()
+  fireEvent.click(await screen.findByText('+ Tạo nhân sự ảo'))
+  await waitFor(() => expect(screen.getByText('CHAT LANDING')).toBeInTheDocument())
+})
+
+test('+ Tạo nhân sự ảo → wizard when ops-chat is unavailable (no dead-end, red-team B3)', async () => {
+  vi.spyOn(api, 'getAgents').mockResolvedValue([])
+  vi.spyOn(api, 'opsChatAvailable').mockResolvedValue({ available: false, reason: 'chưa cấu hình' })
+  wrapWithRoutes()
+  fireEvent.click(await screen.findByText('+ Tạo nhân sự ảo'))
+  await waitFor(() => expect(screen.getByText('WIZARD LANDING')).toBeInTheDocument())
+})
+
+test('+ Tạo nhân sự ảo → wizard when the availability check throws', async () => {
+  vi.spyOn(api, 'getAgents').mockResolvedValue([])
+  vi.spyOn(api, 'opsChatAvailable').mockRejectedValue(new Error('boom'))
+  wrapWithRoutes()
+  fireEvent.click(await screen.findByText('+ Tạo nhân sự ảo'))
+  await waitFor(() => expect(screen.getByText('WIZARD LANDING')).toBeInTheDocument())
+})
 
 test('renders the health panel ok + fail states', async () => {
   vi.spyOn(api, 'getAgents').mockResolvedValue([])

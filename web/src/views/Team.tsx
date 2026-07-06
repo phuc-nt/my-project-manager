@@ -4,7 +4,7 @@
 // data via api.getAgentStatus. Delete requires the existing ConfirmDialog-style two-step
 // confirm; the `default` agent's Delete action is hidden (backend also 400s it).
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { api } from '../api/client'
 import { IntegrationHealthPanel } from '../components/IntegrationHealthPanel'
 import { KIND_LABEL, RUN_STATUS_LABEL, labelFor } from '../labels'
@@ -24,6 +24,23 @@ export function Team() {
   const [profileDisabledNotice, setProfileDisabledNotice] = useState<Record<string, boolean>>({})
   // v3 M8: deterministic fleet alerts (budget near cap, stuck approvals, deny spikes).
   const [alerts, setAlerts] = useState<TeamAlert[]>([])
+  const [creating, setCreating] = useState(false)
+  const navigate = useNavigate()
+
+  // v9 P2: "+ Tạo nhân sự ảo" prefers the conversational path (chat-ops), but a brand-new CEO
+  // may have no admin agent / no ops_operator_id yet — chat is then unavailable and would be a
+  // dead-end. Fall back to the wizard so the FIRST agent can always be created. (red-team B3)
+  const goCreate = useCallback(async () => {
+    setCreating(true)
+    try {
+      const r = await api.opsChatAvailable()
+      navigate(r.available ? '/chat?intent=create-agent' : '/create')
+    } catch {
+      navigate('/create') // availability check failed → wizard still works
+    } finally {
+      setCreating(false)
+    }
+  }, [navigate])
 
   const loadAgents = useCallback(() => {
     setLoading(true)
@@ -105,9 +122,9 @@ export function Team() {
 
       <h2>Đội</h2>
       <div className="team-actions">
-        <Link to="/create" className="btn-link">
+        <button type="button" className="btn-link" disabled={creating} onClick={goCreate}>
           + Tạo nhân sự ảo
-        </Link>
+        </button>
         <Link to="/company-docs" className="btn-link">
           📄 Kho tài liệu
         </Link>

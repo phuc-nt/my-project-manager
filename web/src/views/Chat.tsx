@@ -138,7 +138,7 @@ export function Chat() {
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={onKeyDown}
         />
-        <button type="button" onClick={() => void send()} disabled={busy || !draft.trim()}>
+        <button type="button" className="btn btn-primary" onClick={() => void send()} disabled={busy || !draft.trim()}>
           {busy ? 'Đang gửi…' : 'Gửi'}
         </button>
       </div>

@@ -1,146 +1,219 @@
-/* Minimal dashboard styles (M4). No UI kit — plain CSS. */
-:root { font-family: system-ui, sans-serif; color: #1a1a1a; }
-.app-shell { max-width: 1100px; margin: 0 auto; padding: 1rem; }
-.app-header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
-.app-header h1 { font-size: 1.1rem; margin: 0; }
-.app-nav { display: flex; gap: 0.75rem; margin: 0.75rem 0 1.25rem; border-bottom: 1px solid #ddd; padding-bottom: 0.5rem; }
-.app-nav a { text-decoration: none; color: #555; padding: 0.25rem 0.5rem; border-radius: 4px; }
-.app-nav a.active { background: #1a1a1a; color: #fff; }
-.agent-picker { font-size: 0.9rem; }
+/* Dashboard styles. No UI kit — plain CSS with design tokens (v9 P3).
+   Tokens live in :root; component styles reference var(--…) so the whole app stays consistent
+   and a single edit re-themes everything. Contrast values chosen to pass WCAG AA (4.5:1) for
+   small text — see --color-muted et al. */
+:root {
+  font-family: system-ui, sans-serif;
+
+  /* Color */
+  --color-text: #1a1a1a;
+  --color-muted: #6b6b6b;       /* was #777 — now ≥4.5:1 on white */
+  --color-subtle: #707070;      /* was #888 (th, chat-who) */
+  --color-primary: #1a1a1a;
+  --color-primary-contrast: #ffffff;
+  --color-danger: #b00020;
+  --color-danger-strong: #d93025;
+  --color-ok: #1e7e34;
+  --color-warn: #b26a00;
+  --color-border: #dddddd;
+  --color-border-soft: #eeeeee;
+  --color-bg-soft: #f6f8fa;
+  --color-bg-faint: #fafafa;
+
+  /* Spacing scale */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+
+  /* Radius + shadow */
+  --radius: 6px;
+  --radius-lg: 10px;
+  --radius-pill: 999px;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+
+  /* Type scale (h1 was 1.1rem — smaller than the nav; fixed to lead the hierarchy) */
+  --fs-h1: 1.4rem;
+  --fs-h2: 1.2rem;
+  --fs-h3: 1.05rem;
+  --fs-h4: 0.95rem;
+  --fs-body: 1rem;
+  --fs-sm: 0.9rem;
+  --fs-xs: 0.8rem;
+
+  color: var(--color-text);
+}
+
+/* Type scale — consistent heading hierarchy across every view. */
+h1 { font-size: var(--fs-h1); }
+h2 { font-size: var(--fs-h2); margin: 0 0 var(--space-4); }
+h3 { font-size: var(--fs-h3); }
+h4 { font-size: var(--fs-h4); }
+
+.app-shell { max-width: 1100px; margin: 0 auto; padding: var(--space-4); }
+.app-header { display: flex; justify-content: space-between; align-items: center; gap: var(--space-4); }
+.app-header h1 { font-size: var(--fs-h2); margin: 0; }
+.app-nav { display: flex; gap: var(--space-3); margin: var(--space-3) 0 1.25rem; border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-2); }
+.app-nav a { text-decoration: none; color: #555; padding: var(--space-1) var(--space-2); border-radius: var(--radius); }
+.app-nav a.active { background: var(--color-primary); color: var(--color-primary-contrast); }
+.agent-picker { font-size: var(--fs-sm); }
 
 /* v7 M20: CEO-first nav + badge + chips */
 .app-nav-primary { gap: 1.25rem; font-size: 1.05rem; }
 .app-nav-primary a { padding: 0.4rem 0.9rem; font-weight: 600; }
-.nav-badge { display: inline-block; margin-left: 0.4rem; background: #d33; color: #fff;
-  border-radius: 999px; padding: 0 0.45rem; font-size: 0.75rem; font-weight: 700; }
-.quick-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.5rem 0; }
-.chip { border: 1px solid #ccc; background: #f6f6f6; border-radius: 999px;
+.nav-badge { display: inline-block; margin-left: 0.4rem; background: var(--color-danger); color: #fff;
+  border-radius: var(--radius-pill); padding: 0 0.45rem; font-size: 0.75rem; font-weight: 700; }
+.quick-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-2) 0; }
+.chip { border: 1px solid #ccc; background: #f6f6f6; border-radius: var(--radius-pill);
   padding: 0.3rem 0.8rem; font-size: 0.85rem; cursor: pointer; text-decoration: none; color: #333; }
 .chip:hover { background: #eee; }
-.chip-alert { border-color: #d33; color: #b00; background: #fff5f5; font-weight: 600; }
+.chip-alert { border-color: var(--color-danger); color: var(--color-danger); background: #fff5f5; font-weight: 600; }
 .advanced-bar { display: flex; justify-content: space-between; align-items: center;
-  margin-bottom: 1rem; }
-.team-actions { display: flex; gap: 0.75rem; margin: 0.5rem 0 1rem; }
-.btn-link { text-decoration: none; border: 1px solid #ccc; border-radius: 6px;
-  padding: 0.35rem 0.8rem; color: #333; }
-.btn-link:hover { background: #f2f2f2; }
-.work-approvals, .work-tasks { margin-bottom: 1.5rem; }
-.work-approvals .badge { background: #d33; color: #fff; border-radius: 999px;
-  padding: 0 0.5rem; font-size: 0.8rem; }
+  margin-bottom: var(--space-4); }
+.team-actions { display: flex; gap: var(--space-3); margin: var(--space-2) 0 var(--space-4); }
+.work-approvals, .work-tasks { margin-bottom: var(--space-5); }
+.work-approvals .badge { background: var(--color-danger); color: #fff; border-radius: var(--radius-pill);
+  padding: 0 var(--space-2); font-size: var(--fs-xs); }
 .approval-list { list-style: none; padding: 0; }
-.approval-list li { border: 1px solid #e0e0e0; border-radius: 6px; padding: 0.6rem 0.8rem;
-  margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.approval-list li { border: 1px solid #e0e0e0; border-radius: var(--radius); padding: 0.6rem 0.8rem;
+  margin-bottom: var(--space-2); display: flex; justify-content: space-between; align-items: center; gap: var(--space-4); }
 .advanced-links { columns: 2; list-style: none; padding: 0; }
-.danger { color: #b00; }
-table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
-th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid #eee; }
-.error { color: #b00; }
+.danger { color: var(--color-danger); }
+table { border-collapse: collapse; width: 100%; font-size: var(--fs-sm); }
+th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--color-border-soft); }
+.error { color: var(--color-danger); }
+
+/* Shared component classes (v9 P3). Applied to CEO views; the global `button` rule below still
+   styles Advanced-view buttons so nothing there breaks. Keep any existing class on an element
+   when adding these — tests query by text/role, not by these visual classes. */
+.btn { display: inline-block; padding: 0.45rem 0.9rem; border: 1px solid #ccc; border-radius: var(--radius);
+  background: #fff; color: var(--color-text); cursor: pointer; font-size: var(--fs-sm); text-decoration: none; }
+.btn:hover { background: var(--color-bg-soft); }
+.btn:disabled { opacity: 0.6; cursor: default; }
+.btn-primary { background: var(--color-primary); color: var(--color-primary-contrast); border-color: var(--color-primary); }
+.btn-primary:hover { background: #000; }
+.btn-danger { color: var(--color-danger); border-color: var(--color-danger); }
+.btn-danger:hover { background: #fff5f5; }
+.btn-link { text-decoration: none; border: 1px solid #ccc; border-radius: var(--radius);
+  padding: 0.35rem 0.8rem; color: #333; background: #fff; cursor: pointer; font-size: var(--fs-sm); }
+.btn-link:hover { background: #f2f2f2; }
+.card { border: 1px solid var(--color-border); border-radius: var(--radius); padding: var(--space-3);
+  box-shadow: var(--shadow-sm); }
+.badge { display: inline-block; border-radius: var(--radius-pill); padding: 0.15rem 0.5rem; font-size: var(--fs-xs); }
 
 /* Status / verdict coloring + chart sizing (M4 S3 views). */
-.chart-box { max-width: 420px; margin: 1rem 0; }
-.muted { color: #777; font-size: 0.9rem; }
-.status-delivered, .verdict-allow { color: #1e7e34; font-weight: 600; }
+.chart-box { max-width: 420px; margin: var(--space-4) 0; }
+.muted { color: var(--color-muted); font-size: var(--fs-sm); }
+.status-delivered, .verdict-allow { color: var(--color-ok); font-weight: 600; }
 .status-interrupted, .verdict-pending { color: #b8860b; font-weight: 600; }
-.status-error, .verdict-deny, .verdict-reject { color: #b00; font-weight: 600; }
-.verdict-dry_run, .verdict-skipped { color: #777; }
+.status-error, .verdict-deny, .verdict-reject { color: var(--color-danger); font-weight: 600; }
+.verdict-dry_run, .verdict-skipped { color: var(--color-muted); }
 .facts-list { padding-left: 1.2rem; }
 .facts-list li { margin: 0.2rem 0; }
 
 /* Ops surfaces (M4 S4). */
-.confirm-dialog { border: 1px solid #d93025; border-radius: 6px; padding: 1rem; margin-top: 1rem; background: #fff8f8; }
-.action-detail { background: #f6f8fa; padding: 0.5rem; border-radius: 4px; overflow-x: auto; font-size: 0.8rem; }
+.confirm-dialog { border: 1px solid var(--color-danger-strong); border-radius: var(--radius); padding: var(--space-4); margin-top: var(--space-4); background: #fff8f8; box-shadow: var(--shadow-sm); }
+.action-detail { background: var(--color-bg-soft); padding: var(--space-2); border-radius: 4px; overflow-x: auto; font-size: var(--fs-xs); }
 /* Approve-dialog summary (v9 P1). The external variant MUST stand out — it's the CEO's last
    signal that an action leaves the org. Plain vs red/bold is the whole point of external:boolean. */
-.confirm-summary { font-size: 1.05rem; margin: 0.5rem 0; padding: 0.5rem 0.75rem; border-radius: 4px; background: #f1f3f4; }
-.confirm-external { background: #fdecea; color: #b3261e; font-weight: 700; border: 1px solid #d93025; }
-.confirm-external-note { color: #b3261e; font-weight: 600; margin: 0.25rem 0 0.5rem; }
-.config-editor { margin: 1rem 0; }
+.confirm-summary { font-size: 1.05rem; margin: var(--space-2) 0; padding: var(--space-2) var(--space-3); border-radius: 4px; background: #f1f3f4; }
+.confirm-external { background: #fdecea; color: #b3261e; font-weight: 700; border: 1px solid var(--color-danger-strong); }
+.confirm-external-note { color: #b3261e; font-weight: 600; margin: var(--space-1) 0 var(--space-2); }
+.config-editor { margin: var(--space-4) 0; }
 .config-editor textarea { width: 100%; font-family: ui-monospace, monospace; font-size: 0.85rem; }
-.ok { color: #1e7e34; }
-.unsaved { color: #b26a00; font-weight: 600; margin-left: 0.5rem; }
-.trigger-form { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
-.run-stream ul { font-family: ui-monospace, monospace; font-size: 0.8rem; }
-button { cursor: pointer; padding: 0.25rem 0.6rem; }
+.ok { color: var(--color-ok); }
+.unsaved { color: var(--color-warn); font-weight: 600; margin-left: var(--space-2); }
+.trigger-form { display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap; }
+.run-stream ul { font-family: ui-monospace, monospace; font-size: var(--fs-xs); }
+button { cursor: pointer; padding: var(--space-1) 0.6rem; }
 button:disabled { cursor: default; opacity: 0.6; }
 
 /* Create-agent wizard + Team view (v3 M7). */
-.wizard-steps { display: flex; gap: 1rem; list-style: none; padding: 0; font-size: 0.85rem; color: #777; }
-.wizard-steps .wizard-step-active { color: #1a1a1a; font-weight: 600; }
-.wizard-nav { margin-top: 1rem; display: flex; gap: 0.5rem; }
-.domain-picker { border: 1px solid #ddd; border-radius: 6px; padding: 0.75rem; }
-.domain-picker-option { display: block; margin: 0.5rem 0; }
-.schedule-builder { margin: 0.4rem 0 0.8rem 1.5rem; padding: 0.5rem; background: #f6f8fa; border-radius: 4px; }
-.schedule-builder-days { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.4rem; }
+.wizard-steps { display: flex; gap: var(--space-4); list-style: none; padding: 0; font-size: 0.85rem; color: var(--color-muted); }
+.wizard-steps .wizard-step-active { color: var(--color-text); font-weight: 600; }
+.wizard-nav { margin-top: var(--space-4); display: flex; gap: var(--space-2); }
+.domain-picker { border: 1px solid var(--color-border); border-radius: var(--radius); padding: var(--space-3); }
+.domain-picker-option { display: block; margin: var(--space-2) 0; }
+.schedule-builder { margin: 0.4rem 0 0.8rem 1.5rem; padding: var(--space-2); background: var(--color-bg-soft); border-radius: 4px; }
+.schedule-builder-days { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-bottom: 0.4rem; }
+.schedule-builder-when { font-weight: 600; margin: 0.2rem 0; }
 .schedule-builder-cron { font-family: ui-monospace, monospace; }
-.reports-step-kind { margin-bottom: 0.5rem; }
+.reports-step-kind { margin-bottom: var(--space-2); }
 .persona-textarea { width: 100%; font-family: ui-monospace, monospace; font-size: 0.85rem; }
-.review-spec { background: #f6f8fa; padding: 0.5rem; border-radius: 4px; overflow-x: auto; font-size: 0.8rem; }
-.token-setup-box { border: 1px solid #ddd; border-radius: 6px; padding: 0.75rem; margin: 1rem 0; }
-.env-template { background: #f6f8fa; padding: 0.5rem; border-radius: 4px; overflow-x: auto; font-size: 0.8rem; }
-.health-panel { border: 1px solid #ddd; border-radius: 6px; padding: 0.75rem; margin-bottom: 1.25rem; }
+.review-spec { background: var(--color-bg-soft); padding: var(--space-2); border-radius: 4px; overflow-x: auto; font-size: var(--fs-xs); }
+.token-setup-box { border: 1px solid var(--color-border); border-radius: var(--radius); padding: var(--space-3); margin: var(--space-4) 0; }
+.env-template { background: var(--color-bg-soft); padding: var(--space-2); border-radius: 4px; overflow-x: auto; font-size: var(--fs-xs); }
+.health-panel { border: 1px solid var(--color-border); border-radius: var(--radius); padding: var(--space-3); margin-bottom: 1.25rem; box-shadow: var(--shadow-sm); }
 .health-checks { list-style: none; padding: 0; }
 .health-checks li { margin: 0.3rem 0; }
 .health-dot { display: inline-block; width: 0.6rem; height: 0.6rem; border-radius: 50%; margin-right: 0.3rem; }
-.health-dot-ok { background: #1e7e34; }
-.health-dot-fail { background: #b00; }
-.health-detail { margin-left: 1rem; }
+.health-dot-ok { background: var(--color-ok); }
+.health-dot-fail { background: var(--color-danger); }
+.health-detail { margin-left: var(--space-4); }
 
 /* v6 M14b: CEO chat-ops box */
-.ops-chat-hint { color: #666; font-size: 0.9rem; margin: 0.25rem 0 0.75rem; }
-.ops-chat-log { border: 1px solid #ddd; border-radius: 6px; padding: 0.75rem; min-height: 240px; max-height: 55vh; overflow-y: auto; background: #fafafa; }
-.ops-chat-empty { color: #999; font-style: italic; }
-.ops-chat-turn { margin-bottom: 0.75rem; }
-.ops-chat-who { display: block; font-size: 0.75rem; font-weight: 600; color: #888; margin-bottom: 0.15rem; }
-.ops-chat-ceo .ops-chat-text { background: #1a1a1a; color: #fff; }
-.ops-chat-agent .ops-chat-text { background: #fff; border: 1px solid #ddd; }
-.ops-chat-text { margin: 0; padding: 0.5rem 0.75rem; border-radius: 6px; white-space: pre-wrap; font-family: inherit; font-size: 0.95rem; }
-.ops-chat-input { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
-.ops-chat-input input { flex: 1; padding: 0.5rem 0.75rem; border: 1px solid #ccc; border-radius: 6px; }
+.ops-chat-hint { color: var(--color-muted); font-size: var(--fs-sm); margin: var(--space-1) 0 var(--space-3); }
+.ops-chat-log { border: 1px solid var(--color-border); border-radius: var(--radius); padding: var(--space-3); min-height: 240px; max-height: 55vh; overflow-y: auto; background: var(--color-bg-faint); }
+.ops-chat-empty { color: var(--color-muted); font-style: italic; }
+.ops-chat-turn { margin-bottom: var(--space-3); }
+.ops-chat-who { display: block; font-size: 0.75rem; font-weight: 600; color: var(--color-subtle); margin-bottom: 0.15rem; }
+.ops-chat-ceo .ops-chat-text { background: var(--color-primary); color: #fff; }
+.ops-chat-agent .ops-chat-text { background: #fff; border: 1px solid var(--color-border); }
+.ops-chat-text { margin: 0; padding: var(--space-2) var(--space-3); border-radius: var(--radius); white-space: pre-wrap; font-family: inherit; font-size: 0.95rem; }
+.ops-chat-input { display: flex; gap: var(--space-2); margin-top: var(--space-3); }
+.ops-chat-input input { flex: 1; padding: var(--space-2) var(--space-3); border: 1px solid #ccc; border-radius: var(--radius); }
 
 /* v6 M15b: assigned-tasks board */
-.tasks-agent { margin-bottom: 1.5rem; }
-.tasks-agent h3 { margin: 0 0 0.5rem; }
+.tasks-agent { margin-bottom: var(--space-5); }
+.tasks-agent h3 { margin: 0 0 var(--space-2); }
 .tasks-table { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
-.tasks-table th, .tasks-table td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid #eee; }
-.tasks-table th { color: #888; font-weight: 600; }
+.tasks-table th, .tasks-table td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--color-border-soft); }
+.tasks-table th { color: var(--color-subtle); font-weight: 600; }
 .tasks-last { color: #555; max-width: 30rem; }
 
 /* v6 M16: login screen + logout */
 .login-screen { display: flex; align-items: center; justify-content: center; min-height: 80vh; }
-.login-box { display: flex; flex-direction: column; gap: 0.85rem; width: 300px; padding: 1.5rem; border: 1px solid #ddd; border-radius: 8px; }
-.login-box h1 { margin: 0 0 0.25rem; font-size: 1.3rem; }
-.login-box label { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.9rem; color: #555; }
-.login-box input { padding: 0.5rem; border: 1px solid #ccc; border-radius: 5px; }
-.login-box button { padding: 0.55rem; background: #1a1a1a; color: #fff; border: none; border-radius: 5px; cursor: pointer; }
+.login-box { display: flex; flex-direction: column; gap: 0.85rem; width: 300px; padding: var(--space-5); border: 1px solid var(--color-border); border-radius: 8px; box-shadow: var(--shadow-sm); }
+.login-box h1 { margin: 0 0 var(--space-1); font-size: 1.3rem; }
+.login-box label { display: flex; flex-direction: column; gap: 0.3rem; font-size: var(--fs-sm); color: #555; }
+.login-box input { padding: var(--space-2); border: 1px solid #ccc; border-radius: 5px; }
+.login-box button { padding: 0.55rem; background: var(--color-primary); color: #fff; border: none; border-radius: 5px; cursor: pointer; }
 .login-box button:disabled { opacity: 0.5; cursor: default; }
-.logout-btn { margin-left: auto; padding: 0.35rem 0.7rem; background: none; border: 1px solid #ccc; border-radius: 5px; cursor: pointer; font-size: 0.85rem; }
+.logout-btn { margin-left: auto; padding: var(--space-1) 0.7rem; background: none; border: 1px solid #ccc; border-radius: 5px; cursor: pointer; font-size: 0.85rem; }
 
 /* v7 M17: setup wizard */
 .setup-screen { display: flex; align-items: center; justify-content: center; min-height: 90vh; }
-.setup-box { display: flex; flex-direction: column; gap: 0.75rem; width: 380px; padding: 1.75rem; border: 1px solid #ddd; border-radius: 10px; }
+.setup-box { display: flex; flex-direction: column; gap: var(--space-3); width: 380px; padding: 1.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }
 .setup-box h1 { margin: 0; font-size: 1.35rem; }
-.setup-progress { color: #999; font-size: 0.8rem; }
-.setup-hint { color: #666; font-size: 0.88rem; margin: 0; }
+.setup-progress { color: var(--color-muted); font-size: var(--fs-xs); }
+.setup-hint { color: var(--color-muted); font-size: 0.88rem; margin: 0; }
 .setup-box label { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.88rem; color: #555; }
-.setup-box input { padding: 0.5rem; border: 1px solid #ccc; border-radius: 5px; }
-.setup-ok { color: #0a0; font-size: 0.88rem; }
-.setup-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem; }
-.setup-actions button { padding: 0.5rem 0.9rem; border: 1px solid #ccc; border-radius: 5px; background: #fff; cursor: pointer; }
-.setup-primary { background: #1a1a1a !important; color: #fff; border-color: #1a1a1a !important; margin-left: auto; }
+.setup-box input { padding: var(--space-2); border: 1px solid #ccc; border-radius: 5px; }
+.setup-ok { color: var(--color-ok); font-size: 0.88rem; }
+.setup-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-2); }
+.setup-actions button { padding: var(--space-2) 0.9rem; border: 1px solid #ccc; border-radius: 5px; background: #fff; cursor: pointer; }
+.setup-primary { background: var(--color-primary) !important; color: #fff; border-color: var(--color-primary) !important; margin-left: auto; }
 .setup-actions button:disabled { opacity: 0.5; cursor: default; }
 
 /* v7 M18a: unified agent page */
-.agent-page-head { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
-.badge-on { background: #e6f7e6; color: #0a0; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.8rem; }
-.badge-off { background: #f2f2f2; color: #888; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.8rem; }
+.agent-page-head { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.badge-on { background: #e6f7e6; color: var(--color-ok); padding: 0.15rem 0.5rem; border-radius: 10px; font-size: var(--fs-xs); }
+.badge-off { background: #f2f2f2; color: var(--color-subtle); padding: 0.15rem 0.5rem; border-radius: 10px; font-size: var(--fs-xs); }
 .agent-pending { color: #b60; font-size: 0.85rem; }
-.agent-tabs { display: flex; gap: 0.5rem; margin: 1rem 0; border-bottom: 1px solid #eee; }
-.agent-tabs button { background: none; border: none; padding: 0.5rem 0.75rem; cursor: pointer; color: #666; border-bottom: 2px solid transparent; }
-.agent-tabs button.tab-active { color: #1a1a1a; border-bottom-color: #1a1a1a; font-weight: 600; }
-.agent-runs { font-size: 0.9rem; color: #555; }
-.telegram-tab label { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.75rem; font-size: 0.9rem; color: #555; }
-.telegram-tab input { padding: 0.5rem; border: 1px solid #ccc; border-radius: 5px; }
+.agent-tabs { display: flex; gap: var(--space-2); margin: var(--space-4) 0; border-bottom: 1px solid var(--color-border-soft); }
+.agent-tabs button { background: none; border: none; padding: var(--space-2) var(--space-3); cursor: pointer; color: var(--color-muted); border-bottom: 2px solid transparent; }
+.agent-tabs button.tab-active { color: var(--color-text); border-bottom-color: var(--color-primary); font-weight: 600; }
+.agent-runs { font-size: var(--fs-sm); color: #555; }
+.telegram-tab label { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: var(--space-3); font-size: var(--fs-sm); color: #555; }
+.telegram-tab input { padding: var(--space-2); border: 1px solid #ccc; border-radius: 5px; }
 .telegram-chats { list-style: none; padding: 0; display: flex; gap: 0.4rem; flex-wrap: wrap; }
-.telegram-chats button { padding: 0.3rem 0.6rem; border: 1px solid #ccc; border-radius: 5px; background: #fafafa; cursor: pointer; font-size: 0.85rem; }
-.agent-actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
-.agent-actions button { padding: 0.5rem 0.9rem; border: 1px solid #ccc; border-radius: 5px; background: #fff; cursor: pointer; }
+.telegram-chats button { padding: 0.3rem 0.6rem; border: 1px solid #ccc; border-radius: 5px; background: var(--color-bg-faint); cursor: pointer; font-size: 0.85rem; }
+.agent-actions { display: flex; gap: var(--space-2); margin-top: var(--space-2); flex-wrap: wrap; align-items: center; }
+.agent-actions button { padding: var(--space-2) 0.9rem; border: 1px solid #ccc; border-radius: 5px; background: #fff; cursor: pointer; }
+
+/* v7 M19: company docs library — selected item in the list (had .active class, no style). */
+.company-docs-list { list-style: none; padding: 0; }
+.company-docs-list button { display: block; width: 100%; text-align: left; background: none; border: 1px solid transparent; border-radius: var(--radius); padding: var(--space-2); cursor: pointer; }
+.company-docs-list button:hover { background: var(--color-bg-soft); }
+.company-docs-list button.active { background: #eef3ff; border-color: #b9ccff; font-weight: 600; }

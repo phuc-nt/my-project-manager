@@ -58,12 +58,12 @@ export function Work() {
                   <span className="muted"> · {formatDateTime(it.created_at)}</span>
                 </div>
                 <div className="agent-actions">
-                  <button type="button" onClick={() => setConfirming(it)}>
+                  <button type="button" className="btn btn-primary" onClick={() => setConfirming(it)}>
                     Xem &amp; duyệt
                   </button>
                   <button
                     type="button"
-                    className="danger"
+                    className="btn btn-danger"
                     disabled={busy}
                     onClick={() => void act(it, 'reject')}
                   >

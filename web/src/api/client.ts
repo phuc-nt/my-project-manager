@@ -44,6 +44,20 @@ export function setUnauthorizedHandler(fn: () => void) {
   onUnauthorized = fn
 }
 
+// v9 P1: map an HTTP status to a friendly Vietnamese line for a low-tech CEO, instead of the
+// raw "500 Internal Server Error for /api/…". A backend-provided `detail` is appended small.
+function friendlyError(status: number, detail?: string): string {
+  const base =
+    status >= 500
+      ? 'Máy chủ đang gặp lỗi, thử lại sau.'
+      : status === 404
+        ? 'Không tìm thấy dữ liệu.'
+        : status === 403
+          ? 'Bạn không có quyền làm việc này.'
+          : `Có lỗi (${status}).`
+  return detail && detail !== `${status}` ? `${base} (${detail})` : base
+}
+
 async function request<T>(path: string): Promise<T> {
   const res = await fetch(path, { headers: { Accept: 'application/json' } })
   if (res.status === 401) {
@@ -51,7 +65,7 @@ async function request<T>(path: string): Promise<T> {
     throw new ApiError(401, 'chưa đăng nhập')
   }
   if (!res.ok) {
-    throw new ApiError(res.status, `${res.status} ${res.statusText} for ${path}`)
+    throw new ApiError(res.status, friendlyError(res.status))
   }
   return (await res.json()) as T
 }
@@ -79,15 +93,16 @@ async function mutate<T>(
     throw new ApiError(401, 'chưa đăng nhập')
   }
   if (!res.ok) {
-    // surface the backend's exact detail (e.g. the config validation message)
-    let detail = `${res.status} ${res.statusText}`
+    // Prefer the backend's exact detail (e.g. a config-validation message the CEO should see),
+    // else a friendly Vietnamese line for the status.
+    let detail = ''
     try {
       const j = (await res.json()) as { detail?: string }
       if (j.detail) detail = j.detail
     } catch {
       /* non-JSON error body */
     }
-    throw new ApiError(res.status, detail)
+    throw new ApiError(res.status, detail || friendlyError(res.status))
   }
   return (await res.json()) as T
 }

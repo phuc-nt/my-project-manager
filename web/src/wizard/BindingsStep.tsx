@@ -16,12 +16,12 @@ export function BindingsStep({
 
   return (
     <section>
-      <h3>Step 4: Bindings (optional)</h3>
+      <h3>Bước 4: Kết nối (không bắt buộc)</h3>
       {servers.has('jira') && (
         <fieldset>
           <legend>Jira</legend>
           <label>
-            Project key:{' '}
+            Mã dự án (project key):{' '}
             <input value={state.jiraProjectKey} onChange={(e) => update('jiraProjectKey', e.target.value)} />
           </label>
         </fieldset>
@@ -30,21 +30,21 @@ export function BindingsStep({
         <fieldset>
           <legend>Confluence</legend>
           <label>
-            Space key:{' '}
+            Mã space:{' '}
             <input
               value={state.confluenceSpaceKey}
               onChange={(e) => update('confluenceSpaceKey', e.target.value)}
             />
           </label>{' '}
           <label>
-            Space id:{' '}
+            ID space:{' '}
             <input
               value={state.confluenceSpaceId}
               onChange={(e) => update('confluenceSpaceId', e.target.value)}
             />
           </label>{' '}
           <label>
-            OKR page id:{' '}
+            ID trang OKR:{' '}
             <input
               value={state.confluenceOkrPageId}
               onChange={(e) => update('confluenceOkrPageId', e.target.value)}
@@ -65,21 +65,21 @@ export function BindingsStep({
         <fieldset>
           <legend>Slack</legend>
           <label>
-            Report channel:{' '}
+            Kênh báo cáo:{' '}
             <input
               value={state.slackReportChannel}
               onChange={(e) => update('slackReportChannel', e.target.value)}
             />
           </label>{' '}
           <label>
-            Stakeholder channel:{' '}
+            Kênh cho khách/sếp:{' '}
             <input
               value={state.slackStakeholderChannel}
               onChange={(e) => update('slackStakeholderChannel', e.target.value)}
             />
           </label>{' '}
           <label>
-            External channels (comma-list):{' '}
+            Kênh bên ngoài (cách nhau dấu phẩy):{' '}
             <input
               value={state.slackExternalChannels}
               onChange={(e) => update('slackExternalChannels', e.target.value)}
@@ -88,12 +88,12 @@ export function BindingsStep({
           </label>
           {stakeholderChannelMissing && (
             <p className="muted">
-              hint: stakeholder channel is usually also listed in external channels
+              Gợi ý: kênh khách/sếp thường cũng nằm trong danh sách kênh bên ngoài
             </p>
           )}
         </fieldset>
       )}
-      {servers.size === 0 && <p className="muted">Selected pack declares no write servers.</p>}
+      {servers.size === 0 && <p className="muted">Loại nhân sự này không cần kết nối ghi.</p>}
     </section>
   )
 }

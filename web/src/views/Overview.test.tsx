@@ -33,5 +33,5 @@ test('shows an error when the api fails', async () => {
       <Overview />
     </AgentProvider>,
   )
-  await waitFor(() => expect(screen.getByText(/Error: boom/)).toBeInTheDocument())
+  await waitFor(() => expect(screen.getByText(/Lỗi: boom/)).toBeInTheDocument())
 })

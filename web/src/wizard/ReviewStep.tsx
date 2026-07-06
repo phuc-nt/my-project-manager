@@ -22,7 +22,7 @@ export function ReviewStep({ spec, pack }: { spec: CreateAgentSpec; pack: { serv
       const res = await api.createAgent(spec)
       setResult(res)
     } catch (e: unknown) {
-      setError(e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'create failed')
+      setError(e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'tạo thất bại')
     } finally {
       setBusy(false)
     }
@@ -39,25 +39,25 @@ export function ReviewStep({ spec, pack }: { spec: CreateAgentSpec; pack: { serv
 
   return (
     <section>
-      <h3>Step 5: Review + create</h3>
+      <h3>Bước 5: Xem lại + tạo</h3>
       <pre className="review-spec">{JSON.stringify(spec, null, 2)}</pre>
 
       <div className="token-setup-box">
-        <h4>Token setup</h4>
+        <h4>Cài đặt token</h4>
         <p className="muted">
-          These are environment variable NAMES only — never enter secret values here. A
-          technical operator sets the actual values in the server's .env file.
+          Đây chỉ là TÊN biến môi trường — đừng nhập giá trị bí mật ở đây. Người phụ trách kỹ
+          thuật sẽ điền giá trị thật vào file .env trên máy chủ.
         </p>
         <pre className="env-template">{envTemplate}</pre>
         <button type="button" onClick={copyEnv}>
-          {copied ? 'Copied!' : 'Copy .env template'}
+          {copied ? 'Đã chép!' : 'Chép mẫu .env'}
         </button>
       </div>
 
-      {error && <p className="error">Error: {error}</p>}
+      {error && <p className="error">Lỗi: {error}</p>}
       {!result && (
         <button type="button" disabled={busy} onClick={create}>
-          {busy ? 'Creating…' : 'Create agent'}
+          {busy ? 'Đang tạo…' : 'Tạo agent'}
         </button>
       )}
       {result && (

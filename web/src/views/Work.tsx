@@ -5,6 +5,7 @@
 import { useCallback, useState } from 'react'
 import { api } from '../api/client'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { formatDateTime } from '../labels'
 import { useAutoApproved } from '../hooks/use-auto-approved'
 import { type AgentApproval, usePendingApprovals } from '../hooks/use-pending-approvals'
 import { Tasks } from './Tasks'
@@ -18,6 +19,9 @@ export function Work() {
 
   const act = useCallback(
     async (item: AgentApproval, kind: 'approve' | 'reject') => {
+      // Reject is safe + reversible (the agent can re-prepare), so it only needs a light
+      // confirm to stop a mis-tap on mobile — not the full approve dialog (v9 P1 / red-team M2).
+      if (kind === 'reject' && !window.confirm('Bỏ việc này? Agent sẽ không thực hiện.')) return
       setBusy(true)
       setOpError(null)
       try {
@@ -51,7 +55,7 @@ export function Work() {
               <li key={`${it.agentId}-${it.id}`}>
                 <div>
                   <strong>{it.agentId}</strong> · {it.reason}
-                  <span className="muted"> · {it.created_at}</span>
+                  <span className="muted"> · {formatDateTime(it.created_at)}</span>
                 </div>
                 <div className="agent-actions">
                   <button type="button" onClick={() => setConfirming(it)}>

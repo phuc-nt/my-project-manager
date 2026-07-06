@@ -22,38 +22,38 @@ export function IdentityStep({
 
   return (
     <section>
-      <h3>Step 2: Identity</h3>
+      <h3>Bước 2: Danh tính</h3>
       <label>
-        Agent id (lowercase, start alnum, then [a-z0-9_-]):{' '}
+        Mã agent (chữ thường, không dấu, ví dụ: sales-pm):{' '}
         <input
           value={state.id}
           onChange={(e) => update('id', e.target.value.toLowerCase())}
-          placeholder="acme-pm"
+          placeholder="sales-pm"
         />
       </label>
       {!idValid && (
-        <p className="error">id must match [a-z0-9][a-z0-9_-]* (no leading '-', '_' allowed)</p>
+        <p className="error">Mã chỉ gồm chữ thường/số/gạch, bắt đầu bằng chữ hoặc số (vd: sales-pm)</p>
       )}
       <br />
       <label>
-        Display name:{' '}
-        <input value={state.name} onChange={(e) => update('name', e.target.value)} placeholder="Acme PM" />
+        Tên hiển thị:{' '}
+        <input value={state.name} onChange={(e) => update('name', e.target.value)} placeholder="PM Kinh doanh" />
       </label>
-      <h4>Persona helper (optional)</h4>
+      <h4>Gợi ý tính cách (không bắt buộc)</h4>
       <label>
-        Role:{' '}
+        Vai trò:{' '}
         <input
           value={state.role}
           onChange={(e) => {
             update('role', e.target.value)
             regenerate(e.target.value, state.goals)
           }}
-          placeholder="project manager for the Acme team"
+          placeholder="quản lý dự án cho đội Kinh doanh"
         />
       </label>
       <br />
       <label>
-        Goals (one per line):{' '}
+        Mục tiêu (mỗi dòng một ý):{' '}
         <textarea
           value={state.goals}
           onChange={(e) => {
@@ -63,7 +63,7 @@ export function IdentityStep({
           rows={3}
         />
       </label>
-      <h4>SOUL.md (editable)</h4>
+      <h4>SOUL.md (chỉnh được)</h4>
       <textarea
         className="persona-textarea"
         value={state.persona}

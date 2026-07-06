@@ -17,18 +17,18 @@ export function MemoryAutomation() {
 
       <h3>Remembered facts</h3>
       {mem.loading ? (
-        <p>Loading memory…</p>
+        <p>Đang tải…</p>
       ) : mem.error ? (
-        <p className="error">Error: {mem.error}</p>
+        <p className="error">Lỗi: {mem.error}</p>
       ) : (
         <FactsList facts={mem.data?.facts ?? []} />
       )}
 
       <h3>Pending proposals</h3>
       {auto.loading ? (
-        <p>Loading proposals…</p>
+        <p>Đang tải…</p>
       ) : auto.error ? (
-        <p className="error">Error: {auto.error}</p>
+        <p className="error">Lỗi: {auto.error}</p>
       ) : (
         <PendingProposals pending={auto.data?.pending ?? []} />
       )}

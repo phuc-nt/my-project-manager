@@ -8,8 +8,8 @@ import type { AuditPayload } from '../types'
 
 export function Guardrail() {
   const { data, loading, error } = useAgentData<AuditPayload>(api.getAudit)
-  if (loading) return <p>Loading audit…</p>
-  if (error) return <p className="error">Error: {error}</p>
+  if (loading) return <p>Đang tải…</p>
+  if (error) return <p className="error">Lỗi: {error}</p>
   if (!data) return null
 
   const total = Object.values(data.counts).reduce((a, b) => a + b, 0)

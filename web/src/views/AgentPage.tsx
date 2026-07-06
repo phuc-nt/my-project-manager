@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { ApiError, api } from '../api/client'
+import { KIND_LABEL, RUN_STATUS_LABEL, formatDateTime, labelFor } from '../labels'
 import type { AgentStatus, CostPayload, RunsPayload } from '../types'
 import { KnowledgeTab } from './AgentKnowledgeTab'
 
@@ -106,7 +107,7 @@ function ActivityTab({ id, status }: { id: string; status: AgentStatus }) {
         <ul className="agent-runs">
           {runs.runs.slice(0, 10).map((r, i) => (
             <li key={i}>
-              {r.kind} · {r.status} · {r.ts}
+              {labelFor(KIND_LABEL, r.kind)} · {labelFor(RUN_STATUS_LABEL, r.status)} · {formatDateTime(r.ts)}
             </li>
           ))}
         </ul>

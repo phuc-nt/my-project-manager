@@ -17,7 +17,7 @@ export function IntegrationHealthPanel() {
     api
       .getIntegrationHealth()
       .then((res) => setChecks(res.checks))
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : 'health check failed'))
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : 'không kiểm tra được kết nối'))
       .finally(() => setLoading(false))
   }, [])
 
@@ -28,12 +28,12 @@ export function IntegrationHealthPanel() {
   return (
     <section className="health-panel">
       <h3>
-        Integration health{' '}
+        Kết nối{' '}
         <button type="button" disabled={loading} onClick={load}>
-          {loading ? 'Checking…' : 'Refresh'}
+          {loading ? 'Đang kiểm tra…' : 'Làm mới'}
         </button>
       </h3>
-      {error && <p className="error">Error: {error}</p>}
+      {error && <p className="error">Lỗi: {error}</p>}
       <ul className="health-checks">
         {checks.map((c) => (
           <li key={c.id} className={c.ok ? 'health-ok' : 'health-fail'}>

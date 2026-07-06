@@ -82,7 +82,7 @@ function CompanyDocsPicker({ id }: { id: string }) {
       <h4>Tài liệu công ty</h4>
       {docs.length === 0 ? (
         <p className="muted">
-          Chưa có tài liệu nào trong kho. Thêm ở mục "Tài liệu" rồi tick cho agent tại đây.
+          Chưa có tài liệu nào trong kho. Thêm ở mục Tài liệu công ty (trong Đội) rồi tick cho agent tại đây.
         </p>
       ) : (
         <ul className="skills-list">

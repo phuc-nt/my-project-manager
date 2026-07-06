@@ -31,7 +31,7 @@ export function CompanyDocs() {
         </button>
       </header>
       <p className="muted">
-        Tài liệu ở đây được tick cho từng agent (trong trang agent → tab Tài liệu) và chỉ
+        Tài liệu ở đây được tick cho từng agent (trong trang agent → tab Kiến thức) và chỉ
         đưa vào ngữ cảnh nội bộ — báo cáo gửi ra ngoài không bao giờ chứa nội dung này.
       </p>
       <div className="company-docs-body">

@@ -7,8 +7,8 @@ import type { CostPayload } from '../types'
 
 export function Cost() {
   const { data, loading, error } = useAgentData<CostPayload>(api.getCost)
-  if (loading) return <p>Loading cost…</p>
-  if (error) return <p className="error">Error: {error}</p>
+  if (loading) return <p>Đang tải…</p>
+  if (error) return <p className="error">Lỗi: {error}</p>
   if (!data) return null
 
   const ratio = data.cap > 0 ? data.spent_this_month / data.cap : 0

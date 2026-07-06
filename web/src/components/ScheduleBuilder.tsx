@@ -4,15 +4,16 @@
 // day-selection means "no schedule" (manual-only report kind) — the parent omits the
 // kind from the schedule map entirely in that case.
 import { useMemo, useState } from 'react'
+import { formatCron } from '../labels'
 
 const DAYS: { label: string; value: number }[] = [
-  { label: 'Sun', value: 0 },
-  { label: 'Mon', value: 1 },
-  { label: 'Tue', value: 2 },
-  { label: 'Wed', value: 3 },
-  { label: 'Thu', value: 4 },
-  { label: 'Fri', value: 5 },
-  { label: 'Sat', value: 6 },
+  { label: 'CN', value: 0 },
+  { label: 'T2', value: 1 },
+  { label: 'T3', value: 2 },
+  { label: 'T4', value: 3 },
+  { label: 'T5', value: 4 },
+  { label: 'T6', value: 5 },
+  { label: 'T7', value: 6 },
 ]
 
 export function buildCron(time: string, days: number[]): string | null {
@@ -63,7 +64,7 @@ export function ScheduleBuilder({
         ))}
       </div>
       <label>
-        Time:{' '}
+        Giờ:{' '}
         <input
           type="time"
           value={time}
@@ -71,6 +72,8 @@ export function ScheduleBuilder({
           aria-label={`${kind} schedule time`}
         />
       </label>
+      <p className="schedule-builder-when">{formatCron(cron)}</p>
+      {/* keep the raw cron visible so the operator can verify exactly what will run */}
       <p className="muted schedule-builder-cron">
         cron: {cron ?? 'manual only (no days selected)'}
       </p>

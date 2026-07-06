@@ -3,6 +3,7 @@
 // the input the rest of the wizard (reports/bindings) filters against.
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
+import { KIND_LABEL, labelFor } from '../labels'
 import type { Pack } from '../types'
 
 export function DomainPicker({
@@ -20,17 +21,17 @@ export function DomainPicker({
     api
       .getPacks()
       .then((res) => setPacks(res.packs))
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : 'failed to load packs'))
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : 'không tải được loại nhân sự'))
       .finally(() => setLoading(false))
   }, [])
 
-  if (loading) return <p>Loading domain packs…</p>
-  if (error) return <p className="error">Error: {error}</p>
-  if (packs.length === 0) return <p className="muted">No domain packs installed.</p>
+  if (loading) return <p>Đang tải…</p>
+  if (error) return <p className="error">Lỗi: {error}</p>
+  if (packs.length === 0) return <p className="muted">Chưa cài loại nhân sự nào.</p>
 
   return (
     <fieldset className="domain-picker">
-      <legend>Choose a domain pack</legend>
+      <legend>Chọn loại nhân sự</legend>
       {packs.map((p) => (
         <label key={p.id} className="domain-picker-option">
           <input
@@ -41,7 +42,9 @@ export function DomainPicker({
             onChange={() => onSelect(p)}
           />{' '}
           <strong>{p.name}</strong> <span className="muted">({p.id})</span>
-          <div className="muted">reports: {p.report_kinds.join(', ') || 'none'}</div>
+          <div className="muted">
+            báo cáo: {p.report_kinds.map((k) => labelFor(KIND_LABEL, k)).join(', ') || 'không có'}
+          </div>
         </label>
       ))}
     </fieldset>

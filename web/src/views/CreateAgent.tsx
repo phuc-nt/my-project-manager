@@ -9,7 +9,7 @@ import { ReportsStep } from '../wizard/ReportsStep'
 import { ReviewStep } from '../wizard/ReviewStep'
 import { ID_PATTERN, useCreateAgentWizard } from '../wizard/use-create-agent-wizard'
 
-const STEP_LABELS = ['Domain', 'Identity', 'Reports', 'Bindings', 'Review']
+const STEP_LABELS = ['Loại nhân sự', 'Danh tính', 'Báo cáo', 'Kết nối', 'Xem lại']
 
 export function CreateAgent() {
   const wizard = useCreateAgentWizard()
@@ -26,7 +26,7 @@ export function CreateAgent() {
 
   return (
     <section>
-      <h2>Create agent</h2>
+      <h2>Tạo nhân sự ảo</h2>
       <ol className="wizard-steps">
         {STEP_LABELS.map((label, i) => (
           <li key={label} className={state.step === i + 1 ? 'wizard-step-active' : undefined}>
@@ -54,12 +54,12 @@ export function CreateAgent() {
       <div className="wizard-nav">
         {state.step > 1 && (
           <button type="button" onClick={() => goTo(state.step - 1)}>
-            Back
+            Quay lại
           </button>
         )}{' '}
         {state.step < 5 && (
           <button type="button" disabled={!canAdvanceFrom[state.step]} onClick={() => goTo(state.step + 1)}>
-            Next
+            Tiếp
           </button>
         )}
       </div>

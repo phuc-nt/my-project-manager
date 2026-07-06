@@ -36,20 +36,20 @@ async function goToReview() {
 
   // Step 1: pick the pack
   fireEvent.click(screen.getByRole('radio', { name: /Project Management/ }))
-  fireEvent.click(screen.getByText('Next'))
+  fireEvent.click(screen.getByText('Tiếp'))
 
   // Step 2: identity
-  fireEvent.change(screen.getByPlaceholderText('acme-pm'), { target: { value: 'acme-pm' } })
-  fireEvent.change(screen.getByPlaceholderText('Acme PM'), { target: { value: 'Acme PM' } })
-  fireEvent.click(screen.getByText('Next'))
+  fireEvent.change(screen.getByPlaceholderText('sales-pm'), { target: { value: 'acme-pm' } })
+  fireEvent.change(screen.getByPlaceholderText('PM Kinh doanh'), { target: { value: 'Acme PM' } })
+  fireEvent.click(screen.getByText('Tiếp'))
 
   // Step 3: reports + schedule
-  fireEvent.click(screen.getByLabelText('daily'))
-  fireEvent.click(screen.getByLabelText('Mon'))
-  fireEvent.click(screen.getByText('Next'))
+  fireEvent.click(screen.getByLabelText('Báo cáo hằng ngày'))
+  fireEvent.click(screen.getByLabelText('T2'))
+  fireEvent.click(screen.getByText('Tiếp'))
 
   // Step 4: bindings (skip)
-  fireEvent.click(screen.getByText('Next'))
+  fireEvent.click(screen.getByText('Tiếp'))
 }
 
 test('happy path builds the correct POST body including cron schedule', async () => {
@@ -58,7 +58,7 @@ test('happy path builds the correct POST body including cron schedule', async ()
   })
   await goToReview()
 
-  fireEvent.click(screen.getByRole('button', { name: 'Create agent' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Tạo agent' }))
   await waitFor(() => expect(createAgent).toHaveBeenCalled())
   const spec = createAgent.mock.calls[0][0]
   expect(spec.id).toBe('acme-pm')
@@ -76,7 +76,7 @@ test('400 detail from the backend surfaces inline', async () => {
   )
   await goToReview()
 
-  fireEvent.click(screen.getByRole('button', { name: 'Create agent' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Tạo agent' }))
   await waitFor(() =>
     expect(screen.getByText(/not served by the 'pm' pack/)).toBeInTheDocument(),
   )
@@ -91,25 +91,25 @@ test('switching packs after selecting reports does not leak the stale report kin
 
   // Step 1: pick pm, select "daily" in step 3, then go Back to step 1 and pick hr instead.
   fireEvent.click(screen.getByRole('radio', { name: /Project Management/ }))
-  fireEvent.click(screen.getByText('Next')) // -> step 2
-  fireEvent.change(screen.getByPlaceholderText('acme-pm'), { target: { value: 'acme-hr' } })
-  fireEvent.change(screen.getByPlaceholderText('Acme PM'), { target: { value: 'Acme HR' } })
-  fireEvent.click(screen.getByText('Next')) // -> step 3
-  fireEvent.click(screen.getByLabelText('daily'))
-  fireEvent.click(screen.getByText('Back')) // -> step 2
-  fireEvent.click(screen.getByText('Back')) // -> step 1
+  fireEvent.click(screen.getByText('Tiếp')) // -> step 2
+  fireEvent.change(screen.getByPlaceholderText('sales-pm'), { target: { value: 'acme-hr' } })
+  fireEvent.change(screen.getByPlaceholderText('PM Kinh doanh'), { target: { value: 'Acme HR' } })
+  fireEvent.click(screen.getByText('Tiếp')) // -> step 3
+  fireEvent.click(screen.getByLabelText('Báo cáo hằng ngày'))
+  fireEvent.click(screen.getByText('Quay lại')) // -> step 2
+  fireEvent.click(screen.getByText('Quay lại')) // -> step 1
   await waitFor(() => expect(screen.getByText('Human Resources')).toBeInTheDocument())
 
   fireEvent.click(screen.getByRole('radio', { name: /Human Resources/ }))
-  fireEvent.click(screen.getByText('Next')) // -> step 2 (id/name preserved)
-  expect(screen.getByPlaceholderText('acme-pm')).toHaveValue('acme-hr')
-  fireEvent.click(screen.getByText('Next')) // -> step 3: only hr's kinds render
-  expect(screen.queryByLabelText('daily')).not.toBeInTheDocument()
+  fireEvent.click(screen.getByText('Tiếp')) // -> step 2 (id/name preserved)
+  expect(screen.getByPlaceholderText('sales-pm')).toHaveValue('acme-hr')
+  fireEvent.click(screen.getByText('Tiếp')) // -> step 3: only hr's kinds render
+  expect(screen.queryByLabelText('Báo cáo hằng ngày')).not.toBeInTheDocument()
   fireEvent.click(screen.getByLabelText('headcount'))
-  fireEvent.click(screen.getByText('Next')) // -> step 4
-  fireEvent.click(screen.getByText('Next')) // -> step 5
+  fireEvent.click(screen.getByText('Tiếp')) // -> step 4
+  fireEvent.click(screen.getByText('Tiếp')) // -> step 5
 
-  fireEvent.click(screen.getByRole('button', { name: 'Create agent' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Tạo agent' }))
   await waitFor(() => expect(createAgent).toHaveBeenCalled())
   const spec = createAgent.mock.calls[0][0]
   expect(spec.domain).toBe('hr')

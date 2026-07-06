@@ -49,6 +49,11 @@ th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid #eee
 /* Ops surfaces (M4 S4). */
 .confirm-dialog { border: 1px solid #d93025; border-radius: 6px; padding: 1rem; margin-top: 1rem; background: #fff8f8; }
 .action-detail { background: #f6f8fa; padding: 0.5rem; border-radius: 4px; overflow-x: auto; font-size: 0.8rem; }
+/* Approve-dialog summary (v9 P1). The external variant MUST stand out — it's the CEO's last
+   signal that an action leaves the org. Plain vs red/bold is the whole point of external:boolean. */
+.confirm-summary { font-size: 1.05rem; margin: 0.5rem 0; padding: 0.5rem 0.75rem; border-radius: 4px; background: #f1f3f4; }
+.confirm-external { background: #fdecea; color: #b3261e; font-weight: 700; border: 1px solid #d93025; }
+.confirm-external-note { color: #b3261e; font-weight: 600; margin: 0.25rem 0 0.5rem; }
 .config-editor { margin: 1rem 0; }
 .config-editor textarea { width: 100%; font-family: ui-monospace, monospace; font-size: 0.85rem; }
 .ok { color: #1e7e34; }

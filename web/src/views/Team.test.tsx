@@ -56,11 +56,11 @@ test('pause/resume calls PATCH /enabled then refreshes from GET /api/agents', as
   })
   wrap(<Team />)
   await waitFor(() => expect(screen.getByText('Acme')).toBeInTheDocument())
-  fireEvent.click(screen.getByText('Pause'))
+  fireEvent.click(screen.getByText('Tạm dừng'))
   await waitFor(() => expect(setEnabled).toHaveBeenCalledWith('acme', false))
   // the table reflects the RE-FETCHED list, not the optimistic PATCH response
   await waitFor(() => expect(getAgents).toHaveBeenCalledTimes(2))
-  await waitFor(() => expect(screen.getByText('Resume')).toBeInTheDocument())
+  await waitFor(() => expect(screen.getByText('Bật lại')).toBeInTheDocument())
 })
 
 test('resume where the profile still vetoes the agent shows an inline notice', async () => {
@@ -74,9 +74,9 @@ test('resume where the profile still vetoes the agent shows an inline notice', a
   })
   wrap(<Team />)
   await waitFor(() => expect(screen.getByText('Acme')).toBeInTheDocument())
-  fireEvent.click(screen.getByText('Resume'))
+  fireEvent.click(screen.getByText('Bật lại'))
   await waitFor(() =>
-    expect(screen.getByText(/Profile still disabled — enable it in Config/)).toBeInTheDocument(),
+    expect(screen.getByText(/Agent đang bị tắt trong hồ sơ/)).toBeInTheDocument(),
   )
 })
 
@@ -94,14 +94,14 @@ test('delete requires confirm before calling DELETE, and default has no delete b
   await waitFor(() => expect(screen.getByText('Acme')).toBeInTheDocument())
 
   // only one Delete button (for acme, not default)
-  const deleteButtons = screen.getAllByText('Delete')
+  const deleteButtons = screen.getAllByText('Xoá')
   expect(deleteButtons).toHaveLength(1)
 
   expect(deleteAgent).not.toHaveBeenCalled()
   fireEvent.click(deleteButtons[0])
   const dialog = await screen.findByRole('dialog')
-  expect(dialog).toHaveTextContent('Delete agent acme?')
-  fireEvent.click(within(dialog).getByText('Delete'))
+  expect(dialog).toHaveTextContent('Xoá agent acme?')
+  fireEvent.click(within(dialog).getByText('Xoá'))
   await waitFor(() => expect(deleteAgent).toHaveBeenCalledWith('acme'))
-  await waitFor(() => expect(screen.getByText(/archive/)).toBeInTheDocument())
+  await waitFor(() => expect(screen.getByText(/lưu trữ/)).toBeInTheDocument())
 })

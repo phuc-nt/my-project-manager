@@ -13,7 +13,7 @@ test('buildCron builds a 5-field cron string sorted by day', () => {
 test('ScheduleBuilder selecting a day calls onChange with the generated cron', () => {
   const onChange = vi.fn()
   render(<ScheduleBuilder kind="daily" onChange={onChange} />)
-  fireEvent.click(screen.getByLabelText('Mon'))
+  fireEvent.click(screen.getByLabelText('T2'))
   expect(onChange).toHaveBeenCalledWith('0 9 * * 1')
   expect(screen.getByText(/cron: 0 9 \* \* 1/)).toBeInTheDocument()
 })

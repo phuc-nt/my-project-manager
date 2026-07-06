@@ -11,7 +11,8 @@ const APPROVAL = {
   reason: 'gửi báo cáo ra kênh stakeholder',
   status: 'pending',
   created_at: 't1',
-  action: { kind: 'slack_post', channel: 'ext' },
+  // real Lớp B action shape (mcp_tool → fields nested in args, camelCase) — red-team M1
+  action: { type: 'mcp_tool', server: 'slack', tool: 'post_message', args: { channel: 'ext' } },
 }
 
 beforeEach(() => {
@@ -47,11 +48,13 @@ test('approve calls the agent-scoped approve endpoint after confirm', async () =
   const approve = vi.spyOn(api, 'approve').mockResolvedValue({ agent_id: 'hr', pending: [] })
   renderWork()
   fireEvent.click(await screen.findByText('Xem & duyệt'))
-  fireEvent.click(await screen.findByText('Approve & post'))
+  fireEvent.click(await screen.findByText('Duyệt & thực hiện'))
   await waitFor(() => expect(approve).toHaveBeenCalledWith('hr', 7))
 })
 
-test('reject calls the agent-scoped reject endpoint', async () => {
+test('reject calls the agent-scoped reject endpoint after a light confirm', async () => {
+  // Reject is safe + reversible, so it uses window.confirm (not the full dialog) — v9 P1.
+  vi.spyOn(window, 'confirm').mockReturnValue(true)
   const reject = vi.spyOn(api, 'reject').mockResolvedValue({ agent_id: 'hr', pending: [] })
   renderWork()
   fireEvent.click(await screen.findByText('Từ chối'))

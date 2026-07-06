@@ -13,8 +13,8 @@ export function Config() {
   const get = useCallback((id: string) => api.getConfig(id), [])
   const { data, loading, error } = useAgentData<ConfigPayload>(get)
 
-  if (loading) return <p>Loading config…</p>
-  if (error) return <p className="error">Error: {error}</p>
+  if (loading) return <p>Đang tải…</p>
+  if (error) return <p className="error">Lỗi: {error}</p>
   if (!data || !selected) return null
 
   const f = data.files

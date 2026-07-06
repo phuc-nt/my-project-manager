@@ -4,8 +4,8 @@ import { useAgent } from '../agent-context'
 
 export function Overview() {
   const { agents, loading, error } = useAgent()
-  if (loading) return <p>Loading agents…</p>
-  if (error) return <p className="error">Error: {error}</p>
+  if (loading) return <p>Đang tải…</p>
+  if (error) return <p className="error">Lỗi: {error}</p>
   if (agents.length === 0) return <p>No agents registered.</p>
 
   return (

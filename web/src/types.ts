@@ -96,10 +96,13 @@ export interface AuditPayload {
 // --- ops payloads (S4) ---
 
 export interface PendingAction {
-  type?: string
+  type?: string // "mcp_tool" | "gh_cli" | "email_send" | "telegram_send"
   server?: string
   tool?: string
-  args?: Record<string, unknown>
+  args?: Record<string, unknown> // mcp_tool: {projectKey, summary, channel, text, title, …}
+  argv?: string[] // gh_cli: ["pr", "merge", "45"]
+  to?: string | string[] // email_send: top-level (not in args); backend stores a recipient LIST
+  subject?: string // email_send
 }
 
 export interface ApprovalItem {

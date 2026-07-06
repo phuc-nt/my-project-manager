@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { api } from '../api/client'
 import { IntegrationHealthPanel } from '../components/IntegrationHealthPanel'
+import { KIND_LABEL, RUN_STATUS_LABEL, labelFor } from '../labels'
 import type { AgentStatus, AgentSummary, TeamAlert } from '../types'
 
 export function Team() {
@@ -42,7 +43,7 @@ export function Team() {
             .catch(() => undefined) // a single agent's status failing shouldn't break the table
         }
       })
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : 'failed to load agents'))
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : 'không tải được danh sách agent'))
       .finally(() => setLoading(false))
   }, [])
 
@@ -67,7 +68,7 @@ export function Team() {
       })
       await refreshAgentsOnly()
     } catch (e: unknown) {
-      setOpError(e instanceof Error ? e.message : 'toggle failed')
+      setOpError(e instanceof Error ? e.message : 'thao tác thất bại')
     } finally {
       setBusyId(null)
     }
@@ -90,9 +91,9 @@ export function Team() {
         return next
       })
       setConfirmingDelete(null)
-      setDeletedNote(`Deleted ${id}. profiles/${id}/ is kept on disk as an archive.`)
+      setDeletedNote(`Đã xoá ${id}. Hồ sơ agent được giữ lại để lưu trữ.`)
     } catch (e: unknown) {
-      setOpError(e instanceof Error ? e.message : 'delete failed')
+      setOpError(e instanceof Error ? e.message : 'xoá thất bại')
     } finally {
       setBusyId(null)
     }
@@ -120,21 +121,21 @@ export function Team() {
           ))}
         </div>
       )}
-      {opError && <p className="error">Error: {opError}</p>}
+      {opError && <p className="error">Lỗi: {opError}</p>}
       {deletedNote && <p className="ok">{deletedNote}</p>}
-      {loading && <p>Loading agents…</p>}
-      {error && <p className="error">Error: {error}</p>}
-      {!loading && !error && agents.length === 0 && <p className="muted">No agents registered.</p>}
+      {loading && <p>Đang tải…</p>}
+      {error && <p className="error">Lỗi: {error}</p>}
+      {!loading && !error && agents.length === 0 && <p className="muted">Chưa có agent nào.</p>}
       {!loading && !error && agents.length > 0 && (
         <table className="agents-table">
           <thead>
             <tr>
-              <th>ID</th>
-              <th>Name</th>
-              <th>Enabled</th>
-              <th>Last run</th>
-              <th>Budget</th>
-              <th>Pending approvals</th>
+              <th>Mã</th>
+              <th>Tên</th>
+              <th>Trạng thái</th>
+              <th>Lần chạy gần nhất</th>
+              <th>Ngân sách</th>
+              <th>Chờ duyệt</th>
               <th></th>
             </tr>
           </thead>
@@ -143,34 +144,37 @@ export function Team() {
               const status = statuses[a.id]
               return (
                 <tr key={a.id}>
-                  <td>
+                  <td data-label="Mã">
                     <Link to={`/agents/${a.id}`}>{a.id}</Link>
                   </td>
-                  <td>{a.name}</td>
-                  <td>
-                    {a.enabled ? '✓' : '—'}
+                  <td data-label="Tên">{a.name}</td>
+                  <td data-label="Trạng thái">
+                    {a.enabled ? '✓ bật' : '— tắt'}
                     {profileDisabledNotice[a.id] && (
                       <div className="error health-detail">
-                        Profile still disabled — enable it in Config
+                        Agent đang bị tắt trong hồ sơ — bật lại ở Nâng cao › Cấu hình
                       </div>
                     )}
                   </td>
-                  <td>
-                    {a.last_run ? `${a.last_run.kind ?? '?'} · ${a.last_run.status ?? '?'}` : 'no runs yet'}
+                  <td data-label="Lần chạy gần nhất">
+                    {a.last_run
+                      ? `${labelFor(KIND_LABEL, a.last_run.kind)} · ${labelFor(RUN_STATUS_LABEL, a.last_run.status)}`
+                      : 'chưa chạy'}
                   </td>
-                  <td>{status ? `$${status.budget.spent.toFixed(2)} / $${status.budget.cap.toFixed(2)}` : '…'}</td>
-                  <td>{status ? status.pending_approvals : '…'}</td>
+                  <td data-label="Ngân sách">{status ? `$${status.budget.spent.toFixed(2)} / $${status.budget.cap.toFixed(2)}` : '…'}</td>
+                  <td data-label="Chờ duyệt">{status ? status.pending_approvals : '…'}</td>
                   <td>
-                    <button type="button" disabled={busyId === a.id} onClick={() => toggleEnabled(a)}>
-                      {a.enabled ? 'Pause' : 'Resume'}
+                    <button type="button" className="btn" disabled={busyId === a.id} onClick={() => toggleEnabled(a)}>
+                      {a.enabled ? 'Tạm dừng' : 'Bật lại'}
                     </button>{' '}
                     {a.id !== 'default' && (
                       <button
                         type="button"
+                        className="btn btn-danger"
                         disabled={busyId === a.id}
                         onClick={() => setConfirmingDelete(a.id)}
                       >
-                        Delete
+                        Xoá
                       </button>
                     )}
                   </td>
@@ -182,14 +186,14 @@ export function Team() {
       )}
 
       {confirmingDelete && (
-        <div className="confirm-dialog" role="dialog" aria-label="Confirm delete">
-          <h3>Delete agent {confirmingDelete}?</h3>
-          <p>The registry entry is removed. profiles/{confirmingDelete}/ stays on disk as an archive.</p>
-          <button type="button" disabled={busyId === confirmingDelete} onClick={() => confirmDelete(confirmingDelete)}>
-            {busyId === confirmingDelete ? 'Deleting…' : 'Delete'}
+        <div className="confirm-dialog" role="dialog" aria-modal="true" aria-label="Xác nhận xoá">
+          <h3>Xoá agent {confirmingDelete}?</h3>
+          <p>Agent bị gỡ khỏi danh sách. Hồ sơ của agent vẫn được giữ lại để lưu trữ.</p>
+          <button type="button" className="btn btn-danger" disabled={busyId === confirmingDelete} onClick={() => confirmDelete(confirmingDelete)}>
+            {busyId === confirmingDelete ? 'Đang xoá…' : 'Xoá'}
           </button>{' '}
-          <button type="button" disabled={busyId === confirmingDelete} onClick={() => setConfirmingDelete(null)}>
-            Cancel
+          <button type="button" className="btn" disabled={busyId === confirmingDelete} onClick={() => setConfirmingDelete(null)}>
+            Huỷ
           </button>
         </div>
       )}

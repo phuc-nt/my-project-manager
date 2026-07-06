@@ -29,7 +29,7 @@ export function Trigger() {
       const res = await api.triggerRun(selected, { kind, audience, dry_run: dryRun })
       setRunId(res.run_id)
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'trigger failed')
+      setError(e instanceof Error ? e.message : 'chạy thất bại')
     } finally {
       setBusy(false)
     }
@@ -63,7 +63,7 @@ export function Trigger() {
           {busy ? 'Starting…' : 'Run'}
         </button>
       </div>
-      {error && <p className="error">Error: {error}</p>}
+      {error && <p className="error">Lỗi: {error}</p>}
       {runId && (
         <div className="run-stream">
           <h3>

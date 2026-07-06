@@ -4,8 +4,10 @@
 // action itself — it only triggers the existing approve endpoint.
 import { useCallback, useState } from 'react'
 import { useAgent } from '../agent-context'
+import { summarizeAction } from '../action-summary'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { api } from '../api/client'
+import { formatDateTime } from '../labels'
 import { useAgentData } from '../hooks/use-agent-data'
 import type { ApprovalItem, ApprovalsPayload } from '../types'
 
@@ -34,45 +36,47 @@ export function Approvals() {
     }
   }
 
-  if (loading) return <p>Loading approvals…</p>
-  if (error) return <p className="error">Error: {error}</p>
+  if (loading) return <p>Đang tải…</p>
+  if (error) return <p className="error">Lỗi: {error}</p>
 
   return (
     <section>
-      <h2>Pending approvals (Lớp B)</h2>
-      {opError && <p className="error">Error: {opError}</p>}
+      <h2>Việc chờ duyệt</h2>
+      {opError && <p className="error">Lỗi: {opError}</p>}
       {rows.length === 0 ? (
-        <p className="muted">No pending approvals.</p>
+        <p className="muted">Không có việc nào chờ duyệt.</p>
       ) : (
         <table className="proposals-table">
           <thead>
             <tr>
-              <th>ID</th>
-              <th>Action</th>
-              <th>Reason</th>
-              <th>Created</th>
+              <th>Mã</th>
+              <th>Hành động</th>
+              <th>Lý do</th>
+              <th>Lúc</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             {rows.map((p) => (
               <tr key={p.id}>
-                <td>{p.id}</td>
+                <td data-label="Mã">{p.id}</td>
+                <td data-label="Hành động">{summarizeAction(p.action, p.reason).text}</td>
+                <td data-label="Lý do">{p.reason}</td>
+                <td data-label="Lúc">{formatDateTime(p.created_at)}</td>
                 <td>
-                  {p.action.type}:{p.action.server}:{p.action.tool}
-                </td>
-                <td>{p.reason}</td>
-                <td>{p.created_at}</td>
-                <td>
-                  <button type="button" disabled={busy} onClick={() => setConfirming(p)}>
-                    Review
+                  <button type="button" className="btn" disabled={busy} onClick={() => setConfirming(p)}>
+                    Xem &amp; duyệt
                   </button>{' '}
                   <button
                     type="button"
+                    className="btn btn-danger"
                     disabled={busy}
-                    onClick={() => selected && run(() => api.reject(selected, p.id))}
+                    onClick={() => {
+                      if (selected && window.confirm('Từ chối việc này?'))
+                        run(() => api.reject(selected, p.id))
+                    }}
                   >
-                    Reject
+                    Từ chối
                   </button>
                 </td>
               </tr>

@@ -8,8 +8,8 @@ import type { RunsPayload } from '../types'
 
 export function Timeline() {
   const { data, loading, error } = useAgentData<RunsPayload>(api.getRuns)
-  if (loading) return <p>Loading runs…</p>
-  if (error) return <p className="error">Error: {error}</p>
+  if (loading) return <p>Đang tải…</p>
+  if (error) return <p className="error">Lỗi: {error}</p>
   if (!data) return null
   return (
     <section>

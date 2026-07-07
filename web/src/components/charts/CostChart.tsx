@@ -11,25 +11,28 @@ import {
 } from 'chart.js'
 import { Line } from 'react-chartjs-2'
 import type { CostMonth } from '../../types'
+import { accentColor, chartChrome, dangerColor } from './chart-theme'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend)
 
 export function CostChart({ series, cap }: { series: CostMonth[]; cap: number }) {
   const labels = series.map((m) => m.month)
+  const accent = accentColor()
+  const chrome = chartChrome()
   const data = {
     labels,
     datasets: [
       {
-        label: 'Spend (USD)',
+        label: 'Chi phí (USD)',
         data: series.map((m) => m.total_usd),
-        borderColor: '#1a73e8',
-        backgroundColor: '#1a73e8',
+        borderColor: accent,
+        backgroundColor: accent,
         tension: 0.2,
       },
       {
-        label: 'Budget cap',
+        label: 'Ngân sách trần',
         data: labels.map(() => cap),
-        borderColor: '#d93025',
+        borderColor: dangerColor(),
         borderDash: [6, 4],
         pointRadius: 0,
       },
@@ -37,7 +40,16 @@ export function CostChart({ series, cap }: { series: CostMonth[]; cap: number })
   }
   const options = {
     responsive: true,
-    scales: { y: { beginAtZero: true, title: { display: true, text: 'USD' } } },
+    scales: {
+      y: {
+        beginAtZero: true,
+        title: { display: true, text: 'USD', color: chrome.tick },
+        ticks: { color: chrome.tick },
+        grid: { color: chrome.grid },
+      },
+      x: { ticks: { color: chrome.tick }, grid: { color: chrome.grid } },
+    },
+    plugins: { legend: { labels: { color: chrome.legend } } },
   }
-  return <Line data={data} options={options} aria-label="Monthly cost vs budget cap" />
+  return <Line data={data} options={options} aria-label="Chi phí hằng tháng so với ngân sách trần" />
 }

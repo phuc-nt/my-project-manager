@@ -1,2 +1,4 @@
 * { box-sizing: border-box; }
-body { margin: 0; background: #fafafa; }
+/* Page background follows the theme token (defined in App.css :root / [data-theme]).
+   Custom properties resolve lazily at use-time, so import order doesn't matter. */
+body { margin: 0; background: var(--color-bg); color: var(--color-text); }

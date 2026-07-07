@@ -66,10 +66,9 @@ test('knowledge tab edits SOUL as a form and saves fields', async () => {
   vi.spyOn(api, 'getKnowledge').mockImplementation(async (_id, doc) => ({
     doc,
     raw_mode: false,
-    fields:
-      doc === 'soul'
-        ? { role: 'PM', tone: '', rules: '' }
-        : { team: '', conventions: '', notes: '' },
+    fields: (doc === 'soul'
+      ? { role: 'PM', tone: '', rules: '' }
+      : { team: '', conventions: '', notes: '' }) as Record<string, string>,
     raw: '',
   }))
   vi.spyOn(api, 'getSkills').mockResolvedValue({ skills: [] })
@@ -95,7 +94,10 @@ test('knowledge tab falls back to raw editor when file lost its markers', async 
   vi.spyOn(api, 'getKnowledge').mockImplementation(async (_id, doc) => ({
     doc,
     raw_mode: doc === 'soul',
-    fields: doc === 'soul' ? {} : { team: '', conventions: '', notes: '' },
+    fields: (doc === 'soul' ? {} : { team: '', conventions: '', notes: '' }) as Record<
+      string,
+      string
+    >,
     raw: doc === 'soul' ? '# SOUL\nviết tay\n' : '',
   }))
   vi.spyOn(api, 'getSkills').mockResolvedValue({ skills: [] })

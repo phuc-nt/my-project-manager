@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router'
 import { beforeEach, expect, test, vi } from 'vitest'
 import { api } from '../api/client'
 import { PendingApprovalsProvider } from '../pending-approvals-context'
+import { ThemeProvider } from '../theme-context'
 import { Layout } from './Layout'
 
 beforeEach(() => {
@@ -15,20 +16,22 @@ beforeEach(() => {
 
 function renderLayout() {
   return render(
-    <MemoryRouter initialEntries={['/chat']}>
-      <Routes>
-        <Route
-          path="/"
-          element={
-            <PendingApprovalsProvider>
-              <Layout />
-            </PendingApprovalsProvider>
-          }
-        >
-          <Route path="chat" element={<div>chat body</div>} />
-        </Route>
-      </Routes>
-    </MemoryRouter>,
+    <ThemeProvider>
+      <MemoryRouter initialEntries={['/chat']}>
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <PendingApprovalsProvider>
+                <Layout />
+              </PendingApprovalsProvider>
+            }
+          >
+            <Route path="chat" element={<div>chat body</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    </ThemeProvider>,
   )
 }
 

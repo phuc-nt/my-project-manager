@@ -7,6 +7,7 @@ import { NavLink, Outlet } from 'react-router'
 import { api } from '../api/client'
 import { useTeamHealth } from '../hooks/use-team-health'
 import { useSharedPendingApprovals } from '../pending-approvals-context'
+import { ThemeToggle } from './ThemeToggle'
 
 async function logout() {
   try {
@@ -32,9 +33,12 @@ export function Layout() {
     <div className="app-shell">
       <header className="app-header">
         <h1>my-project-manager</h1>
-        <button type="button" className="logout-btn" onClick={() => void logout()}>
-          Đăng xuất
-        </button>
+        <div className="app-header-actions">
+          <ThemeToggle />
+          <button type="button" className="logout-btn" onClick={() => void logout()}>
+            Đăng xuất
+          </button>
+        </div>
       </header>
       <nav className="app-nav app-nav-primary">
         {NAV.map((n) => {

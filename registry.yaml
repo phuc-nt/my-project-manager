@@ -5,3 +5,9 @@
 agents:
   - id: default
     enabled: true
+  # Admin ops agent (domain: admin + telegram.ops_operator_id in its profile). Registering it
+  # here is what turns the CEO chat-ops box ON (web /api/ops/chat/available finds the single
+  # admin agent) and lets it fleet-watch. The web server itself never polls Telegram — that
+  # happens only when the worker (src/runtime/service.py) runs against this registry.
+  - id: admin
+    enabled: true

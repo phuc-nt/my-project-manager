@@ -28,8 +28,12 @@ def test_enabled_false_preserved(tmp_path):
 
 
 def test_committed_registry_loads():
-    # The real committed registry.yaml parses to exactly the default entry.
-    assert load_registry() == (RegistryEntry(id="default", enabled=True),)
+    # The real committed registry.yaml parses to the default agent plus the admin ops agent
+    # (registering admin is what turns the CEO chat-ops box on — see registry.yaml comment).
+    assert load_registry() == (
+        RegistryEntry(id="default", enabled=True),
+        RegistryEntry(id="admin", enabled=True),
+    )
 
 
 def test_missing_file_raises(tmp_path):

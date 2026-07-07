@@ -13,6 +13,33 @@ created: 2026-06-28
 
 ---
 
+## One-command install (recommended)
+
+On macOS, `deploy/install.sh` does the whole setup in one shot and is safe to re-run:
+
+```bash
+git clone https://github.com/phuc-nt/my-project-manager.git
+cd my-project-manager
+./deploy/install.sh
+```
+
+It runs a **preflight** (fails loud with the exact `brew install …` if `uv`/`node`/`git`/`gh` is
+missing), `uv sync`, builds the SPA into a temp dir and swaps it in atomically, clones + builds the
+3 MCP servers over **HTTPS** into `~/workspace/` (set `MCP_BASE=<dir>` to relocate — the script then
+writes the matching `*_MCP_DIST` into `.env`), installs the launchd services, and prints a **health
+gate** (MCP builds, `gh auth`, dashboard-auth) before declaring success.
+
+Re-running when nothing changed is a **no-op**: it does not restart the coordinator (which would
+kill in-flight agent runs) or the web service (which would drop sessions) — it reloads a service
+only when its plist or the SPA build actually changed. Secrets never pass through the script: you
+fill them in the browser Setup Wizard, and the post-login **Cài đặt → Sức khỏe hệ thống** panel
+shows what's still missing with a copy-paste fix command per check.
+
+`gh auth login` is interactive and can't be scripted — the preflight/health gate flags it if not
+yet done. The manual steps below remain valid if you prefer to run each piece yourself.
+
+---
+
 ## Web UI Method (New in M7)
 
 If you have the web dashboard running on localhost, you can create agents without touching the terminal:
@@ -331,9 +358,10 @@ For a web-based approval UI, see the web dashboard (M2 feature).
 **Fix:**
 
 ```bash
+# HTTPS clone (matches deploy/install.sh — no SSH key needed)
 cd ~/workspace
 for repo in jira-cloud-mcp-server confluence-cloud-mcp-server slack-browser-mcp-server; do
-  git clone git@github.com:phuc-nt/$repo.git
+  git clone https://github.com/phuc-nt/$repo.git
   (cd $repo && npm install && npm run build)
 done
 ```

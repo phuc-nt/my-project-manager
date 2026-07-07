@@ -1,10 +1,9 @@
 // v7 M20: "Cài đặt" — integration health at a glance + a "Nâng cao" section linking the
 // technical views the CEO rarely needs (they keep their original components, just moved out
-// of the top nav so the daily surface stays 4 items). No backend change.
-import { useEffect, useState } from 'react'
+// of the top nav so the daily surface stays 4 items). v10 M26: the health list reuses the
+// shared IntegrationHealthPanel (one implementation, DRY) instead of an inline copy.
 import { Link } from 'react-router'
-import { api } from '../api/client'
-import type { IntegrationHealthPayload } from '../types'
+import { IntegrationHealthPanel } from '../components/IntegrationHealthPanel'
 import { useUiMode } from '../ui-mode-context'
 
 // Technical / power-user views — moved here from the flat nav. Nothing is removed; each
@@ -22,16 +21,7 @@ const ADVANCED = [
 ]
 
 export function Settings() {
-  const [health, setHealth] = useState<IntegrationHealthPayload | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const { isHigh, setMode } = useUiMode()
-
-  useEffect(() => {
-    api
-      .getIntegrationHealth()
-      .then(setHealth)
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : 'lỗi'))
-  }, [])
 
   return (
     <section className="settings-page">
@@ -53,23 +43,8 @@ export function Settings() {
         </p>
       </section>
 
-      <section>
-        <h3>Kết nối</h3>
-        {error && <p className="error">Lỗi: {error}</p>}
-        {!health ? (
-          <p>Đang kiểm tra…</p>
-        ) : (
-          <ul className="integration-health">
-            {health.checks.map((c) => (
-              <li key={c.id} className={c.ok ? 'ok' : 'error'}>
-                <strong>{c.ok ? '✓' : '✕'} {c.label}</strong>
-                <span className="muted"> — {c.detail}</span>
-                {!c.ok && c.hint && <div className="muted">{c.hint}</div>}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      {/* Sức khỏe hệ thống — the shared panel: per-integration ok/fail + fix hint (v10 M26). */}
+      <IntegrationHealthPanel />
 
       <section>
         <h3>Nâng cao</h3>

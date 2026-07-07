@@ -5,6 +5,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { beforeEach, expect, test, vi } from 'vitest'
 import { api } from '../api/client'
+import { AppProviders } from '../test-utils'
 import { Team } from './Team'
 
 beforeEach(() => {
@@ -33,20 +34,26 @@ beforeEach(() => {
 })
 
 function wrap(ui: React.ReactElement) {
-  return render(<MemoryRouter>{ui}</MemoryRouter>)
+  return render(
+    <AppProviders>
+      <MemoryRouter>{ui}</MemoryRouter>
+    </AppProviders>,
+  )
 }
 
 // Render Team inside a router that has landing routes for /chat and /create so we can assert
 // where the "+ Tạo nhân sự ảo" button navigates.
 function wrapWithRoutes() {
   return render(
-    <MemoryRouter initialEntries={['/team']}>
-      <Routes>
-        <Route path="/team" element={<Team />} />
-        <Route path="/chat" element={<div>CHAT LANDING</div>} />
-        <Route path="/create" element={<div>WIZARD LANDING</div>} />
-      </Routes>
-    </MemoryRouter>,
+    <AppProviders>
+      <MemoryRouter initialEntries={['/team']}>
+        <Routes>
+          <Route path="/team" element={<Team />} />
+          <Route path="/chat" element={<div>CHAT LANDING</div>} />
+          <Route path="/create" element={<div>WIZARD LANDING</div>} />
+        </Routes>
+      </MemoryRouter>
+    </AppProviders>,
   )
 }
 

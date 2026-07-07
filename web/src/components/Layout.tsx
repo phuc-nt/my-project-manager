@@ -7,6 +7,7 @@ import { NavLink, Outlet } from 'react-router'
 import { api } from '../api/client'
 import { useTeamHealth } from '../hooks/use-team-health'
 import { useSharedPendingApprovals } from '../pending-approvals-context'
+import { useUiMode } from '../ui-mode-context'
 import { ThemeToggle } from './ThemeToggle'
 
 async function logout() {
@@ -24,9 +25,22 @@ const NAV = [
   { to: 'settings', label: 'Cài đặt' },
 ]
 
+// High-mode ("Chế độ nâng cao") extra destinations — the technical views that low mode keeps
+// tucked under Cài đặt → Nâng cao. Same routes, just surfaced in the nav for power users.
+const ADVANCED_NAV = [
+  { to: 'overview', label: 'Tổng quan' },
+  { to: 'timeline', label: 'Dòng thời gian' },
+  { to: 'cost', label: 'Chi phí' },
+  { to: 'memory', label: 'Bộ nhớ' },
+  { to: 'guardrail', label: 'Guardrail' },
+  { to: 'config', label: 'Cấu hình' },
+  { to: 'trigger', label: 'Chạy tay' },
+]
+
 export function Layout() {
   const { count } = useSharedPendingApprovals()
   const { highCount } = useTeamHealth()
+  const { isHigh } = useUiMode()
   const badgeFor = (b?: 'health' | 'approvals') =>
     b === 'approvals' ? count : b === 'health' ? highCount : 0
   return (
@@ -51,6 +65,15 @@ export function Layout() {
           )
         })}
       </nav>
+      {isHigh && (
+        <nav className="app-nav app-nav-advanced" aria-label="Nâng cao">
+          {ADVANCED_NAV.map((n) => (
+            <NavLink key={n.to} to={n.to}>
+              {n.label}
+            </NavLink>
+          ))}
+        </nav>
+      )}
       <main className="app-main">
         <Outlet />
       </main>

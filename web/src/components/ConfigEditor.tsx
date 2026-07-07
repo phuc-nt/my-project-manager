@@ -25,9 +25,9 @@ export function ConfigEditor({
     setError(null)
     try {
       await onSave(text)
-      setStatus('Saved.')
+      setStatus('Đã lưu.')
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'save failed')
+      setError(e instanceof Error ? e.message : 'lưu thất bại')
     } finally {
       setBusy(false)
     }
@@ -37,7 +37,7 @@ export function ConfigEditor({
     <div className="config-editor">
       <h3>
         {label}
-        {readOnly ? ' (read-only)' : ''}
+        {readOnly ? ' (chỉ đọc)' : ''}
       </h3>
       <textarea
         value={text}
@@ -48,7 +48,7 @@ export function ConfigEditor({
       {!readOnly && (
         <div>
           <button type="button" disabled={busy} onClick={save}>
-            {busy ? 'Saving…' : 'Save'}
+            {busy ? 'Đang lưu…' : 'Lưu'}
           </button>
           {status && <span className="ok"> {status}</span>}
           {error && <span className="error"> {error}</span>}

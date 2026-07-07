@@ -4,6 +4,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, expect, test, vi } from 'vitest'
 import { AgentProvider } from '../agent-context'
 import { api } from '../api/client'
+import { AppProviders } from '../test-utils'
 import { Cost } from './Cost'
 import { Guardrail } from './Guardrail'
 import { MemoryAutomation } from './MemoryAuto'
@@ -30,7 +31,11 @@ beforeEach(() => {
 })
 
 function wrap(ui: React.ReactElement) {
-  return render(<AgentProvider>{ui}</AgentProvider>)
+  return render(
+    <AppProviders>
+      <AgentProvider>{ui}</AgentProvider>
+    </AppProviders>,
+  )
 }
 
 test('Cost view renders the monthly series + ratio', async () => {
@@ -46,7 +51,7 @@ test('Cost view renders the monthly series + ratio', async () => {
   })
   wrap(<Cost />)
   await waitFor(() => expect(screen.getByTestId('cost-chart')).toHaveTextContent('2 months'))
-  expect(screen.getByText(/of \$50.00 cap/)).toBeInTheDocument()
+  expect(screen.getByText(/trên hạn mức \$50.00/)).toBeInTheDocument()
 })
 
 test('Guardrail view renders verdict counts + recent rows', async () => {
@@ -66,16 +71,16 @@ test('Timeline view lists run history', async () => {
     runs: [{ ts: 't1', kind: 'daily', audience: 'internal', status: 'delivered', delivered: true }],
   })
   wrap(<Timeline />)
-  await waitFor(() => expect(screen.getByText('daily')).toBeInTheDocument())
-  expect(screen.getByText('delivered')).toBeInTheDocument()
+  await waitFor(() => expect(screen.getByText('Báo cáo hằng ngày')).toBeInTheDocument())
+  expect(screen.getByText('đã gửi')).toBeInTheDocument()
 })
 
 test('Memory view shows internal-only notice when no facts', async () => {
   vi.spyOn(api, 'getMemory').mockResolvedValue({ agent_id: 'acme', facts: [], internal_only: true })
   vi.spyOn(api, 'getAutomation').mockResolvedValue({ agent_id: 'acme', pending: [] })
   wrap(<MemoryAutomation />)
-  await waitFor(() => expect(screen.getByText(/No remembered facts/)).toBeInTheDocument())
-  expect(screen.getByText(/No pending proposals/)).toBeInTheDocument()
+  await waitFor(() => expect(screen.getByText(/Chưa ghi nhớ điều gì/)).toBeInTheDocument())
+  expect(screen.getByText(/Không có đề xuất chờ duyệt/)).toBeInTheDocument()
 })
 
 test('Memory view renders a seeded fact + proposal', async () => {

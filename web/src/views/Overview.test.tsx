@@ -22,8 +22,8 @@ test('renders the agent list from /api/agents', async () => {
   )
   await waitFor(() => expect(screen.getByText('Acme PM')).toBeInTheDocument())
   expect(screen.getByText('Beta PM')).toBeInTheDocument()
-  expect(screen.getByText('daily · delivered')).toBeInTheDocument()
-  expect(screen.getByText('no runs yet')).toBeInTheDocument()
+  expect(screen.getByText('Báo cáo hằng ngày · đã gửi')).toBeInTheDocument()
+  expect(screen.getByText('chưa chạy lần nào')).toBeInTheDocument()
 })
 
 test('shows an error when the api fails', async () => {

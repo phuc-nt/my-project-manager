@@ -13,9 +13,9 @@ export function MemoryAutomation() {
 
   return (
     <section>
-      <h2>Memory &amp; automation</h2>
+      <h2>Bộ nhớ &amp; tự động hoá</h2>
 
-      <h3>Remembered facts</h3>
+      <h3>Sự kiện đã ghi nhớ</h3>
       {mem.loading ? (
         <p>Đang tải…</p>
       ) : mem.error ? (
@@ -24,7 +24,7 @@ export function MemoryAutomation() {
         <FactsList facts={mem.data?.facts ?? []} />
       )}
 
-      <h3>Pending proposals</h3>
+      <h3>Đề xuất chờ duyệt</h3>
       {auto.loading ? (
         <p>Đang tải…</p>
       ) : auto.error ? (

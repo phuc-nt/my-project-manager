@@ -16,10 +16,13 @@ from src.server import agent_views
 from src.server.app import create_app
 
 
-def _profile(settings, *, name="Acme", enabled=True, external=frozenset()):
+def _profile(settings, *, name="Acme", enabled=True, external=frozenset(), domain="pm"):
+    # Mirror LoadedProfile: `domain` always exists (defaults to "pm") — list_agents reads it.
     config = type("Cfg", (), {"slack_external_channels": external})()
     return type(
-        "LP", (), {"name": name, "enabled": enabled, "settings": settings, "config": config}
+        "LP",
+        (),
+        {"name": name, "enabled": enabled, "settings": settings, "config": config, "domain": domain},
     )()
 
 
@@ -55,6 +58,27 @@ def test_list_agents_one_entry_per_registry_agent(monkeypatch, settings_factory)
     assert body[0]["name"] == "Acme" and body[0]["enabled"] is True
     assert body[0]["last_run"]["status"] == "delivered"
     assert body[1]["last_run"] is None
+
+
+def test_list_agents_exposes_report_kinds_per_pack(monkeypatch, settings_factory):
+    # v10 M25 (red-team F4): the list carries the report kinds this agent's OWN pack serves,
+    # so the web Trigger form offers the right set (not a hardcoded PM four). A pm-domain agent
+    # gets pm's kinds; an unknown/broken domain degrades to [] without 500-ing the list.
+    s = settings_factory()
+    pm = _profile(s, name="PM", domain="pm")
+    broken = _profile(s, name="Broken", domain="no-such-domain")
+    _patch(
+        monkeypatch,
+        ids_enabled=[("pm", True), ("broken", True)],
+        profiles={"pm": pm, "broken": broken},
+        last_runs={"pm": None, "broken": None},
+    )
+    body = _client().get("/api/agents").json()
+    by_id = {a["id"]: a for a in body}
+    # pm pack serves at least the canonical daily report kind
+    assert "daily" in by_id["pm"]["report_kinds"]
+    # an unknown domain never raises here — it just yields no kinds
+    assert by_id["broken"]["report_kinds"] == []
 
 
 def test_enabled_is_registry_and_profile_and(monkeypatch, settings_factory):

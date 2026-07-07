@@ -165,6 +165,22 @@ h4 { font-size: var(--fs-h4); }
   padding: 0.3rem 0.8rem; font-size: 0.85rem; cursor: pointer; text-decoration: none; color: var(--color-text); transition: background var(--motion-fast); }
 .chip:hover { background: var(--color-neutral-bg); }
 .chip-alert { border-color: var(--color-danger); color: var(--color-danger); background: var(--color-danger-bg); font-weight: 600; }
+/* High-mode ("Chế độ nâng cao") secondary nav row — v10 M25. Lighter than the primary row so
+   the 4 CEO items stay dominant; sits directly under them. */
+.app-nav-advanced { gap: var(--space-3); font-size: var(--fs-sm); margin-top: calc(-1 * var(--space-2)); }
+.app-nav-advanced a { color: var(--color-muted); padding: 0.3rem 0.7rem; }
+.app-nav-advanced a.active { background: var(--color-surface-2); color: var(--color-text); }
+.mode-toggle-box { margin-bottom: var(--space-5); }
+.mode-toggle { font-weight: 600; cursor: pointer; }
+
+/* High-mode budget-usage bar on the Team table (v10 M25). Pure CSS, no chart lib. The cell wraps
+   the text + bar so the mobile card-list flex row (App.css media query) has a single child on the
+   value side — the bar sits UNDER the dollar text, not squeezed beside it. */
+.budget-cell { display: flex; flex-direction: column; gap: 0.2rem; align-items: flex-start; }
+.budget-bar { height: 5px; width: 140px; max-width: 100%; background: var(--color-border-soft); border-radius: var(--radius-pill); overflow: hidden; }
+.budget-bar-fill { display: block; height: 100%; background: var(--color-ok-solid); }
+.budget-bar-fill.warn { background: var(--color-warn); }
+.budget-bar-fill.over { background: var(--color-danger-solid); }
 .advanced-bar { display: flex; justify-content: space-between; align-items: center;
   margin-bottom: var(--space-4); }
 .team-actions { display: flex; gap: var(--space-3); margin: var(--space-2) 0 var(--space-4); }

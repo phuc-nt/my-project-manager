@@ -41,6 +41,31 @@ def _public_last_run(agent_id: str) -> dict | None:
     return {k: ev[k] for k in _LAST_RUN_PUBLIC_FIELDS if k in ev}
 
 
+def _report_kinds_for_domain(domain: str) -> list[str]:
+    """The report kinds this agent's OWN pack serves (v10 M25, additive for the web
+    Trigger form). The Trigger UI hardcoded PM's four kinds, so an hr/admin agent was
+    offered the wrong set; this exposes the correct per-agent kinds. A broken/unknown
+    pack degrades to an empty list rather than 500-ing the agent list (mirrors the
+    all_report_kinds() union which skips broken packs).
+
+    Loading a pack re-executes its modules (no cache), so callers iterating agents should
+    memoize per-domain — see list_agents()."""
+    import logging
+
+    from src.packs.registry import PackRegistry
+
+    try:
+        return sorted(PackRegistry().load(domain).report_kinds)
+    except Exception:  # noqa: BLE001 — an unknown/broken domain must not break the list
+        # A ValueError here is the expected "unknown domain" case; an import/exec failure is
+        # not — log so a genuinely broken pack leaves a breadcrumb instead of silently
+        # showing no kinds.
+        logging.getLogger(__name__).warning(
+            "report_kinds unavailable for domain %r", domain, exc_info=True
+        )
+        return []
+
+
 def list_agents() -> list[dict]:
     """One entry per registry agent: id, name, enabled, last_run.
 
@@ -50,20 +75,32 @@ def list_agents() -> list[dict]:
     filtered out here (it is internal roll-up content, not for the status API).
     """
     out: list[dict] = []
+    # Loading a pack re-executes its modules (registry has no cache), so memoize per DISTINCT
+    # domain — a fleet of N pm agents then loads the pm pack once, not N times.
+    kinds_by_domain: dict[str, list[str]] = {}
+
+    def _kinds_for(domain: str) -> list[str]:
+        if domain not in kinds_by_domain:
+            kinds_by_domain[domain] = _report_kinds_for_domain(domain)
+        return kinds_by_domain[domain]
+
     for entry in load_registry():
         # One broken profile must not 500 the whole list (mirrors the CLI `run_list`
         # which degrades a bad profile rather than failing the aggregation).
         try:
             loaded = load_profile(entry.id, data_dir=agent_data_dir(entry.id))
             name, prof_enabled = loaded.name, loaded.enabled
+            report_kinds = _kinds_for(loaded.domain)
         except (FileNotFoundError, RuntimeError) as exc:
-            name, prof_enabled = f"<error: {exc}>", False
+            name, prof_enabled, report_kinds = f"<error: {exc}>", False, []
         out.append(
             {
                 "id": entry.id,
                 "name": name,
                 "enabled": bool(entry.enabled and prof_enabled),
                 "last_run": _public_last_run(entry.id),
+                # v10 M25: the report kinds this agent's pack serves (drives the Trigger form).
+                "report_kinds": report_kinds,
             }
         )
     return out

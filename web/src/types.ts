@@ -16,6 +16,9 @@ export interface AgentSummary {
   name: string
   enabled: boolean
   last_run: RunEvent | null
+  // v10 M25: report kinds this agent's pack serves (drives the Trigger form). Optional so
+  // older cached payloads / tests without it still typecheck.
+  report_kinds?: string[]
 }
 
 export interface Budget {

@@ -8,6 +8,7 @@ import { Link, useNavigate } from 'react-router'
 import { api } from '../api/client'
 import { IntegrationHealthPanel } from '../components/IntegrationHealthPanel'
 import { KIND_LABEL, RUN_STATUS_LABEL, labelFor } from '../labels'
+import { useUiMode } from '../ui-mode-context'
 import type { AgentStatus, AgentSummary, TeamAlert } from '../types'
 
 export function Team() {
@@ -25,6 +26,7 @@ export function Team() {
   // v3 M8: deterministic fleet alerts (budget near cap, stuck approvals, deny spikes).
   const [alerts, setAlerts] = useState<TeamAlert[]>([])
   const [creating, setCreating] = useState(false)
+  const { isHigh } = useUiMode()
   const navigate = useNavigate()
 
   // v9 P2: "+ Tạo nhân sự ảo" prefers the conversational path (chat-ops), but a brand-new CEO
@@ -178,7 +180,34 @@ export function Team() {
                       ? `${labelFor(KIND_LABEL, a.last_run.kind)} · ${labelFor(RUN_STATUS_LABEL, a.last_run.status)}`
                       : 'chưa chạy'}
                   </td>
-                  <td data-label="Ngân sách">{status ? `$${status.budget.spent.toFixed(2)} / $${status.budget.cap.toFixed(2)}` : '…'}</td>
+                  <td data-label="Ngân sách">
+                    <div className="budget-cell">
+                      <span>
+                        {status
+                          ? `$${status.budget.spent.toFixed(2)} / $${status.budget.cap.toFixed(2)}`
+                          : '…'}
+                      </span>
+                      {isHigh && status && (
+                        // High mode: a compact budget-usage bar (pure CSS, no chart lib). Warns
+                        // (amber→red) as spend nears the cap. Ratio comes from the status.
+                        <div
+                          className="budget-bar"
+                          title={`${Math.round(status.budget.ratio * 100)}% ngân sách`}
+                        >
+                          <span
+                            className={
+                              status.budget.ratio >= 1
+                                ? 'budget-bar-fill over'
+                                : status.budget.ratio >= 0.8
+                                  ? 'budget-bar-fill warn'
+                                  : 'budget-bar-fill'
+                            }
+                            style={{ width: `${Math.min(100, status.budget.ratio * 100)}%` }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </td>
                   <td data-label="Chờ duyệt">{status ? status.pending_approvals : '…'}</td>
                   <td>
                     <button type="button" className="btn" disabled={busyId === a.id} onClick={() => toggleEnabled(a)}>

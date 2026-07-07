@@ -40,6 +40,13 @@ export const VERDICT_LABEL: Record<string, string> = {
   skipped: 'bỏ qua',
 }
 
+// Audience of a run/report (internal team vs external stakeholders). Used by the advanced
+// Trigger form + run tables (v10 M25).
+export const AUDIENCE_LABEL: Record<string, string> = {
+  internal: 'nội bộ',
+  external: 'đối ngoại',
+}
+
 /** Look up a label; a missing/undefined key returns "—" (never a blank cell). */
 export function labelFor(map: Record<string, string>, key: string | undefined | null): string {
   if (!key) return '—'

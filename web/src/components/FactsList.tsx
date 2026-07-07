@@ -4,7 +4,9 @@ import type { Fact } from '../types'
 
 export function FactsList({ facts }: { facts: Fact[] }) {
   if (facts.length === 0) {
-    return <p className="muted">No remembered facts (internal-only; empty on a fresh process).</p>
+    return (
+      <p className="muted">Chưa ghi nhớ điều gì (chỉ nội bộ; trống khi tiến trình vừa khởi động).</p>
+    )
   }
   return (
     <ul className="facts-list">

@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router'
 import { beforeEach, expect, test, vi } from 'vitest'
 import { api } from '../api/client'
 import { PendingApprovalsProvider } from '../pending-approvals-context'
-import { ThemeProvider } from '../theme-context'
+import { AppProviders } from '../test-utils'
 import { Layout } from './Layout'
 
 beforeEach(() => {
@@ -16,7 +16,7 @@ beforeEach(() => {
 
 function renderLayout() {
   return render(
-    <ThemeProvider>
+    <AppProviders>
       <MemoryRouter initialEntries={['/chat']}>
         <Routes>
           <Route
@@ -31,7 +31,7 @@ function renderLayout() {
           </Route>
         </Routes>
       </MemoryRouter>
-    </ThemeProvider>,
+    </AppProviders>,
   )
 }
 

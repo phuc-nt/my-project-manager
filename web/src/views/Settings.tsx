@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { api } from '../api/client'
 import type { IntegrationHealthPayload } from '../types'
+import { useUiMode } from '../ui-mode-context'
 
 // Technical / power-user views — moved here from the flat nav. Nothing is removed; each
 // route still renders its existing component.
@@ -23,6 +24,7 @@ const ADVANCED = [
 export function Settings() {
   const [health, setHealth] = useState<IntegrationHealthPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const { isHigh, setMode } = useUiMode()
 
   useEffect(() => {
     api
@@ -34,6 +36,22 @@ export function Settings() {
   return (
     <section className="settings-page">
       <h2>Cài đặt</h2>
+
+      <section className="mode-toggle-box">
+        <h3>Chế độ hiển thị</h3>
+        <label className="mode-toggle">
+          <input
+            type="checkbox"
+            checked={isHigh}
+            onChange={(e) => setMode(e.target.checked ? 'high' : 'low')}
+          />{' '}
+          Chế độ nâng cao
+        </label>
+        <p className="muted">
+          Bật để hiện đầy đủ số liệu vận hành cho người kỹ thuật (dòng thời gian, chi phí, bộ nhớ,
+          guardrail, cấu hình, chạy tay) ngay trên thanh điều hướng. Tắt để giữ giao diện gọn 4 mục.
+        </p>
+      </section>
 
       <section>
         <h3>Kết nối</h3>

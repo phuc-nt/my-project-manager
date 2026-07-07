@@ -1,24 +1,38 @@
 // Trigger ops view: a form (kind/audience/dry_run) that POSTs the EXISTING /trigger endpoint,
 // then streams the run's live node-progress via the EXISTING SSE stream. The backend validates
-// audience strictly (a typo'd external → 422); React mirrors the valid set but the server is
-// the authority. No backend change — this just drives the existing gateway-routed run.
-import { useCallback, useState } from 'react'
+// audience + kind strictly (a typo'd value → 422); React mirrors the valid set but the server is
+// the authority. v10 M25: the KINDS come from the selected agent's pack (agent.report_kinds),
+// not a hardcoded PM four — so an hr/admin agent is offered ITS kinds (red-team F4).
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAgent } from '../agent-context'
 import { api } from '../api/client'
 import { useSse } from '../hooks/use-sse'
+import { AUDIENCE_LABEL, KIND_LABEL, labelFor } from '../labels'
 
-const KINDS = ['daily', 'weekly', 'okr', 'resource']
 const AUDIENCES = ['internal', 'external']
+// Fallback when a payload predates the report_kinds field (older cache): PM's canonical kinds.
+const FALLBACK_KINDS = ['daily', 'weekly', 'okr', 'resource']
 
 export function Trigger() {
-  const { selected } = useAgent()
-  const [kind, setKind] = useState('daily')
+  const { selected, agents } = useAgent()
+  const kinds = useMemo(() => {
+    const a = agents.find((x) => x.id === selected)
+    const k = a?.report_kinds
+    return k && k.length > 0 ? k : FALLBACK_KINDS
+  }, [agents, selected])
+
+  const [kind, setKind] = useState(kinds[0])
   const [audience, setAudience] = useState('internal')
   const [dryRun, setDryRun] = useState(true)
   const [runId, setRunId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const { events, done } = useSse(runId)
+  const { events, done, errored } = useSse(runId)
+
+  // Keep the selected kind valid when the agent (and thus its kind set) changes.
+  useEffect(() => {
+    if (!kinds.includes(kind)) setKind(kinds[0])
+  }, [kinds, kind])
 
   const start = useCallback(async () => {
     if (!selected) return
@@ -37,44 +51,52 @@ export function Trigger() {
 
   return (
     <section>
-      <h2>Trigger a run</h2>
+      <h2>Chạy báo cáo thủ công</h2>
       <div className="trigger-form">
         <label>
-          Kind:{' '}
+          Loại:{' '}
           <select value={kind} onChange={(e) => setKind(e.target.value)}>
-            {KINDS.map((k) => (
-              <option key={k}>{k}</option>
+            {kinds.map((k) => (
+              <option key={k} value={k}>
+                {labelFor(KIND_LABEL, k)}
+              </option>
             ))}
           </select>
         </label>{' '}
         <label>
-          Audience:{' '}
+          Đối tượng:{' '}
           <select value={audience} onChange={(e) => setAudience(e.target.value)}>
             {AUDIENCES.map((a) => (
-              <option key={a}>{a}</option>
+              <option key={a} value={a}>
+                {labelFor(AUDIENCE_LABEL, a)}
+              </option>
             ))}
           </select>
         </label>{' '}
         <label>
           <input type="checkbox" checked={dryRun} onChange={(e) => setDryRun(e.target.checked)} />{' '}
-          dry-run
+          chạy thử (dry-run)
         </label>{' '}
         <button type="button" disabled={busy || !selected} onClick={start}>
-          {busy ? 'Starting…' : 'Run'}
+          {busy ? 'Đang chạy…' : 'Chạy'}
         </button>
       </div>
       {error && <p className="error">Lỗi: {error}</p>}
       {runId && (
         <div className="run-stream">
           <h3>
-            Run {runId} {done ? '(done)' : '(streaming…)'}
+            Lần chạy {runId}{' '}
+            {errored ? '(mất kết nối)' : done ? '(xong)' : '(đang chạy…)'}
           </h3>
+          {errored && (
+            <p className="error">Mất kết nối luồng theo dõi — lần chạy có thể vẫn tiếp tục ở nền.</p>
+          )}
           <ul>
             {events.map((ev, i) => (
               <li key={i}>
                 {ev.event === 'node'
                   ? `${ev.node}: ${JSON.stringify(ev.data)}`
-                  : `terminal · ${ev.status} ${JSON.stringify(ev.data)}`}
+                  : `kết thúc · ${ev.status} ${JSON.stringify(ev.data)}`}
               </li>
             ))}
           </ul>

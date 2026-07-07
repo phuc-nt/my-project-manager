@@ -13,7 +13,7 @@ export function Timeline() {
   if (!data) return null
   return (
     <section>
-      <h2>Run timeline</h2>
+      <h2>Dòng thời gian hoạt động</h2>
       <RunList runs={data.runs} />
     </section>
   )

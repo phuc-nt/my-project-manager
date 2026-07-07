@@ -20,7 +20,7 @@ export function Config() {
   const f = data.files
   return (
     <section>
-      <h2>Config — {selected}</h2>
+      <h2>Cấu hình — {selected}</h2>
       <ConfigEditor
         label="profile.yaml"
         initial={f.profile ?? ''}

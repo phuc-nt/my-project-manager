@@ -69,7 +69,7 @@ test('config save surfaces the backend validation error (exact message)', async 
   wrap(<Config />)
   await waitFor(() => expect(screen.getByText('profile.yaml')).toBeInTheDocument())
   // the first Save button is profile.yaml's
-  fireEvent.click(screen.getAllByText('Save')[0])
+  fireEvent.click(screen.getAllByText('Lưu')[0])
   await waitFor(() =>
     expect(screen.getByText(/must be a YAML mapping/)).toBeInTheDocument(),
   )
@@ -81,7 +81,7 @@ test('MEMORY.md editor is read-only (no Save button)', async () => {
     files: { profile: 'p', soul: 's', project: 'pr', memory: 'agent memory' },
   })
   wrap(<Config />)
-  await waitFor(() => expect(screen.getByText(/MEMORY.md \(read-only\)/)).toBeInTheDocument())
+  await waitFor(() => expect(screen.getByText(/MEMORY.md \(chỉ đọc\)/)).toBeInTheDocument())
   // profile/soul/project each have a Save → 3 Save buttons, not 4 (memory has none)
-  expect(screen.getAllByText('Save')).toHaveLength(3)
+  expect(screen.getAllByText('Lưu')).toHaveLength(3)
 })

@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
+from pathlib import Path
 from typing import Any
 
 from src.actions.secret_patterns import contains_secret
@@ -315,21 +316,77 @@ def _hard_deny_mcp(action: dict[str, Any]) -> BlockVerdict | None:
     return None
 
 
-def _hard_deny_email(action: dict[str, Any]) -> BlockVerdict | None:
+def confined_xlsx_path(attachment_path: Any, artifact_root: Path | None) -> str:
+    """Resolve an attachment path IFF it is a real .xlsx confined to `artifact_root`.
+
+    The one confinement rule, shared by Lớp A (`_attachment_verdict`) and the send-time
+    handler re-check, so the two can never drift. `resolve()` dereferences symlinks, so a
+    symlink INSIDE the dir pointing OUT lands its real target outside the root and is
+    rejected. Raises `ValueError` on any violation; returns the reason via the message so
+    the caller can turn it into either a `BlockVerdict` or a send-time refusal.
+
+    An attachment is a file the agent generated itself (an .xlsx report), never an
+    LLM-supplied arbitrary path — so the only legal source is inside the artifact dir.
+    """
+    if artifact_root is None:
+        raise ValueError("email attachment present but artifact root unknown (fail-closed)")
+    if not isinstance(attachment_path, str) or not attachment_path.strip():
+        raise ValueError("email attachment path is not a valid string")
+
+    resolved = Path(attachment_path).resolve()
+    if not resolved.is_relative_to(artifact_root.resolve()):
+        raise ValueError("email attachment is outside the artifact dir")
+    if resolved.suffix != ".xlsx":
+        raise ValueError("email attachment is not an .xlsx report")
+    if not resolved.is_file():
+        raise ValueError("email attachment file does not exist")
+    return str(resolved)
+
+
+def _attachment_verdict(
+    attachment_path: Any, artifact_root: Path | None
+) -> BlockVerdict | None:
+    """Lớp A confinement verdict for an email attachment. None = ok/absent.
+
+    Anything outside `artifact_root` — a traversal (`../`), an absolute path elsewhere
+    (`/etc/passwd`), an in-dir symlink pointing out, a non-existent file, a non-.xlsx —
+    is a security red line: the email would carry a file the agent was never meant to
+    send out. Fail-closed: a present attachment with no artifact root is denied.
+    """
+    if attachment_path is None:
+        return None
+    try:
+        confined_xlsx_path(attachment_path, artifact_root)
+    except ValueError as exc:
+        return BlockVerdict(blocked=True, category=BlockCategory.SECURITY, reason=str(exc))
+    return None
+
+
+def _hard_deny_email(
+    action: dict[str, Any], artifact_root: Path | None = None
+) -> BlockVerdict | None:
     """Lớp A checks for an outbound email send. None = no red-line match.
 
-    Scans recipient + subject + body for secrets (a credential must never ride out in
-    an email) and rejects a structurally invalid send (no recipient, empty body) so a
-    malformed mutation can't reach the approval queue. A valid send returns None (allowed
-    past Lớp A) and is then ALWAYS queued for human approval (see `needs_interrupt`).
+    Scans recipient + subject + body (and any attachment path) for secrets — a
+    credential must never ride out in an email — and rejects a structurally invalid
+    send (no recipient, empty body). When an attachment is present it MUST be confined
+    to the agent's artifact dir (see `_attachment_verdict`). A valid send returns None
+    (allowed past Lớp A) and is then ALWAYS queued for human approval (`needs_interrupt`).
     """
     to = action.get("to")
     subject = action.get("subject", "")
     body = action.get("body", "")
+    attachment_path = action.get("attachment_path")
 
-    cred = _credential_verdict({"to": to, "subject": subject, "body": body})
+    cred = _credential_verdict(
+        {"to": to, "subject": subject, "body": body, "attachment_path": attachment_path}
+    )
     if cred:
         return cred
+
+    attach = _attachment_verdict(attachment_path, artifact_root)
+    if attach:
+        return attach
 
     if not (isinstance(to, str) and to.strip()) and not (
         isinstance(to, (list, tuple)) and any(str(r).strip() for r in to)
@@ -504,6 +561,7 @@ def classify(
     action: dict[str, Any],
     *,
     allowlist: dict[str, frozenset[str]] | dict[str, tuple[str, ...]] | None = None,
+    artifact_root: Path | None = None,
 ) -> BlockVerdict:
     """Decide whether an action may proceed.
 
@@ -531,7 +589,7 @@ def classify(
         # Email is a native gateway action type (no email MCP server). Lớp A scans the
         # recipient/subject/body for secrets and rejects an empty recipient/body; a
         # well-formed send is allowed past Lớp A, then ALWAYS queued Lớp B (needs_interrupt).
-        denied = _hard_deny_email(action)
+        denied = _hard_deny_email(action, artifact_root)
         if denied:
             return denied
         return _ALLOW

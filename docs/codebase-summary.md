@@ -1,7 +1,7 @@
 # Codebase Summary — my-project-manager
 
 > Bản đồ codebase, cập nhật khi code hình thành. Đọc để biết "cái gì ở đâu" nhanh.
-> Status: **2026-07-01 — v3 M6 COMPLETE (hr-pack + generic seam patches).** 839 tests, ruff clean, pm-pack byte-identical pre-v3, HR output deterministic live.
+> Status: **2026-07-10 — v11 D4 COMPLETE (XLSX report export + email attachment).** 1257 tests, ruff clean, attachment confinement red line + internal-only delivery.
 
 ## Trạng thái hiện tại (v2 COMPLETE: M1+M2+M3)
 
@@ -22,6 +22,7 @@
 - **P10**: Skill system (5 bundled instruction-only skills, injectable LLM selector for internal-only prompt injection; red line: external gets no skills).
 - **P9**: Cross-agent memory (sibling discovery + fact sharing via Store namespace `(sibling_id,"memory")`, RO-sibling/WO-self; injectable ranker; internal-only; red line: external gets nothing).
 - **P11**: Integrations + multi-channel (config-driven extra MCP servers via `integrations:` block; Linear read + gated-write Lớp B; Email/SMTP delivery as new `email_send` action type, ALL email = Lớp B, internal-only; channel registry).
+- **D4** (v11, 2026-07-10): XLSX report export + email attachment — Resource/OKR reports export deterministically to `.xlsx` (`src/reporting/xlsx_export.py`), written to `data_dir/artifacts/`. Email delivery attaches `.xlsx` when SMTP configured (path-only, never bytes). **NEW Lớp A red line**: attachment confinement (`confined_xlsx_path()` in `hard_block.py`, re-verified at send time in `email_write.py` handler). Internal-only, all sends Lớp B.
 - **P12**: Automation + observability (opt-in LangSmith tracing B4, off=byte-identical; checkpoint-based replay B3 with safe-replay guard; READ-only workflow automation D3 via gateway, PROPOSE only, no auto-execute).
 
 ### M5: Domain-pack abstraction (2026-06-30, 816 tests)
@@ -52,6 +53,7 @@ src/
 ├── runtime/      # [M1-P3] Worker + service + registry + scheduler; [M5] worker dispatches via PackRegistry
 ├── audit/        # audit log (append-only)
 ├── server/       # [M2-P6] FastAPI + SSE + JSON API; [M4] React SPA (static/app/)
+├── reporting/    # [v11 D4] Report export (xlsx_export.py: deterministic .xlsx from dataclasses)
 ├── packs/        # [M5] PackRegistry loader + ToolProvider Protocol
 ├── automation/   # [M3-P12] Workflow automation engine + LangSmith tracing config
 └── entrypoints/  # cli.py, cron.py (legacy); mpm.py (M1-P4: multi-agent)
@@ -142,7 +144,10 @@ registry.yaml     # [NEW P3] agents: [{id, enabled}]
 | Cách agent ghi/post | `src/actions/action_gateway.py` (MỌI mutation; per-agent isolation in P3) |
 | Post Slack | `src/actions/slack_write.py` (deliver_report + build_slack_short) |
 | Tạo page Confluence | `src/actions/confluence_write.py` (create_report_page via gateway) |
+| **[v11 D4] XLSX export** | `src/reporting/xlsx_export.py` — `build_resource_xlsx()`, `build_okr_xlsx()`, `artifact_path()` (deterministic from dataclasses, no LLM) |
+| **[v11 D4] Email attachment** | `src/actions/email_write.py::deliver_email_report()` — gateway-routed, ALL Lớp B; `_attachment_bytes()` re-validates attachment path; `make_email_handler()` binds SMTP config |
 | Guardrail allow/deny | `src/actions/hard_block.py` (allowlist + Lớp A/B + per-agent in P3) |
+| **[v11 D4] Attachment confinement** | `src/actions/hard_block.py::confined_xlsx_path()` — NEW Lớp A red line; verify attachment is .xlsx, exists, inside artifact_root (symlink-safe via resolve()) |
 | Guardrail giải thích | `docs/v1/action-gateway-explainer.md` — safety model (giữ nguyên từ v1) |
 | Lớp B duyệt người | `src/actions/approval_store.py` (queue SQLite) + gateway `approve/reject` |
 | Dedup bền | `src/actions/dedup_store.py` (SQLite, reserve-before-execute) |

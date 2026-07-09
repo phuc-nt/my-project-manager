@@ -64,6 +64,7 @@ def deliver_extra_channels_and_summarize(
     audience: str,
     rationale: str,
     approved: bool,
+    attachment_path: str | None = None,
 ) -> str:
     """Deliver to any configured extra channels (email) + return a summary suffix.
 
@@ -87,6 +88,7 @@ def deliver_extra_channels_and_summarize(
     labeled = deliver_extra_channels(
         body, subject, gateway=gateway, config=config, report_date=report_date,
         audience=audience, rationale=rationale, approved=approved,
+        attachment_path=attachment_path,
     )
     parts = []
     for label, result in labeled:  # one entry per SEND, labeled at the source

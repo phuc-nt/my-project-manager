@@ -24,6 +24,7 @@ import logging
 import time
 from collections import deque
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Protocol
 
 from src.actions.approval_store import ApprovalStore
@@ -143,6 +144,15 @@ class ActionGateway:
         self._audit = audit_log or AuditLog(data_dir / "audit" / "audit.jsonl")
         self._dedup = dedup_store or DedupStore(data_dir / "dedup.db")
         self._approvals = approval_store or ApprovalStore(data_dir / "approvals.db")
+        # Email attachments are confined to this dir (Lớp A). It is the SAME location
+        # the report builder writes .xlsx to (reporting.xlsx_export.artifact_path); an
+        # attachment path outside it is a security red line (path-traversal defense).
+        self._artifact_root = data_dir / "artifacts"
+
+    @property
+    def artifact_root(self) -> Path:
+        """Dir an email attachment must live under (same as the report builder writes to)."""
+        return self._artifact_root
 
     def execute(
         self,
@@ -206,7 +216,9 @@ class ActionGateway:
 
         # 1. Hard-block (Lớp A) — denied in code, before anything else. The pack
         # allowlist (if any) governs only the default-DENY layer inside classify.
-        verdict = classify(action, allowlist=self._mcp_allowlist)
+        verdict = classify(
+            action, allowlist=self._mcp_allowlist, artifact_root=self._artifact_root
+        )
 
         # 1b. Interrupt (Lớp B) — sensitive-but-reversible: queue for human approval.
         # Checked BEFORE the allowlist default-deny: a Lớp B action is "allowed but
@@ -360,7 +372,9 @@ class ActionGateway:
                 f"got type={action_type!r}."
             )
         tool = _label(action)
-        verdict = classify(action, allowlist=self._mcp_allowlist)
+        verdict = classify(
+            action, allowlist=self._mcp_allowlist, artifact_root=self._artifact_root
+        )
         if verdict.blocked:
             self._record(action_type, tool, "deny", verdict.reason, action, rationale)
             return GatewayResult(

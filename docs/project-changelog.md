@@ -9,6 +9,32 @@ Lớp A hard-deny (never reaches the LLM) + Lớp B human approval. No version w
 
 ---
 
+## v11 — MCP suite optimization + XLSX report export (2026-07-08 → 10)
+
+Backend performance + reliability overhaul. **P1–P4** optimized 3 MCP servers (Slack/Confluence/Jira)
+as a bundled suite with session pooling, caching, and npm distribution. A follow-on quick-win adds
+deterministic XLSX export for resource/OKR reports with email attachment (internal-only, Lớp B
+approval). 1257 tests green; unchanged invariant.
+
+- **P1 — Slack cache + whoami**: Added `whoami` tool + classifySlackError for token-expired
+  diagnosis; disk-cache channels/users (TTL 900s, SUPERSET-populate strategy); cold 363ms→warm 2ms.
+  Removed pre-flight auth.test and 429-retry logic (slimmed ~4–5k LOC).
+- **P2 — Confluence lazy-boot + Jira deps cleanup**: Confluence skips boot testConnection
+  (default lazy, opt-in via `API_CONNECTION_TEST`); Jira dropped dead deps (axios, vestigial
+  jira.js stub) — node_modules 122M→80M. Both shipped and tested live.
+- **P3 — MCP session-reuse pool**: McpSessionPool owner-task design (anyio cancel-scope per-task)
+  reuses 1 subprocess per server per run; fixed CancelledError handling (BaseException, not
+  Exception); reduced weekly spawns 5→2 (−43%). Fixed 3 pre-commit findings on task lifecycle.
+- **P4 — npm publish + installer hardening**: Bundled esbuild 3 servers, published to npm
+  (v1.3.0/1.5.0/4.2.0). Install.sh enforces min version by default; added no-clobber MCP_DIST
+  + migration warning + version comparison (sort -V); CLI flag `--mcp-dev` for local build.
+- **XLSX report export + email attachment** (quick-win, 2026-07-10): Resource/cost and OKR
+  reports export as deterministic `.xlsx` (no LLM, pure dataclass serialization), stored in
+  `data_dir/artifacts/`. Email delivery attaches the `.xlsx` when SMTP is configured; the
+  attachment rides as a path (never bytes → stays out of the audit/approval store) and is
+  confined by a new Lớp A red line (must exist, be `.xlsx`, and resolve inside the artifact
+  dir — symlink-safe). Internal-only (audience="internal"). All writes still Lớp B → human approval.
+
 ## v10 — Re-design UI + dual-mode + installer (2026-07-07)
 
 Frontend-heavy polish for publish-readiness. Backend contracts unchanged (1206 tests green;

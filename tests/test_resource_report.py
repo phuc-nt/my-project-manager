@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from src.agent.resource_report_graph import ResourceReportDeps, build_resource_graph
 from src.llm.resource_report_prompt import (
     build_resource_slack_short,
@@ -112,7 +114,7 @@ def _fake_deps(delivered=True):
     return ResourceReportDeps(
         fetch=lambda: (resource, cost),
         compose=lambda r, c: ("<p>tóm tắt</p><h2>RC</h2>", None, "*rc short*"),
-        deliver=lambda short, body, approved=False: (
+        deliver=lambda short, body, approved=False, attachment_path=None: (
             delivered, "confluence=dry_run slack=dry_run url=None"),
     )
 
@@ -128,6 +130,39 @@ def test_resource_graph_runs_with_fakes():
 
 def test_resource_graph_compiles_without_network():
     assert build_resource_graph(deps=_fake_deps()) is not None
+
+
+def test_build_xlsx_writes_confined_file_when_email_configured(settings_factory, tmp_path):
+    """default_resource_deps.build_xlsx writes the .xlsx into the gateway artifact dir."""
+    from openpyxl import load_workbook
+
+    from src.agent.resource_report_graph import default_resource_deps
+    from src.config.config_builders import build_reporting_config_from_dict
+
+    settings = settings_factory(dry_run=True)
+    config = build_reporting_config_from_dict(
+        {"smtp": {"host": "smtp.test", "user": "bot@test", "recipients": "lead@team.com"}}
+    )
+    deps = default_resource_deps(config=config, settings=settings)
+    path = deps.build_xlsx(_resource(), _cost())
+
+    assert path is not None
+    p = Path(path)
+    assert p.parent == settings.data_dir / "artifacts"  # confined location
+    ws = load_workbook(p)["Resource"]
+    rows = [list(r) for r in ws.iter_rows(values_only=True)]
+    assert rows[1] == ["Assignee", "Open", "Overdue", "Blockers", "Overloaded"]
+
+
+def test_build_xlsx_skipped_without_email_channel(settings_factory):
+    """No smtp ⇒ no email consumer ⇒ no orphan artifact file (returns None)."""
+    from src.agent.resource_report_graph import default_resource_deps
+    from src.config.config_builders import build_reporting_config_from_dict
+
+    deps = default_resource_deps(
+        config=build_reporting_config_from_dict({}), settings=settings_factory()
+    )
+    assert deps.build_xlsx(_resource(), _cost()) is None
 
 
 def test_resource_deliver_uses_resource_dedup_namespace(settings_factory, tmp_path, monkeypatch):

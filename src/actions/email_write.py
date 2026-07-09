@@ -17,9 +17,11 @@ import os
 import smtplib
 from collections.abc import Callable
 from email.message import EmailMessage
+from pathlib import Path
 from typing import Any
 
 from src.actions.action_gateway import ActionGateway, GatewayResult
+from src.actions.hard_block import confined_xlsx_path
 from src.config.smtp_config import SmtpConfig
 
 logger = logging.getLogger(__name__)
@@ -27,6 +29,23 @@ logger = logging.getLogger(__name__)
 Handler = Callable[[dict[str, Any]], str]
 
 _SMTP_PASSWORD_ENV = "SMTP_PASSWORD"
+_XLSX_SUBTYPE = "vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def _attachment_bytes(
+    action: dict[str, Any], artifact_root: Path | None
+) -> tuple[bytes, str] | None:
+    """Read the attachment file at send time, re-validating confinement (defense-in-depth).
+
+    The gateway's Lớp A already confined the path, but the handler re-checks through the
+    SAME `confined_xlsx_path` rule so the two can't drift — a bug that let an out-of-dir
+    path reach execution still refuses to read it. Returns (bytes, filename) or None when
+    there is no attachment.
+    """
+    if action.get("attachment_path") is None:
+        return None
+    resolved = Path(confined_xlsx_path(action.get("attachment_path"), artifact_root))
+    return resolved.read_bytes(), resolved.name
 
 
 def _recipients(to: Any) -> list[str]:
@@ -38,12 +57,14 @@ def _recipients(to: Any) -> list[str]:
     return []
 
 
-def make_email_handler(smtp: SmtpConfig) -> Handler:
+def make_email_handler(smtp: SmtpConfig, artifact_root: Path | None = None) -> Handler:
     """Build a gateway handler bound to an SMTP config.
 
     The config (host/user/from) is captured in the closure; the password is read from
     env at send time — neither enters the action dict, the audit log, or the approval
     store. Invoked by the gateway ONLY after all guards pass (never under dry-run).
+    `artifact_root` (when set) bounds an attachment to the agent's artifact dir at send
+    time, re-checking the confinement Lớp A already enforced.
     """
 
     def _handler(action: dict[str, Any]) -> str:
@@ -57,6 +78,13 @@ def make_email_handler(smtp: SmtpConfig) -> Handler:
         msg["To"] = ", ".join(to)
         msg["Subject"] = str(action.get("subject", ""))
         msg.set_content(str(action.get("body", "")))
+
+        attachment = _attachment_bytes(action, artifact_root)
+        if attachment is not None:
+            data, filename = attachment
+            msg.add_attachment(
+                data, maintype="application", subtype=_XLSX_SUBTYPE, filename=filename
+            )
 
         with smtplib.SMTP(smtp.smtp_host, smtp.smtp_port, timeout=30) as server:
             if smtp.use_tls:
@@ -84,6 +112,7 @@ def deliver_email_report(
     report_date: str,
     rationale: str = "",
     approved: bool = False,
+    attachment_path: str | None = None,
 ) -> GatewayResult:
     """Send a report email through the gateway. Returns the gateway result.
 
@@ -91,6 +120,9 @@ def deliver_email_report(
     happens only via the approve path. Recipients default to `smtp.recipients`. Refuses an
     empty body / no recipient BEFORE the gateway (mirrors `slack_write.deliver_report`).
     `approved=True` runs the already-human-approved path (Lớp A + audit + dedup still apply).
+    `attachment_path` (an .xlsx inside the gateway's artifact dir) rides the action as a
+    path — never bytes — so it stays out of the audit log / approval store; Lớp A confines
+    it to the artifact dir.
     """
     recipients = _recipients(to) or list(smtp.recipients)
     if not recipients:
@@ -106,7 +138,9 @@ def deliver_email_report(
         "body": body,
         "dedup_hint": _dedup_key(joined, report_date),
     }
-    handler = make_email_handler(smtp)
+    if attachment_path is not None:
+        action["attachment_path"] = attachment_path
+    handler = make_email_handler(smtp, gateway.artifact_root)
     if approved:
         return gateway.execute_approved(action, handler=handler, rationale=rationale)
     return gateway.execute(action, handler=handler, rationale=rationale)

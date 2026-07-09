@@ -52,6 +52,7 @@ def deliver_extra_channels(
     audience: str,
     rationale: str = "",
     approved: bool = False,
+    attachment_path: str | None = None,
 ) -> list[tuple[str, GatewayResult]]:
     """Deliver the report to each resolved extra channel through the gateway.
 
@@ -60,6 +61,9 @@ def deliver_extra_channels(
     delivery. Returns `(label, result)` per SEND — a channel that fans out (telegram:
     one send per chat) contributes one labeled entry per send, so summaries can never
     misattribute a status to the wrong destination.
+
+    `attachment_path` (an .xlsx in the gateway's artifact dir) rides ONLY the email send;
+    telegram ignores it. None ⇒ text-only, byte-identical to before.
     """
     results: list[tuple[str, GatewayResult]] = []
     for channel in resolve_channels(config):
@@ -70,6 +74,7 @@ def deliver_extra_channels(
                     _deliver_email(
                         body, subject, gateway=gateway, config=config,
                         report_date=report_date, rationale=rationale, approved=approved,
+                        attachment_path=attachment_path,
                     ),
                 ))
             elif channel == "telegram":
@@ -93,6 +98,7 @@ def _deliver_email(
     report_date: str,
     rationale: str,
     approved: bool,
+    attachment_path: str | None = None,
 ) -> GatewayResult:
     from src.actions.email_write import deliver_email_report
 
@@ -104,6 +110,7 @@ def _deliver_email(
         report_date=report_date,
         rationale=f"{rationale} (email)",
         approved=approved,
+        attachment_path=attachment_path,
     )
 
 

@@ -92,7 +92,7 @@ def _fake_deps(delivered: bool = True):
     return OkrReportDeps(
         fetch_rollup=lambda: rollup,
         compose=lambda r: ("<p>tóm tắt</p><h2>OKR</h2>", None, "*okr short*"),
-        deliver=lambda short, body, approved=False: (
+        deliver=lambda short, body, approved=False, attachment_path=None: (
             delivered, "confluence=dry_run slack=dry_run url=None"),
     )
 

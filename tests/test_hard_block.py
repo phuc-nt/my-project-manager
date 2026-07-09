@@ -7,9 +7,16 @@ from the Phase 0 code review (bypass attempts that must be blocked).
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
 import pytest
 
-from src.actions.hard_block import BlockCategory, classify
+from src.actions.hard_block import (
+    BlockCategory,
+    _attachment_verdict,
+    classify,
+)
 
 # (action, expected category) — each must be blocked by a red-line check.
 DENY_CASES = [
@@ -131,3 +138,85 @@ def test_allowlisted_passes(action):
 def test_non_dict_raises():
     with pytest.raises(TypeError):
         classify(["not", "a", "dict"])
+
+
+# --- email attachment confinement (Lớp A): the artifact-dir red line ---
+
+
+def _root(tmp_path: Path) -> Path:
+    root = tmp_path / "artifacts"
+    root.mkdir()
+    return root
+
+
+def _xlsx(root: Path, name: str = "resource-2026-07-10.xlsx") -> Path:
+    p = root / name
+    p.write_bytes(b"PK\x03\x04")
+    return p
+
+
+def test_attachment_absent_is_allowed(tmp_path):
+    assert _attachment_verdict(None, _root(tmp_path)) is None
+
+
+def test_attachment_inside_dir_is_allowed(tmp_path):
+    root = _root(tmp_path)
+    assert _attachment_verdict(str(_xlsx(root)), root) is None
+
+
+def test_attachment_traversal_denied(tmp_path):
+    root = _root(tmp_path)
+    (tmp_path / "secret.xlsx").write_bytes(b"PK")
+    v = _attachment_verdict(str(root / ".." / "secret.xlsx"), root)
+    assert v and v.category == BlockCategory.SECURITY
+
+
+def test_attachment_absolute_elsewhere_denied(tmp_path):
+    v = _attachment_verdict("/etc/passwd", _root(tmp_path))
+    assert v and v.category == BlockCategory.SECURITY
+
+
+def test_attachment_symlink_escape_denied(tmp_path):
+    """An in-dir symlink pointing OUT must be denied — resolve() follows the link.
+
+    This guards the subtlest bypass: if a refactor swapped resolve() for a
+    non-dereferencing call, this file would carry an out-of-dir target while
+    looking in-dir. resolve() + is_relative_to keeps it closed.
+    """
+    root = _root(tmp_path)
+    outside = tmp_path / "secret.xlsx"
+    outside.write_bytes(b"PK")
+    link = root / "evil.xlsx"
+    os.symlink(outside, link)
+    v = _attachment_verdict(str(link), root)
+    assert v and v.category == BlockCategory.SECURITY
+
+
+def test_attachment_missing_file_denied(tmp_path):
+    root = _root(tmp_path)
+    v = _attachment_verdict(str(root / "never-written.xlsx"), root)
+    assert v and v.category == BlockCategory.SECURITY
+
+
+def test_attachment_non_xlsx_denied(tmp_path):
+    root = _root(tmp_path)
+    (root / "report.txt").write_bytes(b"x")
+    v = _attachment_verdict(str(root / "report.txt"), root)
+    assert v and v.category == BlockCategory.SECURITY
+
+
+def test_attachment_dir_with_xlsx_suffix_denied(tmp_path):
+    root = _root(tmp_path)
+    (root / "fake.xlsx").mkdir()  # a directory, not a file
+    v = _attachment_verdict(str(root / "fake.xlsx"), root)
+    assert v and v.category == BlockCategory.SECURITY
+
+
+def test_attachment_fail_closed_without_root(tmp_path):
+    v = _attachment_verdict(str(_xlsx(_root(tmp_path))), None)
+    assert v and v.category == BlockCategory.SECURITY
+
+
+def test_attachment_empty_path_denied(tmp_path):
+    v = _attachment_verdict("   ", _root(tmp_path))
+    assert v and v.category == BlockCategory.SECURITY

@@ -75,3 +75,24 @@ def test_smtplib_imported_only_in_email_write():
         capture_output=True, text=True, check=False,
     ).stdout.split()
     assert out == ["src/actions/email_write.py"], f"smtplib imported outside email_write: {out}"
+
+
+def test_extra_channel_email_carries_confined_attachment(settings_factory, tmp_path):
+    """An .xlsx in the gateway's artifact dir rides the email send + still queues Lớp B."""
+    gw = ActionGateway(
+        settings=settings_factory(dry_run=False), audit_log=AuditLog(tmp_path / "a.jsonl")
+    )
+    gw.artifact_root.mkdir(parents=True, exist_ok=True)
+    xlsx = gw.artifact_root / "resource-2026-06-26.xlsx"
+    xlsx.write_bytes(b"PK\x03\x04 UNIQUEBODYMARKER")
+
+    results = deliver_extra_channels(
+        "body", "Weekly", gateway=gw, config=_config_with_smtp(),
+        report_date="2026-06-26", audience="internal", attachment_path=str(xlsx),
+    )
+    assert len(results) == 1 and results[0][0] == "email"
+    assert results[0][1].status == "pending_approval"
+    # The queued action carries the path (not bytes); Lớp A already confirmed confinement.
+    pending = gw.pending_approvals()
+    assert pending[0].action["attachment_path"] == str(xlsx)
+    assert "UNIQUEBODYMARKER" not in str(pending[0].action)  # file bytes never on the action

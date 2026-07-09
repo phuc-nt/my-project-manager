@@ -54,7 +54,7 @@ class _ShortSpy:
         self.calls = 0
         self.posted_short: str | None = None
 
-    def __call__(self, short, body, approved=False):
+    def __call__(self, short, body, approved=False, attachment_path=None):
         self.calls += 1
         self.posted_short = short
         return True, "confluence=executed slack=executed url=https://x"

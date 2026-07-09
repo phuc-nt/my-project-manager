@@ -91,7 +91,13 @@ Vị trí Postgres/Store: **M1 vẫn dùng SqliteSaver per-agent** (1 file / age
 - **Channel registry** (`src/agent/channel_registry.py`): `resolve_channels(config)` returns extra channels (email when SMTP configured; `()` otherwise). `deliver_extra_channels` is gateway-routed; channel failure logged+skipped, never breaks core Slack+Confluence. Misconfigured SMTP (host set, no recipients) **FAILS LOUD** at config-build.
 - Wired into all 3 report graphs uniformly via `audience_delivery.deliver_extra_channels_and_summarize`. **Internal-only red line**: email skipped when `audience="external"` (email body is full report detail incl. per-assignee names/costs; external reports withhold that — same red line as resource graph's external link-stripping).
 
-**Unchanged invariant (restate)**: Every new write (Linear comment, email) stays behind Action Gateway — Lớp A hard-deny + default-DENY allowlist + Lớp B approve. New write tools deny by default until explicitly allowlisted. Config flows through all 3 entry points (worker/cron/cli) automatically. Backward-compat: no `integrations:` + no `smtp:` ⇒ byte-identical pre-P11 behavior (Slack+Confluence only). `classify()` / `needs_interrupt()` unchanged.
+**XLSX report artifacts + email attachment (D3, v11)**:
+- Resource/cost and OKR report kinds now export as `.xlsx` files (deterministic, no LLM). Built via `src/reporting/xlsx_export.py` from already-computed dataclass analyzers, written to `data_dir/artifacts/<kind>-<date>.xlsx` (a confined, internal-only artifact directory alongside `budget/` and `audit/`).
+- When SMTP is configured, email delivery attaches the `.xlsx` file as a multi-part MIME attachment (stdlib `smtplib` only, no new dependencies). The attachment path rides the action dict as a **path string** (never bytes), staying out of audit log / approval store (defense-in-depth).
+- **NEW Lớp A confinement red line** (P2): Attachment MUST be `.xlsx`, MUST exist, and MUST be inside `data_dir/artifacts` (verified via `Path.resolve()`, which dereferences symlinks to catch escape attempts). Checked by `confined_xlsx_path()` in `hard_block.py`; re-verified at send time in email handler (same check, so no drift). Fails hard-deny if violated (traversal, absolute path elsewhere, symlink escape, missing artifact_root).
+- Email attachment is internal-only (audience="internal" only); no change to external audience or Slack/Confluence delivery (text-only, same as before).
+
+**Unchanged invariant (restate)**: Every new write (Linear comment, email, email + attachment) stays behind Action Gateway — Lớp A hard-deny + default-DENY allowlist + Lớp B approve. New write tools deny by default until explicitly allowlisted. Config flows through all 3 entry points (worker/cron/cli) automatically. Backward-compat: no `integrations:` + no `smtp:` ⇒ byte-identical pre-P11 behavior (Slack+Confluence only). `classify()` / `needs_interrupt()` unchanged.
 
 ## 7. What's PRESERVED from v1
 

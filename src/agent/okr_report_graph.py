@@ -49,10 +49,14 @@ class OkrReportDeps:
     fetch_rollup: Callable[[], OkrRollup]
     # compose returns (body, cost, slack_short) — short built URL-free, checkpointed (S4).
     compose: Callable[[OkrRollup], tuple[str, float | None, str]]
-    # deliver takes the URL-free short (from state) + body + approved (model-free).
+    # deliver takes the URL-free short (from state) + body + approved (model-free) +
+    # attachment_path (the .xlsx built at compose, threaded via state — resume-safe).
     # `approved` (M2-P5): True when the graph resumed past the Lớp B interrupt with
     # an approve decision — the writers then run the gateway's already-approved path.
     deliver: Callable[..., tuple[bool, str]]
+    # build_xlsx writes the OKR .xlsx into the artifact dir and returns its path (str) —
+    # or None when no email channel is configured. Called at compose (rollup live).
+    build_xlsx: Callable[[OkrRollup], str | None] | None = None
 
 
 def _today_utc() -> date:
@@ -135,7 +139,22 @@ def default_okr_deps(
             logger.warning("OKR narrative skipped (LLM unavailable): %s", exc)
             return fallback_okr_narrative(rollup, report_date=report_date, audience=audience), None
 
-    def _deliver(short_no_url: str, body: str, approved: bool = False) -> tuple[bool, str]:
+    def _build_xlsx(rollup: OkrRollup) -> str | None:
+        from src.agent.channel_registry import resolve_channels
+
+        if "email" not in resolve_channels(config):
+            return None
+        from src.reporting.xlsx_export import artifact_path, build_okr_xlsx
+
+        report_date = _today_utc().isoformat()
+        path = artifact_path(settings.data_dir, "okr", report_date)
+        path.write_bytes(build_okr_xlsx(rollup, report_date=report_date))
+        return str(path)
+
+    def _deliver(
+        short_no_url: str, body: str, approved: bool = False,
+        attachment_path: str | None = None,
+    ) -> tuple[bool, str]:
         from src.llm.slack_link import inject_link
 
         today = _today_utc().isoformat()
@@ -163,6 +182,7 @@ def default_okr_deps(
         extra = deliver_extra_channels_and_summarize(
             body, title, gateway=gw, config=config, report_date=date_hint,
             audience=audience, rationale=f"OKR report ({audience})", approved=approved,
+            attachment_path=attachment_path,
         )
         return ok, delivery_summary(conf_result.status, slack_result, detail_url) + extra
 
@@ -170,6 +190,7 @@ def default_okr_deps(
         fetch_rollup=lambda: build_okr_rollup(config),
         compose=_compose,
         deliver=_deliver,
+        build_xlsx=_build_xlsx,
     )
 
 
@@ -187,7 +208,13 @@ def _make_okr_nodes(deps: OkrReportDeps):
 
     def compose_report(_state: ReportState) -> dict:
         text, cost, short = deps.compose(box["rollup"])
-        return {"report_text": text, "cost_usd": cost, "slack_short": short}
+        out: dict = {"report_text": text, "cost_usd": cost, "slack_short": short}
+        # Build the .xlsx here (rollup live in the box); thread only its PATH (S4).
+        if deps.build_xlsx is not None:
+            xlsx_path = deps.build_xlsx(box["rollup"])
+            if xlsx_path is not None:
+                out["xlsx_path"] = xlsx_path
+        return out
 
     def deliver(state: ReportState) -> dict:
         # M2-P5: approve at the interrupt authorizes the live external post (see
@@ -195,7 +222,8 @@ def _make_okr_nodes(deps: OkrReportDeps):
         # Reads ONLY state (S4) — resume-safe, no box["rollup"].
         approved = state.get("approval_decision") == "approve"
         delivered, summary = deps.deliver(
-            state.get("slack_short", ""), state.get("report_text", ""), approved
+            state.get("slack_short", ""), state.get("report_text", ""), approved,
+            state.get("xlsx_path"),
         )
         return {"delivered": delivered, "delivery_summary": summary}
 

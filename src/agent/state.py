@@ -50,3 +50,7 @@ class ReportState(TypedDict, total=False):
     # M2-P8 Slice 3: count of memory facts the `remember` node persisted (0 when gated
     # out — dry-run / not-delivered / external). Observability only.
     memory_written: int
+    # xlsx report artifact path (resource/OKR), built at compose from the live snapshot
+    # and emailed as a Lớp B attachment at deliver. Only the string path is checkpointed
+    # (resume-safe); unset when no email channel is configured.
+    xlsx_path: str

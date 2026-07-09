@@ -51,10 +51,15 @@ class ResourceReportDeps:
     fetch: Callable[[], Snapshot]
     # compose returns (body, cost, slack_short) — short built URL-free, checkpointed (S4).
     compose: Callable[[ResourceReport, CostSummary], tuple[str, float | None, str]]
-    # deliver takes the URL-free short (from state) + body + approved (model-free).
+    # deliver takes the URL-free short (from state) + body + approved (model-free) +
+    # attachment_path (the .xlsx built at compose, threaded via state — resume-safe).
     # `approved` (M2-P5): True when the graph resumed past the Lớp B interrupt with
     # an approve decision — the writers then run the gateway's already-approved path.
     deliver: Callable[..., tuple[bool, str]]
+    # build_xlsx writes the report .xlsx into the artifact dir and returns its path
+    # (a str) — or None when no email channel is configured (skip the orphan file).
+    # Called at compose (snapshot live in the box); only the path string enters state.
+    build_xlsx: Callable[[ResourceReport, CostSummary], str | None] | None = None
 
 
 def _today_utc() -> date:
@@ -145,7 +150,25 @@ def default_resource_deps(
                 None,
             )
 
-    def _deliver(short_no_url: str, body: str, approved: bool = False) -> tuple[bool, str]:
+    def _build_xlsx(resource: ResourceReport, cost: CostSummary) -> str | None:
+        # Only write the file when email is actually configured — no email channel means
+        # no attachment consumer, so skip the orphan artifact. The file lands in the same
+        # artifact dir Lớp A confines attachments to (gw.artifact_root).
+        from src.agent.channel_registry import resolve_channels
+
+        if "email" not in resolve_channels(config):
+            return None
+        from src.reporting.xlsx_export import artifact_path, build_resource_xlsx
+
+        report_date = _today_utc().isoformat()
+        path = artifact_path(settings.data_dir, "resource", report_date)
+        path.write_bytes(build_resource_xlsx(resource, cost, report_date=report_date))
+        return str(path)
+
+    def _deliver(
+        short_no_url: str, body: str, approved: bool = False,
+        attachment_path: str | None = None,
+    ) -> tuple[bool, str]:
         from src.llm.slack_link import inject_link
 
         today = _today_utc().isoformat()
@@ -176,6 +199,7 @@ def default_resource_deps(
         extra = deliver_extra_channels_and_summarize(
             body, title, gateway=gw, config=config, report_date=date_hint,
             audience=audience, rationale=f"resource report ({audience})", approved=approved,
+            attachment_path=attachment_path,
         )
         return ok, delivery_summary(conf_result.status, slack_result, detail_url) + extra
 
@@ -183,6 +207,7 @@ def default_resource_deps(
         fetch=lambda: build_resource_rollup(config, settings),
         compose=_compose,
         deliver=_deliver,
+        build_xlsx=_build_xlsx,
     )
 
 
@@ -201,14 +226,22 @@ def _make_resource_nodes(deps: ResourceReportDeps):
     def compose_report(_state: ReportState) -> dict:
         resource, cost = box["snapshot"]
         text, usd, short = deps.compose(resource, cost)
-        return {"report_text": text, "cost_usd": usd, "slack_short": short}
+        out: dict = {"report_text": text, "cost_usd": usd, "slack_short": short}
+        # Build the .xlsx here (snapshot live in the box) and thread only its PATH
+        # through state — resume-safe (S4), never the dataclass or bytes.
+        if deps.build_xlsx is not None:
+            xlsx_path = deps.build_xlsx(resource, cost)
+            if xlsx_path is not None:
+                out["xlsx_path"] = xlsx_path
+        return out
 
     def deliver(state: ReportState) -> dict:
         # M2-P5: approve at the interrupt authorizes the live external post.
         # Reads ONLY state (S4) — resume-safe, no box["snapshot"].
         approved = state.get("approval_decision") == "approve"
         delivered, summary = deps.deliver(
-            state.get("slack_short", ""), state.get("report_text", ""), approved
+            state.get("slack_short", ""), state.get("report_text", ""), approved,
+            state.get("xlsx_path"),
         )
         return {"delivered": delivered, "delivery_summary": summary}
 

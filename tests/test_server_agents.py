@@ -22,7 +22,10 @@ def _profile(settings, *, name="Acme", enabled=True, external=frozenset(), domai
     return type(
         "LP",
         (),
-        {"name": name, "enabled": enabled, "settings": settings, "config": config, "domain": domain},
+        {
+            "name": name, "enabled": enabled, "settings": settings,
+            "config": config, "domain": domain,
+        },
     )()
 
 

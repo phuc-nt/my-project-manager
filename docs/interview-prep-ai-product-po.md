@@ -160,6 +160,31 @@ nhưng lớp trách nhiệm thì bất khả xâm phạm."*
 | **Separation of concerns** | agent core ⟂ entrypoint (CLI/cron/web/Telegram) | Thêm giao diện là cộng thêm, không sửa lõi |
 | **Audit log (append-only)** | Immutable log, che secret | Giải trình & không thể bị viết đè |
 
+### 3.4 Bề rộng năng lực đã build — nói được sản phẩm KHÔNG chỉ là "một con agent"
+
+Đây là phần thiếu nếu chỉ kể guardrail. Sản phẩm đi từ **1 agent PM** thành **một "công ty nhân
+sự ảo" do CEO vận hành** qua ~11 vòng lặp (v1→v11). Không cần thuộc số milestone — nhớ **6 nhóm
+năng lực** và mỗi nhóm giải quyết *nhu cầu gì*:
+
+| Nhóm năng lực | Đã build gì | Vì sao đáng giá (góc PO) |
+|---|---|---|
+| **1. Multi-agent platform** | N agent / N project **cô lập** nhau, chạy qua CLI + worker + **scheduler** (cron); một agent **admin** "trông" cả đàn (read-only) | Từ tool cá nhân → nền tảng vận hành nhiều agent. Cô lập = lỗi/agent này không lây sang agent khác |
+| **2. Domain packs (mở rộng không sửa lõi)** | Thêm một *lĩnh vực* = **thả một folder** (pack), zero core edit. Chứng minh bằng **HR pack** (đọc Google Sheets) bên cạnh pack PM | Đây là **Open/Closed nguyên tắc thành sản phẩm**: bán thêm domain mà không đụng code lõi → mở rộng thị trường rẻ |
+| **3. Memory 4 tầng** | working (trong 1 lần chạy) · internal (giữa các bước) · **cross-agent** (agent anh-em chia sẻ fact, chỉ nội bộ) · long-term (Postgres Store, opt-in) | Agent "nhớ" & "học lẫn nhau" nhưng **không rò dữ liệu ra ngoài** — memory cũng có ranh giới an toàn |
+| **4. Human interface đa kênh** | Web SPA (React, low/high-tech dual-mode, light/dark, tiếng Việt) · **Telegram**: mỗi nhân sự ảo có bot riêng, CEO **chat-ops** (giao việc & duyệt Lớp B ngay trong chat) | Người không-kỹ-thuật (CEO) vận hành 100% qua web/chat. Duyệt hành động rủi ro **trên điện thoại** |
+| **5. Observability & vận hành tin cậy** | Audit log bất biến · run-events · **replay** một lần chạy (có guard chặn replay không an toàn) · LangSmith tracing (opt-in) · **agent chết ngầm → ping CEO qua Telegram** · multi-project rollup | Không chỉ "chạy được" mà **biết nó đang làm gì & khi nào hỏng** — điều kiện để giao quyền tự động |
+| **6. Trust ladder (giao quyền có kiểm soát)** | CEO **bật tay** auto-approve cho Lớp B với **hạn mức/ngày**; Lớp A / allowlist / kill-switch **luôn kiểm trước** | Sản phẩm hoá đúng bài toán PO: *cân bằng tự động hoá vs kiểm soát* — tin dần theo thời gian, không tin mù |
+
+**Câu tổng để nói gọn cả bảng:** *"Nó không dừng ở một agent viết report. Nó là một **nền tảng
+vận hành nhiều agent** cho người không-kỹ-thuật: mở rộng lĩnh vực bằng cách thả folder, có bộ nhớ
+nhiều tầng, quan sát được từng hành động, và một **thang tin cậy** để CEO giao quyền tự động dần —
+nhưng red line an toàn thì không bao giờ đánh đổi."*
+
+**Về mặt kỹ thuật nền, đã đụng tới (biết để không bị hớ):** FastAPI + **SSE streaming** (đẩy tiến
+trình chạy real-time về web), **Postgres checkpointer/Store** (opt-in, thay SQLite khi cần bền &
+chia sẻ), **MCP suite** 3 server tự đóng gói + publish npm (tối ưu session-reuse, cache, health
+probe — xem mục 4), và **installer một lệnh** + system-health panel cho onboarding trọn gói.
+
 ---
 
 ## 4. Kể chuyện "bug thật + bài học" — phần ghi điểm mạnh nhất
@@ -216,6 +241,21 @@ khoá cứng một nhà cung cấp; chọn theo tác vụ và ngân sách.
 "trông" cả đàn, mỗi nhân sự ảo có Telegram riêng, CEO giao việc & duyệt qua chat. Mở rộng bằng
 **domain pack thả-vào-folder**, không sửa lõi.
 
+**"Thêm một lĩnh vực mới (vd Sales, HR) tốn bao nhiêu?"** *(câu về khả năng mở rộng sản phẩm)*
+→ Rẻ — vì kiến trúc **domain pack**: một lĩnh vực mới là **một folder thả vào**, không sửa code
+lõi (Open/Closed). Tôi đã chứng minh bằng HR pack (đọc Google Sheets) chạy song song pack PM. Về
+mặt sản phẩm: mở rộng thị trường mà không tăng rủi ro hồi quy lên lõi.
+
+**"Agent có 'nhớ' không? Nhớ thì có rò dữ liệu không?"**
+→ Có **memory 4 tầng** (trong-một-lần-chạy / giữa-các-bước / **chia sẻ giữa agent anh-em** /
+long-term Postgres opt-in). Nhưng chia sẻ chỉ **nội bộ** — dữ liệu không rò ra ngoài công ty. Memory
+cũng nằm trong ranh giới an toàn, không phải "nhớ hết mọi thứ mọi nơi".
+
+**"Làm sao để người dùng dần tin và giao thêm quyền cho agent?"** *(câu PO thuần về automation-vs-control)*
+→ **Trust ladder**: mặc định mọi hành động rủi ro (Lớp B) chờ người duyệt. CEO có thể **bật tay**
+auto-approve cho Lớp B với **hạn mức mỗi ngày** — tin dần theo thời gian. Nhưng Lớp A / allowlist /
+kill-switch **luôn kiểm trước**; quyền tự động **không bao giờ tự kiếm được**, luôn do người cấp.
+
 **"Nếu làm lại, đổi gì?"** *(bẫy khiêm tốn — phải có sẵn 1 câu)*
 → Đưa **allowlist ngay từ đầu** thay vì bắt đầu bằng denylist rồi mới sửa; và tách read/write layer
 sớm hơn nữa. Cả hai đều là bài học từ review đối kháng.
@@ -235,7 +275,7 @@ sớm hơn nữa. Cả hai đều là bài học từ review đối kháng.
 
 ---
 
-## 7. Nếu chỉ kịp học 5 điều trước khi vào phòng
+## 7. Nếu chỉ kịp học 6 điều trước khi vào phòng
 
 1. **Agent ≠ chatbot** — chủ động, tự chạy theo lịch, tự hành động.
 2. **Sản phẩm build trên LangGraph** (LangChain chỉ là lớp nền + 1 adapter MCP). LangChain =
@@ -243,9 +283,11 @@ sớm hơn nữa. Cả hai đều là bài học từ review đối kháng.
    **kiểm soát luồng + chèn guardrail cứng + portable.**
 3. **Action Gateway**: một cổng, Lớp A red-line cứng (LLM không chạm), Lớp B người duyệt,
    allowlist default-deny, audit log bất biến. → *Autonomous về tốc độ, không về trách nhiệm.*
-4. **Pattern gọi tên được:** gateway, allowlist/default-deny, state machine, adapter (MCP),
+4. **Không chỉ 1 agent — là một NỀN TẢNG:** multi-agent cô lập + scheduler · domain pack thả-folder ·
+   memory 4 tầng · observability + replay · Telegram chat-ops · trust ladder. (Bảng mục 3.4.)
+5. **Pattern gọi tên được:** gateway, allowlist/default-deny, state machine, adapter (MCP),
    plugin (domain pack), circuit breaker (kill-switch/budget), idempotency.
-5. **Một câu chuyện bug thật:** denylist→allowlist sau review đối kháng — an toàn > tiện, với
+6. **Một câu chuyện bug thật:** denylist→allowlist sau review đối kháng — an toàn > tiện, với
    hành động không hoàn tác thì mặc định phải cấm.
 
 ---

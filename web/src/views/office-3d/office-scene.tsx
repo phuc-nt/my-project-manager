@@ -38,7 +38,7 @@ export function OfficeScene() {
       </p>
       <div className="office-3d-canvas-wrap">
         <Canvas camera={{ position: [0, 6, 10], fov: 50 }}>
-          <color attach="background" args={['#121212']} />
+          <color attach="background" args={['#fafafa']} />
           <ambientLight intensity={0.6} />
           <directionalLight position={[5, 8, 5]} intensity={0.8} />
           <OfficeFloor />

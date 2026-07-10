@@ -189,12 +189,19 @@ h4 { font-size: var(--fs-h4); }
    Surrounding chrome (heading, hint, HTML overlays) still uses the normal --color-* tokens so it
    reads correctly in both app themes. */
 .office-3d-canvas-wrap { width: 100%; height: 70vh; min-height: 420px; border: 1px solid var(--color-border);
-  border-radius: var(--radius); overflow: hidden; background: #121212; }
-.office-3d-bubble { background: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius); padding: 0.3rem 0.6rem; font-size: 0.78rem; white-space: nowrap; box-shadow: var(--shadow-sm); }
-.office-3d-bubble strong { display: block; }
-.office-3d-bubble-step { display: block; color: var(--color-muted); font-size: 0.72rem; }
-.office-3d-label { color: #e8e8e8; font-size: 0.72rem; font-weight: 600; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8); white-space: nowrap; }
+  border-radius: var(--radius); overflow: hidden; background: #fafafa; }
+/* Fixed-width bubble frame: long titles ellipsize per line instead of stretching across the
+   scene. The canvas is always light (see office-scene.tsx) so the bubble uses fixed light
+   colors, not theme tokens. */
+.office-3d-bubble { background: #ffffff; color: #1c1c1c; border: 1px solid #c9c9c9;
+  border-radius: var(--radius); padding: 0.3rem 0.6rem; font-size: 0.78rem;
+  width: 200px; max-width: 200px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12); }
+.office-3d-bubble strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.office-3d-bubble-step { display: block; color: #6a6a6a; font-size: 0.72rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.office-3d-label { font-size: 0.72rem; font-weight: 700; white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.9); }
+.office-3d-label-coordinator { color: #2b2b2b; }
 .office-3d-fallback-table { margin-top: var(--space-3); }
 .office-3d-state { font-weight: 600; }
 .office-3d-state-idle { color: var(--color-muted); }

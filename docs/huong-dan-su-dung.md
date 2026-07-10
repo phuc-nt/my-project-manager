@@ -169,7 +169,18 @@ Vào **Trợ lý** (hoặc nhắn qua Telegram). Gõ câu hỏi/lệnh vào ô "
 - **Đội** cho thấy nhanh: ai đang chạy, tốn bao nhiêu ngân sách, có việc gì kẹt.
 - **Văn phòng** (tab mới): xem dòng thời gian tất cả diễn biến đội — ai nhận việc / đang làm / xong bước / hoàn thành / cần duyệt.
   - **Timeline**: mỗi sự kiện là 1 dòng (người, hành động, thời gian).
-  - **3D view** (nút góc): xem không gian ảo 3D của phòng làm việc (mỗi người = 1 bàn, speech bubble hiện thị công việc) — cảm giác như xem thực tế.
+
+    ![Phòng Văn phòng — dòng thời gian công việc của cả đội](images/van-phong-timeline.png)
+
+  - **Văn phòng 3D** (menu nâng cao): không gian 3D của công ty — bàn trưởng phòng ở giữa,
+    mỗi nhân sự một bàn với màu và phụ kiện riêng (nón / kính / cà vạt). Màu viền bàn = trạng
+    thái: xám (chờ việc), xanh dương (nhận việc), cam (đang làm), xanh lá (xong). Bong bóng
+    thoại phía trên hiện việc + bước đang làm. Mọi chuyển động đều từ sự kiện thật — không có
+    hoạt cảnh giả.
+
+    ![Văn phòng 3D — nhân sự đang làm việc (bàn cam = đang làm, xanh lá = đã xong)](images/van-phong-3d-dang-lam-viec.png)
+
+    ![Văn phòng 3D — toàn cảnh đội 4 nhân sự quanh bàn trưởng phòng](images/van-phong-3d-toan-canh.png)
 - Nếu một agent **chết ngầm** (quá hạn không chạy), hệ thống tự nhắn cảnh báo cho bạn qua Telegram.
 
 ## B.6. Đổi giao diện (sáng / tối)

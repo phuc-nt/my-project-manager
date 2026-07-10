@@ -5,13 +5,21 @@ Each function performs exactly the ONE action `coordinator_graph.run_one_tick`
 delegates to it and returns a `TickResult`; none of them loop or poll beyond the
 single task/step they were called with — the looping/selection logic stays in
 `coordinator_graph._act_on_task`.
+
+P2 (M32) adds the peer-review insert rule (`maybe_insert_review`/
+`maybe_insert_rework_or_stall`, called from `coordinator_graph._act_on_task` right
+after a content/review/rework step turns `done`, BEFORE the next dispatch decision is
+made) — see `review_insert.py` for the rule itself; this module only wires it into the
+ticker's action list.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from src.agent.task_decomposition import MAX_STEPS
 from src.runtime.office_room_append import append_office_event
+from src.runtime.team_task_cost import spawn_headroom_usd, step_cost_estimate_usd
 from src.runtime.team_task_store import TeamStep, TeamTask
 
 if TYPE_CHECKING:
@@ -19,6 +27,62 @@ if TYPE_CHECKING:
 
 #: A dead-pid step is retried exactly once before being marked permanently `failed`.
 MAX_STEP_RETRIES = 1
+
+
+def ready_pending_steps(task: TeamTask) -> list[TeamStep]:
+    """Every `pending` step (in stable `seq` order) whose deps are ALL `done` —
+    `TeamTaskStore.next_pending_step` returns only the FIRST one of these; the v13
+    parallel-cap dispatcher needs the whole ready set for one tick so it can spawn up
+    to `concurrency - running_count` of them, not just one."""
+    done_ids = {s.step_id for s in task.steps if s.status == "done"}
+    return [
+        s for s in task.steps
+        if s.status == "pending" and all(dep in done_ids for dep in s.deps)
+    ]
+
+
+def dispatch_ready_steps(
+    deps: CoordinatorDeps, task: TeamTask, ready: list[TeamStep],
+) -> list[TickResult]:
+    """Spawn up to `deps.concurrency - running_count` of `ready` this tick, gated by
+    DERIVED cost headroom per candidate (v13 M34) — no reservation ledger, see
+    `team_task_cost` module docstring.
+
+    Order: `ready` is already `seq`-ordered (oldest-authored-first, same tie-break
+    `next_pending_step` used pre-parallel) so a concurrency=1 caller sees byte-identical
+    spawn choice to the old single-spawn dispatch. Stops early (returns fewer than
+    `slots` spawns) the moment either the concurrency cap or the cost headroom runs out
+    — a step that doesn't fit THIS tick is simply reconsidered next tick, never dropped.
+    """
+    running_count = sum(1 for s in task.steps if s.status == "running")
+    slots = deps.concurrency - running_count
+    if slots <= 0:
+        return []
+
+    estimate = step_cost_estimate_usd(deps.cost_cap_usd, max_steps=MAX_STEPS)
+    # `task` is one snapshot for the whole tick (matches every other action in
+    # `_act_on_task`), so `spawn_headroom_usd` — which derives its in-flight sum from
+    # `task.steps`' `running` count — would not see a step THIS loop just spawned.
+    # Track that locally and subtract it from each subsequent headroom check so two
+    # spawns in the SAME tick correctly share one shrinking headroom instead of each
+    # being checked against the tick-start snapshot independently.
+    already_spawned_this_tick = 0
+    spawned: list[TickResult] = []
+    for step in ready:
+        if len(spawned) >= slots:
+            break
+        headroom = spawn_headroom_usd(
+            deps.store, task, cap_usd=deps.cost_cap_usd, step_estimate_usd=estimate,
+        ) - (already_spawned_this_tick * estimate)
+        if headroom < estimate:
+            # Not a hard stop (that is `check_cost_cap`'s job on ACTUAL recorded
+            # spend, checked once per tick before dispatch even starts) — just "no
+            # projected room for one more concurrent step this tick", so defer to a
+            # later tick once a running step completes and its estimate is released.
+            break
+        spawned.append(reserve_and_spawn(deps, task, step))
+        already_spawned_this_tick += 1
+    return spawned
 
 
 def reserve_and_spawn(deps: CoordinatorDeps, task: TeamTask, step: TeamStep) -> TickResult:

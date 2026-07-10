@@ -82,9 +82,13 @@ def run_team_step(
             except Exception:  # noqa: BLE001 — a heartbeat write must never fail the step
                 logger.warning("team-step %s/%s: heartbeat write failed", task_id, step_id)
 
-        result = _run_graph(
-            loaded, settings, task_id=task_id, step=step, on_node=_touch,
-        )
+        if step.step_type == "review":
+            result = _run_review(loaded, settings, task_id=task_id, step=step, store=store)
+        else:
+            result = _run_graph(
+                loaded, settings, task_id=task_id, step=step, attempt_id=attempt_id,
+                task_title=task.title, on_node=_touch,
+            )
         if result.get("status") == "awaiting_approval":
             store.mark_awaiting_approval(task_id, step_id, attempt_id=attempt_id)
             return {"status": STATUS_PAUSED, "cost_usd": result.get("cost_usd"),
@@ -96,10 +100,17 @@ def run_team_step(
             attempt_id=attempt_id,
         )
         room_message = result.get("room_message", "")
-        _append_step_event(
-            task_id, author=step.assigned_to, task_title=task.title, step_title=step.title,
-            kind="handoff", status="done", message=room_message,
-        )
+        if step.step_type == "review":
+            _append_review_event(
+                task_id, author=step.assigned_to, task_title=task.title,
+                step_title=step.title, passed=result.get("passed"),
+                failures=result.get("failures") or [],
+            )
+        else:
+            _append_step_event(
+                task_id, author=step.assigned_to, task_title=task.title, step_title=step.title,
+                kind="handoff", status="done", message=room_message,
+            )
         return {
             "status": STATUS_DONE, "cost_usd": cost, "delivered": bool(result.get("delivered")),
             "room_message": room_message,
@@ -149,17 +160,95 @@ def _append_step_event(
     append_office_event(task_id, author=author, kind=kind, body=body, also_office=True)
 
 
+def _append_review_event(
+    task_id: str, *, author: str, task_title: str, step_title: str, passed: bool | None,
+    failures: list[str],
+) -> None:
+    """try/degrade room-event append for a review-step's own verdict (M32) — never
+    raises, matching `office_room_append.append_office_event`'s own contract.
+
+    `passed is None` means `run_review_step` returned `"stale_artifact"` (no verdict
+    was actually reached, the ticker will re-queue a fresh review) — no room event is
+    posted for that outcome, since "cần sửa (0 lỗi)" would misreport a re-queue as a
+    real failed review. Only a genuine verdict (`passed` True/False) is ever surfaced
+    to the room, carrying `failure_count` (never the failure list itself — see
+    `office_event_projection`'s `review` allowlist) so the CEO/staff see a count, not
+    reviewed-content-echoing detail.
+    """
+    if passed is None:
+        return
+    from src.runtime.office_room_append import append_office_event
+
+    body: dict[str, object] = {
+        "task_title": task_title, "step_title": step_title,
+        "verdict": "passed" if passed else "needs_rework",
+        "failure_count": len(failures), "assigned_to": author,
+    }
+    append_office_event(task_id, author=author, kind="review", body=body, also_office=True)
+
+
+def _run_review(loaded: Any, settings: Any, *, task_id: str, step, store: Any) -> dict:
+    """Dispatch body for `step_type == "review"` (M32) — the reviewer's own worker run.
+
+    Unlike `_run_graph` (perceive→work→self_check→...→deliver, a LangGraph build),
+    `review_graph.run_review_step` is three plain sequential calls with one early exit
+    (stale artifact) — no branching/looping worth a graph object, see that module's
+    docstring. `review_input.parent_seq`/`locked_version`/`acceptance` all come from the
+    REVIEWED content step (`step.parent_step_id`), read fresh from the store here rather
+    than trusted off any caller-supplied state, since a review-step's OWN `deps` may
+    point at a rework row (round >=1), not the original content step directly.
+    """
+    from src.agent.review_graph import ReviewStepInput, run_review_step
+
+    content_step = store.get_step(task_id, step.parent_step_id) if step.parent_step_id else None
+    if content_step is None:
+        logger.warning(
+            "review-step %s/%s: parent_step_id %r not found — cannot run review",
+            task_id, step.step_id, step.parent_step_id,
+        )
+        return {"status": "stale_artifact", "cost_usd": None, "delivered": False,
+                "room_message": "", "passed": None, "failures": []}
+
+    # The GRADED artifact is whatever `deps[0]` points at — the content step itself
+    # for round 0, or the LATEST rework step for round >=1 (each rework writes its own
+    # `step-<seq>.json`, never overwriting the content step's) — `graded_seq`/
+    # `locked_version` both come from THAT row, re-read fresh here (not trusted off a
+    # stale copy) so a dep that itself re-ran between mint and this run is caught as a
+    # stale-artifact mismatch instead of silently grading content nobody will see.
+    dep_step_id = step.deps[0] if step.deps else step.parent_step_id
+    dep_step = store.get_step(task_id, dep_step_id)
+    graded_seq = dep_step.seq if dep_step is not None else content_step.seq
+    locked_version = (dep_step.attempt_id or "") if dep_step is not None else ""
+
+    from src.runtime.team_task_paths import team_tasks_root
+
+    review_input = ReviewStepInput(
+        task_id=task_id, graded_seq=graded_seq, verdict_seq=content_step.seq,
+        review_round=step.review_round, locked_version=locked_version,
+        acceptance=content_step.acceptance, step_title=content_step.title,
+    )
+    return run_review_step(loaded, settings, data_dir=team_tasks_root(), review_input=review_input)
+
+
 def _run_graph(
-    loaded: Any, settings: Any, *, task_id: str, step, on_node: Callable[[], None] | None = None,
+    loaded: Any, settings: Any, *, task_id: str, step, attempt_id: str = "",
+    task_title: str = "", on_node: Callable[[], None] | None = None,
 ) -> dict:
     """Build + invoke the team_task_graph for one step (no checkpointer — a single
     step is a one-shot invoke, not a resumable multi-turn conversation like a report
     graph; resumability across steps is the store's job, not the graph's).
 
-    `on_node`, when given, is called after EACH node (perceive/work/deliver) finishes —
-    the heartbeat hook that keeps a genuinely-still-working step's lease from expiring
-    mid-run. Uses `.stream(stream_mode="updates")` instead of `.invoke()` so we observe
-    node completion without changing the graph's own node functions.
+    `on_node`, when given, is called after EACH `updates`-mode chunk (one per node
+    finishing) — the heartbeat hook that keeps a genuinely-still-working step's lease
+    from expiring mid-run. `stream_mode=["updates","custom"]` (a LIST) makes
+    `.stream()` yield `(mode, chunk)` TUPLES instead of bare chunks — `updates` chunks
+    are node-output dicts (as before, merged into `state`); `custom` chunks are
+    whatever a node's own `get_stream_writer()` call emitted (`{"phase": ...}` from
+    work/self_check/rework) and are turned into a room `step_status` event carrying
+    `body.phase` + `body.attempt_id` (so the FE can drop a stale/zombie attempt's
+    events — see `office_event_projection`'s `phase` allowlist). Heartbeat fires ONLY
+    on `updates` chunks (once per node), never once per `custom` chunk, so a node that
+    writes multiple custom events in one run does not multiply heartbeat writes.
     """
     from src.agent.team_task_graph import build_team_task_graph
     from src.company_docs.pool import load_company_docs
@@ -180,16 +269,48 @@ def _run_graph(
     graph = build_team_task_graph(
         settings=settings, context=context, step_title=step.title,
         data_dir=team_tasks_root(), task_id=task_id, step_seq=step.seq,
-        search_hook=_resolve_search_hook(loaded, settings),
+        step_deps=step.deps, search_hook=_resolve_search_hook(loaded, settings),
+        self_id=step.assigned_to,
     )
-    state: dict[str, Any] = {"step_title": step.title}
-    for update in graph.stream({"step_title": step.title}, stream_mode="updates"):
-        for node_output in update.values():
-            if isinstance(node_output, dict):
-                state.update(node_output)
-        if on_node is not None:
-            on_node()
+    initial_state: dict[str, Any] = {
+        "step_title": step.title, "acceptance": step.acceptance,
+        "attempt_id": attempt_id, "version": attempt_id,
+    }
+    state: dict[str, Any] = dict(initial_state)
+    for mode, chunk in graph.stream(initial_state, stream_mode=["updates", "custom"]):
+        if mode == "updates":
+            for node_output in chunk.values():
+                if isinstance(node_output, dict):
+                    state.update(node_output)
+            if on_node is not None:
+                on_node()
+        elif mode == "custom" and isinstance(chunk, dict):
+            phase = chunk.get("phase")
+            if phase:
+                _append_step_phase_event(
+                    task_id, author=step.assigned_to, task_title=task_title,
+                    step_title=step.title, phase=str(phase), attempt_id=attempt_id,
+                )
     return state
+
+
+def _append_step_phase_event(
+    task_id: str, *, author: str, task_title: str, step_title: str, phase: str, attempt_id: str,
+) -> None:
+    """try/degrade room-event append for a mid-run phase transition (work/self_check/
+    rework) — never raises, matching `office_room_append.append_office_event`'s own
+    contract. Duplicate phase events across a retry (a fresh attempt re-runs
+    perceive→work→...) are expected/acceptable: the room is an append-only timeline
+    and the FE keys the CURRENT phase display off `attempt_id`, not off "last event
+    wins" — a stale attempt's phase event is simply dropped client-side.
+    """
+    from src.runtime.office_room_append import append_office_event
+
+    body: dict[str, str] = {
+        "task_title": task_title, "step_title": step_title, "status": "started",
+        "assigned_to": author, "phase": phase, "attempt_id": attempt_id,
+    }
+    append_office_event(task_id, author=author, kind="step_status", body=body, also_office=True)
 
 
 def _resolve_search_hook(loaded: Any, settings: Any) -> Callable[[str], str] | None:

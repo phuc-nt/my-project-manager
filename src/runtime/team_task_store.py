@@ -36,13 +36,19 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from src.runtime import team_task_amend as _amend
 from src.runtime import team_task_steps as _steps
+from src.runtime.team_task_amend import (  # re-exported for callers
+    AmendmentDraft,
+    ConfirmAmendmentResult,
+    full_dag_plan_hash,
+)
 from src.runtime.team_task_paths import team_tasks_db_path, team_tasks_root
 from src.runtime.team_task_steps import TeamStep  # re-exported for callers
 
 __all__ = [
-    "TeamStep", "TeamTask", "TeamTaskStore", "DEFAULT_LEASE_TTL_S",
-    "team_tasks_root", "team_tasks_db_path",
+    "AmendmentDraft", "ConfirmAmendmentResult", "TeamStep", "TeamTask", "TeamTaskStore",
+    "DEFAULT_LEASE_TTL_S", "full_dag_plan_hash", "team_tasks_root", "team_tasks_db_path",
 ]
 
 #: A reserved-but-not-yet-heartbeating step is considered dead (re-reservable) once
@@ -112,6 +118,7 @@ class TeamTaskStore:
             ")"
         )
         _steps.create_schema(self._conn)
+        _amend.create_schema(self._conn)
         self._conn.commit()
 
     def _now(self) -> str:
@@ -391,6 +398,58 @@ class TeamTaskStore:
         """Record the handoff-artifact path a step produced (does not change status)."""
         _steps.append_outcome(self._conn, task_id, step_id, outcome_ref)
         self._conn.commit()
+
+    def insert_step(self, task_id: str, step: dict[str, Any]) -> None:
+        """Append one ticker-minted row (review/rework) — see `team_task_steps
+        .insert_step`'s docstring for the `system_inserted`/`needs_review` forcing."""
+        _steps.insert_step(self._conn, task_id, step)
+        self._conn.commit()
+
+    # ---- amendment drafts (delegates to team_task_amend) ---------------------
+
+    def set_amendment_draft(
+        self, task_id: str, *, base_plan_hash: str, new_plan_hash: str,
+        new_pending_steps: list[dict[str, Any]], old_pending_step_ids: list[str],
+    ) -> str:
+        """Persist a full-replan draft (preview time); terminalizes any prior LIVE
+        draft for the same task first. See `team_task_amend` module docstring.
+
+        `old_pending_step_ids`: the step_ids `pending` right now (draft time) — the
+        exact set this amend intends to replace; `confirm_amendment` re-verifies every
+        one of these is STILL `pending` at confirm time (see `team_task_amend
+        .set_amendment_draft`'s docstring for why `base_plan_hash` alone can't catch a
+        bare status race)."""
+        amendment_id = _amend.set_amendment_draft(
+            self._conn, task_id, base_plan_hash=base_plan_hash, new_plan_hash=new_plan_hash,
+            new_pending_steps=new_pending_steps, old_pending_step_ids=old_pending_step_ids,
+        )
+        self._conn.commit()
+        return amendment_id
+
+    def get_amendment_draft(self, amendment_id: str) -> AmendmentDraft | None:
+        return _amend.get_draft(self._conn, amendment_id)
+
+    def cancel_amendment_draft(self, amendment_id: str) -> bool:
+        """CEO "huỷ" at preview time — only a still-`draft` row is cancellable."""
+        cancelled = _amend.cancel_amendment_draft(self._conn, amendment_id)
+        self._conn.commit()
+        return cancelled
+
+    def confirm_amendment(self, task_id: str, amendment_id: str) -> ConfirmAmendmentResult:
+        """TOCTOU-proof confirm for a full replan: ONE `BEGIN IMMEDIATE` transaction
+        that re-validates the draft's `base_plan_hash` against the task's CURRENT
+        full-DAG hash, swaps the `pending` step set, binds the new `plan_hash`, and
+        consumes the draft. See `team_task_amend.confirm_amendment`'s docstring for
+        the full TOCTOU rationale; commits/rolls back internally, never leaves an
+        open transaction on this connection."""
+        return _amend.confirm_amendment(self._conn, task_id, amendment_id)
+
+    def cleanup_stale_amendment_drafts(self, *, ttl_s: int = _amend.DEFAULT_DRAFT_TTL_S) -> int:
+        """Terminalize abandoned drafts older than `ttl_s` — best-effort hygiene, not
+        correctness-critical (see `team_task_amend.cleanup_stale_drafts`'s docstring)."""
+        expired = _amend.cleanup_stale_drafts(self._conn, ttl_s=ttl_s)
+        self._conn.commit()
+        return expired
 
     def close(self) -> None:
         self._conn.close()

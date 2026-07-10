@@ -13,6 +13,24 @@ from src.runtime.team_task_store import TeamStep, TeamTask
 
 logger = logging.getLogger(__name__)
 
+#: Task-level `event_kind`s where the ticker has just moved the WHOLE task to
+#: `stalled` (never a single-step-only failure that might still resolve via a later
+#: tick's retry/other-step-completes path) — a full replan is the actually-relevant
+#: remedy for these, so the escalation gets a suggested `adjust_team_task` command.
+_STALL_EVENT_KINDS = frozenset({
+    "task_stalled_dead_step", "plan_hash_mismatch", "review_rounds_exhausted",
+    "cost_cap_exceeded",
+})
+
+#: CONSTANT template, `{task_id}` interpolation ONLY — deliberately never composed
+#: from task content/LLM output. A message built from task/step titles (which can
+#: carry text absorbed from a hostile CEO brief or a prior step's echoed injection)
+#: could smuggle a misleading amend brief the CEO copy-pastes verbatim as a command;
+#: this template carries no such content, only the stable, code-assigned task id.
+_AMEND_SUGGESTION_TEMPLATE = (
+    "\n\nCEO có thể chỉnh kế hoạch: `chỉnh kế hoạch {task_id}: <yêu cầu>`"
+)
+
 
 def make_aggregate(loaded: Any, settings: Any):
     """One LLM call summarizing every step's handoff artifact into a room-ready message.
@@ -93,6 +111,9 @@ def make_escalate(loaded: Any, settings: Any):
     callable's documented contract (`CoordinatorDeps.escalate`) is "never raises"."""
 
     def _escalate(task: TeamTask, step: TeamStep | None, event_kind: str, message: str) -> None:
+        if event_kind in _STALL_EVENT_KINDS:
+            message = message + _AMEND_SUGGESTION_TEMPLATE.format(task_id=task.id)
+
         # Room append comes FIRST and unconditionally: the admin agent's milestone
         # mirror polls the room store and DMs the CEO, so an escalation reaches
         # Telegram even when the coordinator has no bot binding of its own. The direct

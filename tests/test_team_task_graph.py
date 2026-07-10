@@ -32,11 +32,25 @@ def _fake_deps(*, handoff="", result_text="work output", cost=0.01, delivered=Tr
         calls["work_args"] = (title, handoff_ctx, hook)
         return result_text, cost
 
-    def deliver_step(text: str):
+    def run_self_check(text, acceptance):
+        # v12 regression: no acceptance rubric configured on these tests, so
+        # self_check trivially passes and the graph never enters rework — matching
+        # v12's straight-line perceive->work->deliver behavior.
+        return True, [], 1.0
+
+    def run_rework(title, prior_output, failures):
+        raise AssertionError("rework should never run when self_check always passes")
+
+    def deliver_step(text: str, version: str, self_check_failed: bool):
         calls["deliver_called_with"] = text
+        calls["deliver_version"] = version
+        calls["deliver_self_check_failed"] = self_check_failed
         return delivered, f"[done] {text}"
 
-    deps = TeamTaskDeps(read_handoff=read_handoff, run_work=run_work, deliver_step=deliver_step)
+    deps = TeamTaskDeps(
+        read_handoff=read_handoff, run_work=run_work, run_self_check=run_self_check,
+        run_rework=run_rework, deliver_step=deliver_step,
+    )
     return deps, calls
 
 
@@ -134,8 +148,22 @@ def test_default_deps_step1_has_no_handoff_and_writes_artifact(tmp_path, monkeyp
 
 def test_default_deps_step2_reads_step1_handoff(tmp_path, monkeypatch):
     from src.agent.team_task_artifact import write_step_artifact
+    from src.runtime.team_task_store import TeamTaskStore
 
     write_step_artifact(tmp_path, "task-1", 1, {"status": "done", "result_text": "step 1 output"})
+    # `_read_handoff` is DEPS-aware (maps step_ids -> seqs via the store), so the store
+    # needs a row for the dependency ("s1", at seq 1) — the artifact alone is not enough.
+    store = TeamTaskStore(tmp_path / "team_tasks.sqlite3")
+    store.create_task(task_id="task-1", title="t", original_request="r", assigned_by="ceo")
+    store.set_plan(
+        "task-1",
+        [
+            {"step_id": "s1", "title": "draft", "assigned_to": "a1", "deps": []},
+            {"step_id": "s2", "title": "review", "assigned_to": "a1", "deps": ["s1"]},
+        ],
+        plan_hash="irrelevant-for-this-test",
+    )
+    store.close()
 
     settings = build_settings_from_dict({"data_dir": tmp_path})
 
@@ -156,7 +184,7 @@ def test_default_deps_step2_reads_step1_handoff(tmp_path, monkeypatch):
 
     deps = default_team_task_deps(
         settings=settings, step_title="review", data_dir=tmp_path,
-        task_id="task-1", step_seq=2,
+        task_id="task-1", step_seq=2, step_deps=("s1",),
     )
     graph = build_team_task_graph(deps=deps)
     result = graph.invoke({"step_title": "review"})

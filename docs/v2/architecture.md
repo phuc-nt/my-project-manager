@@ -140,6 +140,39 @@ office_room_store (SQLite WAL+seq SSoT) ──► routes_office_stream (SSE stor
 - **Stage 4 (ToolMessage audit)**: content-search result never assigned external write permission; audit logs redacted-only query.
 - **Accepted residual risk**: regex KHÔNG bắt free-form secrets (composed inside query từ internal context) — same class accepted-risk as Atlassian tokens (pattern-undetectable). Mitigated by: snippets-only + fail-closed on known patterns + audit redacted.
 
+**M33 consult đồng nghiệp**: `work` node có hook tùy chọn (`deps.ask_colleague`, off mặc định) cho phép step hỏi tối đa 2 đồng nghiệp/attempt TRƯỚC khi làm việc. Đây là RO role-play consultation đọc trực tiếp FILE `SOUL.md`+`PROJECT.md` của đồng nghiệp (`profile.loader.load_profile`) — **KHÔNG PHẢI hệ thống sibling-memory** (`sibling_memory`/LangGraph `Store`): Store rỗng trong detached worker (không có tác dụng), và sibling-memory bị `project_group` red line giới hạn scope hẹp hơn "hỏi bất kỳ ai trong roster" mà consult cần. Mỗi consult ghi 1 room event `kind=consult` (`{from, to, question_summary, answer_summary}`, mỗi field template-truncate ~120 ký tự tại CẢ writer lẫn `office_event_projection` allowlist — không bao giờ lộ nội dung file/câu trả lời thô). Consult fail (đồng nghiệp không tồn tại/file lỗi/LLM lỗi) → DEGRADE về rỗng, không raise, không tốn lượt rework.
+
+## 8. v13 Team self-operation — Deep step graph, peer review, consult, parallel cap, full replan
+
+**M31–M34 deliver orchestrated team self-operation.**
+
+**M31 — Step graph LangGraph sâu**: `team_task_graph.py` v2 enhances perceive→work→deliver with **self-check loop**. Node `self_check` takes criteria from `step.acceptance` (metadata per-step, NOT in canonical hash — Decision A); outputs structured `CheckVerdict` (passed/failures/confidence). Conditional `route_after_check`: passed → deliver | rework_count<2 → rework → self_check (loop) | exhausted → deliver (with flag). **Rework counter ≤2 primitives in state** (reset per attempt — intentional; v12 semantics: retry=fresh attempt, no resume mid-graph). **KHÔNG checkpointer/SqliteSaver/migrate_state** — Decision B drops these; `.stream(stream_mode=["updates","custom"])` yields `(mode, chunk)` tuples; heartbeat fires only on `updates` mode. Attempt_id carries into room events to drop zombie-attempts. New artifacts include `version:=attempt_id` + `_read_handoff` deps-aware (read by DEPENDS, not seq-1).
+
+```
+perceive(brief + handoff[step-N-1.json]) → work(LLM + web-search) 
+→ self_check(acceptance criteria from step.acceptance col) → route_after_check
+   ├─ passed → deliver → step artifact
+   ├─ rework_count < 2 → rework_prompt (prior output + failures via format_internal_content) → self_check (loop)
+   └─ exhausted → deliver (flag self_check_failed, no block)
+```
+
+**M32 — Peer review tự chèn**: After content-step completes + `needs_review=1`, ticker (not LLM) invokes `pick_reviewer(author_id, roster)` → inserts review-step with `step_type=review, system_inserted=1`. Reviewer = peer ≠ author, id-contains kiem/qa/review preferred, else any peer tie-break by id; if no peer, SKIP review (room event "bỏ soát", no stall). `review_graph.py` new: locks artifact via `version(=attempt_id)` → structured `ReviewVerdict` (binary: passed/failures list) → deliver. Verdict KHÔNG steering — only returns passed/failures, never changes assignee or adds/removes steps. On "cần-sửa", ticker inserts rework-step (same author) via `review_round` counter; ≤2 rounds, then EXPLICIT stall+escalate (no auto-retry). 4 prompts wrap artifact content via `format_internal_content` red-line (self_check result_text / review failures / rework prior-output / consult question+answer).
+
+**M33 — Consult đồng nghiệp (colleague advice)**: Work node hook `ask_colleague(agent_id, question)` ≤2/step. Loads colleague SOUL.md + PROJECT.md FILE RO via `profile.loader.load_profile()` (KHÔNG Store, KHÔNG sibling-memory — internal-only by design, M3-P9 red line intact). Question + colleague context → 1 LLM call → answer cached in state; fail = degrade no-answer (doesn't raise, doesn't burn rework round). Question wrapped via `format_internal_content`. Room `consult` event: template-truncate {from, to, question_summary, answer_summary} each ~120-char AT WRITE TIME in `office_event_projection` allowlist (never raw file or answer text).
+
+**M34 — Parallel cap 2 + full replan**: v12 already dispatched concurrent across ticks (per-step workers in parallel); v13 **adds cap** (config `team_task_concurrency`, default 2). Coordinator tick counts `running` steps; if at cap, defer next pending. Cost headroom **DERIVED** from `Σ estimate over steps status='running'` (no ledger, no reserve/finalize/release) — overshoot intra-graph bounded per step. Awaiting-approval KHÔNG hold headroom.
+
+**Full replan** (`adjust_team_task` on admin agent): CEO/coordinator proposes mid-execution adjustment → amend LLM (context=id/title/assigned_to/status only; done/running FROZEN) → preview DIFF (keep/drop/add + cost delta) → CEO confirm via `base_plan_hash` full-DAG TOCTOU re-validate (subsume completed-prefix + pending-set + inserted-steps + amend-over-amend). SINGLE live draft/task; confirm CONSUMES draft; verify+swap within `BEGIN IMMEDIATE` txn vs ticker. Coordinator escalate: ĐỀ XUẤT text (CONSTANT template task_id-only interpolation, KHÔNG LLM-composed — anti-steering Decision C). Swap updates pending-only; skip just-reserved steps; done/running immutable.
+
+**THE INVARIANT + v13 amendments (must stay intact)**:
+- **Handoff = artifact** `/data_dir/artifacts/team-tasks/<id>/step-<n>.json` (internal, KHÔNG egress).
+- **Every external write per-step vẫn Lớp B per-agent** via `ActionGateway.execute()` + per-agent isolation.
+- **Allowlist default-deny** (unchanged).
+- **New (v13 Clause 1) — Verdict no-steering**: review verdict = binary (passed/failures); KHÔNG đổi assignee, KHÔNG add/remove steps. Only ticker (hardcoded rules) inserts review/rework — not LLM.
+- **New (v13 Clause 2) — Amend CEO-confirm-hash**: `adjust_team_task` no auto-apply. Preview DIFF → CEO confirm binds `base_plan_hash` full-DAG (TOCTOU re-validate). Single draft, confirm consumes, BEGIN IMMEDIATE.
+- **New (v13 Clause 3) — Consult RO-internal-only**: colleague context = SOUL.md + PROJECT.md FILE-only, KHÔNG Store, KHÔNG sibling-memory (M3-P9 red line intact).
+- **PII firewall office events**: closed-ENUM `phase`/`verdict`/`consult` (template-summary consult ~120-char at WRITE TIME). Role authz deterministic (assigned_to ∈ company staff, decompose-validate + dispatch both checked).
+
 ## 7. What's PRESERVED from v1
 
 - **Action Gateway guardrail** — Lớp A hard-deny (red line, trước LLM), allowlist-default-deny, Lớp B approve, audit immutable + secret redaction, budget cap, dedup reserve-before-execute. **Giữ nguyên logic, chỉ per-agent hóa** (path + config từ profile). `classify()` / `needs_interrupt()` không đổi.

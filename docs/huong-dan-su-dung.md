@@ -137,7 +137,7 @@ Vào **Trợ lý** → gõ **"giao việc ..."** (ví dụ: "Giao việc soạn 
 
 Tiến trình hiển thị ở phòng chat chung (**Văn phòng** tab), nếu muốn xem chi tiết bấm **"Xem kế hoạch"** + tuân dõi từng bước. Telegram cũng nhận cột mốc (nhận việc / xong bước / hoàn thành / cần duyệt).
 
-## B.3a. Duyệt việc (quan trọng nhất)
+### B.3a. Duyệt việc (quan trọng nhất)
 
 Đây là chỗ bạn giữ quyền kiểm soát. Vào **Việc** — mỗi việc chờ duyệt hiện lý do ngắn gọn.
 
@@ -150,6 +150,35 @@ Tiến trình hiển thị ở phòng chat chung (**Văn phòng** tab), nếu mu
 
 > Những việc **nguy hiểm** (xoá vĩnh viễn dữ liệu, lộ bí mật) trợ lý **không bao giờ** làm được, kể cả
 > khi bạn duyệt — chúng bị chặn cứng ở tầng dưới. Bạn chỉ duyệt những việc *có thể phục hồi*.
+
+### B.3b. Đội tự kiểm và soát chéo (v13)
+
+Mỗi bước công việc trải qua **vòng tự soát độc lập**:
+- **Tự kiểm**: nhân sự chạy bước, tự so với yêu cầu (acceptance criteria), nếu không đạt thì tự sửa ≤2 lần.
+- **Soát chéo**: sau bước xong, đồng nghiệp khác (kiểm định / QA) soát lại. Nếu cần sửa, bước quay lại tác giả tự sửa ≤2 lần.
+- **Escalate**: nếu bước tự kiểm hoặc soát chéo không qua ≤2 lần → dừng + báo CEO xem xét.
+
+Tiến trình này **tự động** (KHÔNG cần CEO duyệt từng lần tự kiểm/soát) — chỉ báo bạn khi kẹt.
+
+### B.3c. Nhân sự hỏi ý kiến đồng nghiệp (v13)
+
+Khi làm việc, nhân sự có thể hỏi ý kiến của đồng nghiệp khác (tối đa 2 câu/bước) để tham khảo SOUL + dự án của họ, rồi tiếp tục. Việc này:
+- **Tự động, không cần CEO duyệt**: chỉ là tham vấn nội bộ (chỉ đọc, không ghi).
+- **Hiển thị trên Văn phòng**: bong bóng hỏi-đáp giữa 2 bàn (1 hỏi, 1 trả lời).
+- **Không tốn lượt rework**: là tham khảo, không phải "làm lại".
+
+### B.3d. Chỉnh kế hoạch giữa chừng (v13)
+
+Nếu kế hoạch đang chạy nhưng bạn muốn **sửa đổi** (bỏ bước không cần, thêm bước mới, hay giao lại người):
+
+Vào **Trợ lý** → gõ **"chỉnh kế hoạch <id>: <yêu cầu>"** (ví dụ: "chỉnh kế hoạch task-123: bỏ bước phân tích, thêm bước soát hình ảnh").
+
+Trợ lý sẽ:
+1. Đề xuất sửa đổi (DIFF: giữ / bỏ / thêm bước + chi phí thay đổi).
+2. Hiển thị **"DIFF"** để bạn xem thay đổi.
+3. Nếu đồng ý, bấm **"Xác nhận sửa"** → kế hoạch cập nhật. Những bước đã xong giữ nguyên, những bước chờ/đang chạy sẽ chạy theo kế hoạch mới.
+
+> **An toàn:** sửa đổi chỉ áp cho phần chờ chạy; phần đã xong không bị thay đổi. CEO (bạn) **luôn** xác nhận trước khi kế hoạch đổi.
 
 ## B.4. Chat với trợ lý điều hành
 
@@ -167,15 +196,15 @@ Vào **Trợ lý** (hoặc nhắn qua Telegram). Gõ câu hỏi/lệnh vào ô "
 - Báo cáo định kỳ (hằng ngày / tuần / OKR / nhân sự-chi phí) tự chạy theo lịch và đăng lên Slack /
   Confluence. Bạn cũng nhận tóm tắt qua Telegram.
 - **Đội** cho thấy nhanh: ai đang chạy, tốn bao nhiêu ngân sách, có việc gì kẹt.
-- **Văn phòng** (tab mới): xem dòng thời gian tất cả diễn biến đội — ai nhận việc / đang làm / xong bước / hoàn thành / cần duyệt.
-  - **Timeline**: mỗi sự kiện là 1 dòng (người, hành động, thời gian).
+- **Văn phòng** (tab mới): xem dòng thời gian tất cả diễn biến đội — ai nhận việc / đang làm / xong bước / hoàn thành / cần duyệt / soát chéo / hỏi ý kiến.
+  - **Timeline**: mỗi sự kiện là 1 dòng (người, hành động, thời gian). V13 thêm sự kiện: "Nhân sự X soát bài của Y (cần sửa)", "Nhân sự X hỏi ý kiến Y", "Bước tự kiểm không đạt, sửa lần 1/2", v.v.
 
     ![Phòng Văn phòng — dòng thời gian công việc của cả đội](images/van-phong-timeline.png)
 
   - **Văn phòng 3D** (menu nâng cao): không gian 3D của công ty — bàn trưởng phòng ở giữa,
     mỗi nhân sự một bàn với màu và phụ kiện riêng (nón / kính / cà vạt). Màu viền bàn = trạng
     thái: xám (chờ việc), xanh dương (nhận việc), cam (đang làm), xanh lá (xong). Bong bóng
-    thoại phía trên hiện việc + bước đang làm. Mọi chuyển động đều từ sự kiện thật — không có
+    thoại phía trên hiện việc + bước đang làm. V13 thêm bong bóng hỏi-đáp giữa 2 bàn (khi nhân sự hỏi ý kiến đồng nghiệp). Mọi chuyển động đều từ sự kiện thật — không có
     hoạt cảnh giả.
 
     ![Văn phòng 3D — nhân sự đang làm việc (bàn cam = đang làm, xanh lá = đã xong)](images/van-phong-3d-dang-lam-viec.png)
@@ -226,6 +255,16 @@ không có thay đổi.
 **Nhân sự Nghiên cứu có dùng web search không?** Nếu bật ở Setup Wizard (bước 5), nó sẽ tìm kiếm web khi cần. Không bật = chỉ dùng dữ liệu nội bộ. Web search được che chắn (query không xem được, chỉ tóm tắt kết quả).
 
 **Giao việc cho đội mất bao lâu?** Tùy độ phức tạp, từ vài phút (công việc đơn) đến vài giờ (đa bước). Tiền tố tính chi phí + hỏi bạn confirm trước khi chạy. Nếu quá budget ($2/việc mặc định), hệ thống dừng + báo bạn.
+
+**Soát chéo (peer review) hoạt động như thế nào (v13)?** Sau mỗi bước xong, một đồng nghiệp khác (tự động chọn, thường là kiểm định/QA nếu có) sẽ soát lại. Họ có thể chấp thuận ("đạt") hoặc yêu cầu sửa ("cần sửa"). Nếu cần sửa, tác giả bước sửa lại ≤2 lần. Nếu vẫn không đạt, hệ thống báo CEO.
+
+**Tự kiểm (self-check) là gì (v13)?** Sau khi làm xong bước, trợ lý tự đối chiếu bước với yêu cầu (criteria) của bước đó. Nếu chưa tốt, nó tự sửa (rework) ≤2 lần trước khi báo CEO. Cái này **tự động**, bạn không cần duyệt từng lần tự kiểm.
+
+**Hỏi ý kiến đồng nghiệp tốn tiền không (v13)?** Có, nhưng **ít hơn một bước độc lập**. Hỏi ý kiến là tham khảo (≤2 câu/bước), không phải làm lại bước. Chi phí tính vào tổng của bước đó.
+
+**Chỉnh kế hoạch giữa chừng có an toàn không (v13)?** Hoàn toàn an toàn. Những bước **đã xong** giữ nguyên (không mất dữ liệu). Chỉ những bước chờ chạy mới theo kế hoạch mới. CEO (bạn) xác nhận DIFF trước khi áp dụng.
+
+**Bước kẹt quá 2 lần tự kiểm/soát thì sao (v13)?** Hệ thống dừng + báo CEO xem xét. Bạn có thể chỉnh kế hoạch (bỏ bước, giao lại người, hoặc tăng giới hạn sửa).
 
 ---
 

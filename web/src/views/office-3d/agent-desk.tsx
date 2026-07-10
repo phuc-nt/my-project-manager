@@ -111,7 +111,13 @@ export function AgentDesk({ position, label, desk }: AgentDeskProps) {
       <Html position={[position[0], position[1] + 1.1, position[2]]} center distanceFactor={10} occlude={false}>
         <div className="office-3d-label" style={{ color: agentColor(label) }}>{label}</div>
       </Html>
-      <SpeechBubble position={bubblePosition} taskTitle={desk.taskTitle} stepTitle={desk.stepTitle} />
+      <SpeechBubble
+        position={bubblePosition}
+        taskTitle={desk.taskTitle}
+        stepTitle={desk.stepTitle}
+        phase={desk.phase}
+        consultWith={desk.consultWith}
+      />
     </group>
   )
 }

@@ -155,3 +155,15 @@ def test_hash_is_independent_of_step_input_order_when_content_equal():
     task_a = parse_decomposed_task(raw_a)
     task_b = parse_decomposed_task(raw_b)
     assert decomposition_content_hash(task_a) == decomposition_content_hash(task_b)
+
+
+def test_decompose_prompt_instructs_needs_review_and_acceptance():
+    # E2E-found regression: the decompose system prompt must tell the LLM to set
+    # needs_review + acceptance, or every step ships needs_review=false and peer review
+    # never fires in production (the graph/store default them false).
+    from src.llm.team_task_prompt import build_team_decompose_messages
+
+    msgs = build_team_decompose_messages(brief="x", staff=[("a", "office")])
+    system = msgs[0]["content"]
+    assert "needs_review" in system
+    assert "acceptance" in system

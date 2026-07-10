@@ -54,6 +54,7 @@ def run_team_tick(loaded: Any, settings: Any, *, now: datetime | None = None) ->
             store=store,
             retry_tracker=_json_retry_tracker(team_tasks_root() / _RETRY_SIDECAR_NAME),
             cost_cap_usd=cap_usd,
+            concurrency=company.team_task_concurrency,
             spawn_step=_make_spawn_step(),
             pid_alive=_pid_alive,
             kill_pid=_kill_pid,
@@ -65,6 +66,16 @@ def run_team_tick(loaded: Any, settings: Any, *, now: datetime | None = None) ->
             now=(lambda: now) if now is not None else (lambda: datetime.now(UTC)),
         )
         result = run_one_tick(deps)
+        try:
+            # Best-effort hygiene, same posture as everything else in this function's
+            # try block being wrapped by the outer `finally: store.close()` — an
+            # abandoned "chỉnh kế hoạch" draft the CEO never confirmed/cancelled must
+            # not sit forever (see `team_task_amend.cleanup_stale_drafts`'s docstring).
+            # Never allowed to fail the tick itself: this is cleanup, not the tick's
+            # own actionable work.
+            store.cleanup_stale_amendment_drafts()
+        except Exception:
+            logger.warning("team-tick: cleanup_stale_amendment_drafts failed", exc_info=True)
     finally:
         store.close()
 

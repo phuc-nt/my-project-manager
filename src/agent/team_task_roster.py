@@ -47,3 +47,33 @@ def is_assignable(agent_id: str) -> bool:
     """True iff `agent_id` is currently a valid team-task step assignee — same rules
     as `assignable_staff`, as a single-id check for the dispatch-time re-verify."""
     return any(a == agent_id for a, _ in assignable_staff())
+
+
+#: Reviewer id fragments preferred over an arbitrary peer, checked case-insensitively
+#: against the agent id — NOT a `role` field (the roster is `(id, domain)` only, no
+#: role concept exists; Decision D deliberately anchors preference to id text instead
+#: of inventing a role the registry does not have).
+_REVIEWER_ID_HINTS = ("kiem", "qa", "review")
+
+
+def pick_reviewer(author_id: str, roster: list[tuple[str, str]]) -> str | None:
+    """Peer-review reviewer selection (Decision D) — deterministic, code-only (no LLM,
+    no steering surface).
+
+    Rule: (a) peers = every roster id EXCEPT `author_id` (coordinator/admin are already
+    excluded from `roster` by `assignable_staff`); (b) among peers, prefer one whose id
+    CONTAINS "kiem"/"qa"/"review" (case-insensitive) — ties broken by sorting the
+    matching ids and taking the first; (c) else the alphabetically-first peer id;
+    (d) `None` if `peers` is empty (1-staff fleet, or every step's only ever had this
+    one author) — the CALLER (ticker) must treat `None` as "skip review, do not stall",
+    never as a reason to retry or block.
+
+    Deliberately does NOT consider `domain` at all: a same-domain peer is a fully valid
+    reviewer (Finding F4 — a homogeneous-domain fleet is common; author-exclusion, not
+    domain-difference, is the real security property). NEVER returns `author_id`.
+    """
+    peers = sorted({agent_id for agent_id, _domain in roster if agent_id != author_id})
+    if not peers:
+        return None
+    preferred = [p for p in peers if any(hint in p.lower() for hint in _REVIEWER_ID_HINTS)]
+    return preferred[0] if preferred else peers[0]

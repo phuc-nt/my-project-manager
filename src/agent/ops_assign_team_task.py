@@ -190,7 +190,9 @@ def preview_assign_team_task(slots: dict[str, str]) -> str:
     task_id = uuid.uuid4().hex[:12]
     plan_hash = decomposition_content_hash(task)
     step_dicts = [
-        {"step_id": s.step_id, "title": s.title, "assigned_to": s.assigned_to, "deps": list(s.deps)}
+        {"step_id": s.step_id, "title": s.title, "assigned_to": s.assigned_to,
+         "deps": list(s.deps), "acceptance": s.acceptance,
+         "step_type": s.step_type, "needs_review": s.needs_review}
         for s in task.steps
     ]
 

@@ -19,6 +19,15 @@ from __future__ import annotations
 #: instead of silently keeping (and thus risking widening) a large payload.
 _MAX_TEXT_CHARS = 500
 
+#: Much tighter cap for `consult`'s summary fields (M33) — the writer
+#: (`team_task_consult.ask_colleague`) already trims to ~120 chars before this ever
+#: runs, but the projection layer is the actual write-time firewall (same posture as
+#: every other kind here): it must enforce its OWN cap independent of what the
+#: upstream caller claims to have already done, so a future writer that skips the
+#: writer-side trim still cannot push a long (potentially PII-laden) answer verbatim
+#: into the room store.
+_CONSULT_SUMMARY_CHARS = 120
+
 
 def _short(value: object) -> str:
     text = str(value or "")
@@ -27,11 +36,31 @@ def _short(value: object) -> str:
     return text
 
 
+def _short_consult(value: object) -> str:
+    text = str(value or "")
+    if len(text) > _CONSULT_SUMMARY_CHARS:
+        return text[:_CONSULT_SUMMARY_CHARS] + "…"
+    return text
+
+
+#: `review`'s `verdict` field is a closed enum (never free text) — a value outside this
+#: set is dropped entirely rather than passed through, same "unknown -> drop" posture as
+#: an unrecognized `kind`.
+_REVIEW_VERDICTS = frozenset({"passed", "needs_rework"})
+
+#: `step_status`'s `phase` field is likewise a closed enum — the exact 3 tags the step
+#: graph's `get_stream_writer()` calls emit (`team_task_graph.PHASE_WORK/
+#: PHASE_SELF_CHECK/PHASE_REWORK`). A value outside this set is dropped (empty string)
+#: rather than passed through truncated — same "unknown -> drop" posture as `verdict`
+#: above, not just a length cap.
+_STEP_PHASES = frozenset({"dang-lam", "tu-soat", "dang-sua"})
+
+
 def summarize_office_event(kind: str, body: dict) -> dict:
     """Project a raw office-event body to its non-PII allowlist (drop everything else).
 
-    `kind` one of ceo | assignment | step_status | handoff | milestone. Unknown kind ->
-    {} (drop all).
+    `kind` one of ceo | assignment | step_status | handoff | milestone | consult | review.
+    Unknown kind -> {} (drop all).
     """
     if kind == "ceo":
         return {"text": _short(body.get("text"))}
@@ -42,11 +71,21 @@ def summarize_office_event(kind: str, body: dict) -> dict:
             "summary": _short(body.get("summary")),
         }
     if kind == "step_status":
+        phase = _short(body.get("phase"))
         return {
             "task_title": _short(body.get("task_title")),
             "step_title": _short(body.get("step_title")),
             "status": _short(body.get("status")),
             "assigned_to": _short(body.get("assigned_to")),
+            # `phase` is a closed-set tag the step graph emits mid-run (see
+            # `team_task_graph.PHASE_WORK/PHASE_SELF_CHECK/PHASE_REWORK`) — not free
+            # text, so it is value-checked against `_STEP_PHASES` (dropped to "" if
+            # unrecognized) rather than merely length-capped, same posture as
+            # `review`'s `verdict` above. `attempt_id` is an internal opaque UUID
+            # (same non-PII category as `milestone`'s `task_id` above) — the FE uses
+            # it to drop a stale/zombie attempt's phase events.
+            "phase": phase if phase in _STEP_PHASES else "",
+            "attempt_id": _short(body.get("attempt_id")),
         }
     if kind == "handoff":
         return {
@@ -67,9 +106,40 @@ def summarize_office_event(kind: str, body: dict) -> dict:
             "milestone": _short(body.get("milestone")),
             "message": _short(body.get("message")),
         }
+    if kind == "consult":
+        # M33 role-play consultation (see `team_task_consult.ask_colleague`'s module
+        # docstring): `from`/`to` are internal agent ids (non-PII, same category as
+        # `assigned_to` above). `question_summary`/`answer_summary` are the ONLY two
+        # free-text fields — capped at `_CONSULT_SUMMARY_CHARS`, never the raw SOUL.md/
+        # PROJECT.md content or the raw LLM answer (the writer already trims to the
+        # same ~120 chars; this is the write-time re-enforcement, not a trust of that).
+        return {
+            "from": _short(body.get("from")),
+            "to": _short(body.get("to")),
+            "question_summary": _short_consult(body.get("question_summary")),
+            "answer_summary": _short_consult(body.get("answer_summary")),
+            # opaque internal UUID, same non-PII category as `step_status.attempt_id`.
+            "attempt_id": _short(body.get("attempt_id")),
+        }
+    if kind == "review":
+        # M32 peer review verdict (see `review_graph.run_review_step`): `verdict` is a
+        # closed enum, never the model's raw JSON; `failure_count` is a count, never the
+        # failure LIST itself (each failure string could echo back reviewed content) —
+        # the room only ever shows "N lỗi", the failure detail stays in the verdict
+        # artifact + the rework step's own handoff, both internal-only.
+        verdict = _short(body.get("verdict"))
+        return {
+            "task_title": _short(body.get("task_title")),
+            "step_title": _short(body.get("step_title")),
+            "verdict": verdict if verdict in _REVIEW_VERDICTS else "",
+            "failure_count": int(body.get("failure_count") or 0),
+            "assigned_to": _short(body.get("assigned_to")),
+        }
     return {}
 
 
 #: The only valid `kind` values a caller may append — `office_room_store.append` uses
 #: this to fail loud on a typo'd kind instead of silently persisting an ungoverned event.
-VALID_KINDS = frozenset({"ceo", "assignment", "step_status", "handoff", "milestone"})
+VALID_KINDS = frozenset(
+    {"ceo", "assignment", "step_status", "handoff", "milestone", "consult", "review"}
+)

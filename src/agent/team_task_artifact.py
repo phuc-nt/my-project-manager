@@ -51,6 +51,53 @@ def step_artifact_path(data_dir: Path, task_id: str, step_seq: int) -> Path:
     return path
 
 
+def review_verdict_artifact_path(
+    data_dir: Path, task_id: str, parent_seq: int, review_round: int
+) -> Path:
+    """The on-disk path for a peer-review verdict artifact:
+    `step-<parent_seq>-review-<round>.json` (M32). `round` is baked into the filename
+    (not overwritten in place) so a round-2 re-review's verdict never clobbers
+    round-1's — `tick_actions`'s round-cap logic reads BOTH files across the task's
+    lifetime, not just the latest. Same path-confinement guard as `step_artifact_path`."""
+    unresolved_base = data_dir / "artifacts" / "team-tasks"
+    root = task_artifact_dir(data_dir, task_id)
+    path = root / f"step-{int(parent_seq)}-review-{int(review_round)}.json"
+    _confine(path, root, unresolved_base)
+    return path
+
+
+def write_review_verdict_artifact(
+    data_dir: Path, task_id: str, parent_seq: int, review_round: int, payload: dict[str, Any]
+) -> Path:
+    """Write a peer-review verdict artifact — same atomic temp-then-rename discipline
+    as `write_step_artifact`."""
+    path = review_verdict_artifact_path(data_dir, task_id, parent_seq, review_round)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_suffix(f".tmp-{os.getpid()}")
+    tmp_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(tmp_path, path)
+    return path
+
+
+def read_review_verdict_artifact(
+    data_dir: Path, task_id: str, parent_seq: int, review_round: int
+) -> dict[str, Any] | None:
+    """Read a peer-review verdict artifact — same tolerant-of-absence/corruption
+    contract as `read_step_artifact`."""
+    path = review_verdict_artifact_path(data_dir, task_id, parent_seq, review_round)
+    if not path.exists():
+        return None
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    return data if isinstance(data, dict) else None
+
+
 def _confine(path: Path, root: Path, unresolved_base: Path) -> Path:
     """Resolve `path` and verify it stays inside `unresolved_base` (dereferences
     symlinks — a symlink inside the dir pointing OUT is caught by the resolved-prefix

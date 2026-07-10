@@ -62,6 +62,41 @@ def test_resolve_search_hook_returns_none_when_loaded_is_none():
     assert _resolve_search_hook(None, _settings()) is None
 
 
+def test_run_graph_wires_self_id_to_the_assigned_agent(monkeypatch, tmp_path):
+    """`_run_graph` must pass `self_id=step.assigned_to` into `build_team_task_graph` —
+    that is the ONLY thing that turns consult on for a production step (see
+    `default_team_task_deps`'s docstring: blank `self_id` ⇒ `ask_colleague` wired as
+    None, consult off). A caller that forgets this kwarg silently ships consult OFF
+    with no error anywhere; this test fails loudly if that regresses.
+    """
+    from src.runtime import team_step_runner
+
+    monkeypatch.setattr("src.runtime.team_task_paths.DATA_DIR", tmp_path)
+
+    captured: dict = {}
+
+    class _FakeGraph:
+        def stream(self, _initial_state, stream_mode=None):  # noqa: ARG002
+            return iter(())  # no nodes to run — we only care about the build call
+
+    def _fake_build_team_task_graph(**kwargs):
+        captured.update(kwargs)
+        return _FakeGraph()
+
+    monkeypatch.setattr(
+        "src.agent.team_task_graph.build_team_task_graph", _fake_build_team_task_graph
+    )
+
+    step = SimpleNamespace(
+        title="viết báo cáo", acceptance="", seq=1, deps=(), assigned_to="agent-a",
+    )
+    team_step_runner._run_graph(
+        None, _settings(), task_id="task-1", step=step, attempt_id="att-1",
+    )
+
+    assert captured.get("self_id") == "agent-a"
+
+
 def test_resolve_search_hook_writes_audit_row_with_redacted_query(tmp_path, monkeypatch):
     from src.runtime import team_task_paths
 

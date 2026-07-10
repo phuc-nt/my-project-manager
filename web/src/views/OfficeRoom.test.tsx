@@ -87,6 +87,21 @@ test('renders a step_status event', async () => {
   expect(screen.getByText(/Demo \/ draft: started/)).toBeInTheDocument()
 })
 
+test('renders a step_status event with a phase tag appended', async () => {
+  vi.spyOn(api, 'getOfficeRooms').mockResolvedValue({ rooms: ['office'] })
+  mockStream([
+    {
+      seq: 1, ts: 't', author: 'agent-a', kind: 'step_status',
+      body: {
+        task_title: 'Demo', step_title: 'draft', status: 'started', assigned_to: 'agent-a',
+        phase: 'tu-soat', attempt_id: 'att-1',
+      },
+    },
+  ])
+  wrap()
+  expect(await screen.findByText(/Demo \/ draft: started \(tự soát\)/)).toBeInTheDocument()
+})
+
 test('renders a handoff event', async () => {
   vi.spyOn(api, 'getOfficeRooms').mockResolvedValue({ rooms: ['office'] })
   mockStream([

@@ -24,6 +24,22 @@ export interface AgentDeskState {
   state: AgentState
   taskTitle: string | null
   stepTitle: string | null
+  // M31 self-check/rework graph: the step's mid-run phase tag ('dang-lam' | 'tu-soat' |
+  // 'dang-sua'), null once no `step_status` event has carried one yet (e.g. before this
+  // FE change ships, or the `handoff`/`assignment` paths that don't set it).
+  phase: string | null
+  // The `attempt_id` the CURRENT phase/state came from — used to drop a stale/zombie
+  // attempt's out-of-order event (a retried step mints a fresh attempt_id; an
+  // in-flight event from a superseded attempt must not overwrite the live one). Null
+  // until the first `step_status` event with an attempt_id arrives for this desk.
+  attemptId: string | null
+  // M33: the colleague id THIS desk is currently consulting/being consulted by, null
+  // when no consult bubble should show. Event-driven only (no timer): a `consult`
+  // event SETS this on both the `from` and `to` desks; the desk's OWN next event of
+  // ANY other kind CLEARS it (the bubble shows "until the next thing happens to this
+  // desk", not for a fixed duration) — see the `consult` case below + the reset at
+  // the top of every other case for the two desks this loop touches.
+  consultWith: string | null
 }
 
 function nextState(prev: AgentState, status: string | undefined): AgentState {
@@ -49,7 +65,10 @@ export function deriveAgentDesks(messages: OfficeMessage[]): Map<string, AgentDe
   const ensure = (id: string): AgentDeskState => {
     let d = desks.get(id)
     if (!d) {
-      d = { id, state: 'idle', taskTitle: null, stepTitle: null }
+      d = {
+        id, state: 'idle', taskTitle: null, stepTitle: null, phase: null, attemptId: null,
+        consultWith: null,
+      }
       desks.set(id, d)
     }
     return d
@@ -65,14 +84,35 @@ export function deriveAgentDesks(messages: OfficeMessage[]): Map<string, AgentDe
         const assignedTo = m.body.assigned_to
         if (!assignedTo) break // defensive: an event missing the field updates no desk
         const d = ensure(assignedTo)
+        d.consultWith = null // this desk moved on — any consult bubble is stale now
+        const incomingAttempt = m.body.attempt_id ?? null
+        // Zombie-attempt guard: the step graph's phase events (work/self_check/rework,
+        // this phase's addition) carry the reserving `attempt_id`; the ticker's OWN
+        // dispatch event (`tick_actions.py`, outside this phase's file ownership)
+        // carries none. Treat a dispatch event (no attempt_id, status="started") as the
+        // start of a NEW attempt and clear the desk's tracked attempt_id first — this is
+        // what lets the attempt AFTER it freely adopt its own id below, and is what makes
+        // a stale attempt's late-arriving phase event (from BEFORE that dispatch reset
+        // things, delivered late by SSE reconnect-replay) get dropped instead of
+        // silently overwriting the new attempt's live phase.
+        if (!incomingAttempt && m.body.status === 'started') {
+          d.attemptId = null
+          d.phase = null // a fresh dispatch invalidates the previous attempt's phase text
+        } else if (incomingAttempt && d.attemptId && incomingAttempt !== d.attemptId) {
+          break // stale attempt's phase event — drop
+        } else if (incomingAttempt) {
+          d.attemptId = incomingAttempt
+        }
         d.taskTitle = m.body.task_title ?? d.taskTitle
         d.stepTitle = m.body.step_title ?? d.stepTitle
+        d.phase = m.body.phase ?? d.phase
         d.state = nextState(d.state === 'idle' ? 'assigned' : d.state, m.body.status)
         break
       }
       case 'handoff': {
         const assignedTo = m.body.assigned_to ?? m.author
         const d = ensure(assignedTo)
+        d.consultWith = null // this desk moved on — any consult bubble is stale now
         d.taskTitle = m.body.task_title ?? d.taskTitle
         d.stepTitle = m.body.step_title ?? d.stepTitle
         // A handoff marks the step as delivered to the next person — the desk shows "done"
@@ -83,6 +123,31 @@ export function deriveAgentDesks(messages: OfficeMessage[]): Map<string, AgentDe
       case 'milestone': {
         // Milestones are task-level (coordinator-authored), not desk state — no per-agent desk
         // update needed.
+        break
+      }
+      case 'review': {
+        // M32: a review-step's own verdict — `assigned_to` here is the REVIEWER (the one
+        // who ran the review-step), same desk-keying convention as `handoff`. Marks that
+        // desk "done" like a handoff; the verdict/failure detail lives in the office room
+        // timeline text (OfficeRoom.tsx), not the 3D desk state.
+        const assignedTo = m.body.assigned_to ?? m.author
+        const d = ensure(assignedTo)
+        d.consultWith = null // this desk moved on — any consult bubble is stale now
+        d.taskTitle = m.body.task_title ?? d.taskTitle
+        d.stepTitle = m.body.step_title ?? d.stepTitle
+        d.state = 'done'
+        break
+      }
+      case 'consult': {
+        // M33: a role-play consultation between two desks — set the bubble field on
+        // BOTH ends (the asker and the colleague), event-driven only (see the field's
+        // doc comment: cleared by either desk's own NEXT event, not a timer). A
+        // consult never changes `state`/`taskTitle`/etc — it is advisory context
+        // layered on top of whatever the desk is already doing.
+        const from = m.body.from
+        const to = m.body.to
+        if (from) ensure(from).consultWith = to ?? null
+        if (to) ensure(to).consultWith = from ?? null
         break
       }
       case 'ceo':
@@ -109,6 +174,11 @@ export function agentIdsInOrder(messages: OfficeMessage[]): string[] {
   for (const m of messages) {
     if (m.kind === 'step_status') add(m.body.assigned_to)
     if (m.kind === 'handoff') add(m.body.assigned_to ?? m.author)
+    if (m.kind === 'review') add(m.body.assigned_to ?? m.author)
+    if (m.kind === 'consult') {
+      add(m.body.from)
+      add(m.body.to)
+    }
   }
   return seen
 }

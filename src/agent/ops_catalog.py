@@ -23,6 +23,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.agent.ops_adjust_team_task import (
+    cancel_adjust_team_task,
+    preview_adjust_team_task,
+    run_adjust_team_task,
+)
 from src.agent.ops_assign_team_task import (
     cancel_assign_team_task,
     preview_assign_team_task,
@@ -443,6 +448,20 @@ OPS_COMMANDS: dict[str, dict] = {
         "run": run_assign_team_task,
         "preview": preview_assign_team_task,
         "on_cancel": cancel_assign_team_task,
+    },
+    "adjust_team_task": {
+        "description": "Chỉnh lại kế hoạch một việc đội đang làm — chỉ đổi các bước "
+                       "còn CHỜ, giữ nguyên các bước đã xong/đang chạy",
+        "readonly": False,
+        "slots": {
+            "task_id": {"prompt": "Mã việc cần chỉnh kế hoạch?", "required": True,
+                        "max_len": 20},
+            "yêu cầu": {"prompt": "Chỉnh kế hoạch như thế nào?", "required": True,
+                        "max_len": 1000},
+        },
+        "run": run_adjust_team_task,
+        "preview": preview_adjust_team_task,
+        "on_cancel": cancel_adjust_team_task,
     },
 }
 

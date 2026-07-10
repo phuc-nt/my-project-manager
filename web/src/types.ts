@@ -309,7 +309,19 @@ export interface TasksPayload {
 
 // v12 M29: office group-chat room — SSE store-tail. `body` shape depends on `kind`
 // (see src/server/office_event_projection.py's allowlist per kind).
-export type OfficeEventKind = 'ceo' | 'assignment' | 'step_status' | 'handoff' | 'milestone'
+// M33 adds 'consult': a role-play consultation over a colleague's public persona FILES
+// (SOUL.md/PROJECT.md), NOT the sibling-memory system — see
+// src/agent/team_task_consult.py's module docstring.
+// M32 adds 'review': a peer-review verdict on a `work`/`rework` step — see
+// src/agent/review_graph.py's module docstring.
+export type OfficeEventKind =
+  | 'ceo'
+  | 'assignment'
+  | 'step_status'
+  | 'handoff'
+  | 'milestone'
+  | 'consult'
+  | 'review'
 
 export interface OfficeEventBody {
   text?: string
@@ -324,6 +336,25 @@ export interface OfficeEventBody {
   // NEVER the event's `author` (a `step_status/started` event is authored by the
   // coordinator ticker, not the assignee doing the work).
   assigned_to?: string
+  // `step_status` only (M31 self-check/rework graph): a closed-set phase tag the step
+  // graph emits mid-run — 'dang-lam' | 'tu-soat' | 'dang-sua'. `attempt_id` rides
+  // alongside it so the desk-state reducer can drop a stale/zombie attempt's phase
+  // events (a retried step mints a fresh attempt_id; a superseded attempt's in-flight
+  // phase event must not overwrite the current attempt's desk display).
+  phase?: string
+  attempt_id?: string
+  // `consult` only (M33): `from`/`to` are agent ids; `question_summary`/`answer_summary`
+  // are ~120-char TEMPLATE truncations (never raw file/answer content — see
+  // office_event_projection.py's `consult` allowlist branch).
+  from?: string
+  to?: string
+  question_summary?: string
+  answer_summary?: string
+  // `review` only (M32): `verdict` is a closed enum ('passed' | 'needs_rework'), never
+  // free text; `failure_count` is a count only — the failure LIST never reaches the
+  // room (see office_event_projection.py's `review` allowlist branch).
+  verdict?: 'passed' | 'needs_rework'
+  failure_count?: number
 }
 
 export interface OfficeMessage {

@@ -39,7 +39,9 @@ def _step():
         task_id="t1", step_id="s1", seq=1, title="draft", assigned_to="agent-a", deps=(),
         status="running", outcome_ref=None, cost_usd=None, attempt_id="attempt-1",
         child_pid=None, spawned_at=None, last_seen=None, lease_expires_at=None,
-        escalated_at=None, approval_id=None,
+        escalated_at=None, approval_id=None, acceptance="",
+        step_type="work", needs_review=False, system_inserted=False,
+        parent_step_id=None, review_round=0,
     )
 
 
@@ -125,3 +127,50 @@ def test_escalate_step_none_omits_step_id_from_dedup_hint_without_crashing(tmp_p
         store.close()
     assert len(office_rows) == 1
     assert office_rows[0].body["milestone"] == "task_stuck"
+
+
+@pytest.mark.parametrize("event_kind", [
+    "task_stalled_dead_step", "plan_hash_mismatch", "review_rounds_exhausted",
+    "cost_cap_exceeded",
+])
+def test_task_level_stall_escalations_append_the_constant_amend_suggestion(
+    tmp_path, monkeypatch, event_kind,
+):
+    """Every event_kind the ticker uses when it just moved the WHOLE task to `stalled`
+    gets a CONSTANT-template amend suggestion appended, with the task id interpolated —
+    never anything derived from task/step title or other task content (which could
+    itself carry text absorbed from a hostile brief/artifact)."""
+    from src.runtime import team_task_paths
+
+    monkeypatch.setattr(team_task_paths, "DATA_DIR", tmp_path)
+
+    escalate = make_escalate(_loaded_no_telegram(), settings=SimpleNamespace())
+    escalate(_task("stalled-task-1"), None, event_kind, "việc bị dừng — cần CEO xem lại.")
+
+    store = OfficeRoomStore(team_task_paths.team_tasks_root() / "office_room.sqlite3")
+    try:
+        office_rows = store.list(OFFICE_ROOM_ID)
+    finally:
+        store.close()
+    assert len(office_rows) == 1
+    message = office_rows[0].body["message"]
+    assert "chỉnh kế hoạch stalled-task-1: <yêu cầu>" in message
+
+
+def test_step_level_escalation_does_not_get_the_amend_suggestion(tmp_path, monkeypatch):
+    """A single-step failure (`step_failed`) does not by itself mean the WHOLE task is
+    stalled — a later tick's other-step-completes/retry path may still resolve it, so
+    this event_kind must NOT carry the task-replan suggestion."""
+    from src.runtime import team_task_paths
+
+    monkeypatch.setattr(team_task_paths, "DATA_DIR", tmp_path)
+
+    escalate = make_escalate(_loaded_no_telegram(), settings=SimpleNamespace())
+    escalate(_task(), _step(), "step_failed", "bước draft thất bại 3 lần")
+
+    store = OfficeRoomStore(team_task_paths.team_tasks_root() / "office_room.sqlite3")
+    try:
+        office_rows = store.list(OFFICE_ROOM_ID)
+    finally:
+        store.close()
+    assert "chỉnh kế hoạch" not in office_rows[0].body["message"]

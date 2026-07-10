@@ -58,6 +58,31 @@ class TeamStep:
     # None for every step that never hit an external-write gate (the overwhelming
     # majority — an internal-only step has nothing to approve).
     approval_id: int | None
+    # Self-check acceptance criteria (free text, default "") — per-step METADATA the
+    # step graph's `self_check` node reads as its rubric. NOT part of
+    # `decomposition_content_hash` (see `task_decomposition.decomposition_content_hash`'s
+    # docstring) — purely a round-trip field from decompose -> store -> self_check.
+    acceptance: str
+    # --- P2 peer-review columns (all additive, migrate-free) ---
+    # "work" (a normal content step) | "review" (ticker-inserted peer soát) |
+    # "rework" (ticker-inserted fix-up after a "needs_rework" verdict). Confirmed steps
+    # are always "work"; review/rework rows are minted ONLY by the ticker rule
+    # (`coordinator_nodes.tick_actions`), never by the decompose LLM.
+    step_type: str
+    # True (content steps only, LLM-set + code-validated) iff this step's completion
+    # should trigger the ticker's review-insert rule. review/rework steps are never
+    # `needs_review` themselves (would loop forever reviewing a review).
+    needs_review: bool
+    # True iff this row was minted by the ticker rule (review/rework), not by the
+    # CEO-confirmed decompose. Read by `coordinator_graph._verify_plan_hash` to EXCLUDE
+    # this row from the confirmed-DAG hash recompute (Decision A).
+    system_inserted: bool
+    # For a review/rework row: the content step_id it was inserted for. None on a
+    # normal "work" row.
+    parent_step_id: str | None
+    # For a review row: which review round this is (0-indexed, capped at 2 rounds —
+    # see `tick_actions`'s review-insert rule). 0 on every non-review row.
+    review_round: int
 
 
 def create_schema(conn: sqlite3.Connection) -> None:
@@ -90,6 +115,24 @@ def create_schema(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE team_steps ADD COLUMN approval_id INTEGER")
     except sqlite3.OperationalError:
         pass
+    try:
+        conn.execute("ALTER TABLE team_steps ADD COLUMN acceptance TEXT NOT NULL DEFAULT ''")
+    except sqlite3.OperationalError:
+        pass
+    # P2 peer-review columns — same migrate-free ALTER pattern. Defaults reproduce v12
+    # behavior exactly (step_type='work', needs_review=0, system_inserted=0) so a store
+    # created before this phase existed round-trips its old rows unchanged.
+    for ddl in (
+        "ALTER TABLE team_steps ADD COLUMN step_type TEXT NOT NULL DEFAULT 'work'",
+        "ALTER TABLE team_steps ADD COLUMN needs_review INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE team_steps ADD COLUMN system_inserted INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE team_steps ADD COLUMN parent_step_id TEXT",
+        "ALTER TABLE team_steps ADD COLUMN review_round INTEGER NOT NULL DEFAULT 0",
+    ):
+        try:
+            conn.execute(ddl)
+        except sqlite3.OperationalError:
+            pass
 
 
 def _now() -> str:
@@ -109,6 +152,16 @@ def _row_to_step(data: dict[str, Any]) -> TeamStep:
         child_pid=data["child_pid"], spawned_at=data["spawned_at"],
         last_seen=data["last_seen"], lease_expires_at=data["lease_expires_at"],
         escalated_at=data["escalated_at"], approval_id=data.get("approval_id"),
+        acceptance=data.get("acceptance") or "",
+        # P2: stored as SQLite INTEGER (0/1) — coerce explicitly to `bool` here so
+        # callers never need to know the on-disk representation. `acceptance`/these two
+        # fields deliberately do NOT enter `decomposition_content_hash`, so this
+        # int->bool round-trip can never desync the confirmed-plan hash either way.
+        step_type=data.get("step_type") or "work",
+        needs_review=bool(int(data.get("needs_review") or 0)),
+        system_inserted=bool(int(data.get("system_inserted") or 0)),
+        parent_step_id=data.get("parent_step_id"),
+        review_round=int(data.get("review_round") or 0),
     )
 
 
@@ -118,17 +171,61 @@ def _cols(conn: sqlite3.Connection) -> list[str]:
 
 def replace_steps(conn: sqlite3.Connection, task_id: str, steps: list[dict[str, Any]]) -> None:
     """Delete any existing steps for `task_id` and insert the confirmed DAG (used by
-    `set_plan`); insertion order becomes the stable AUTOINCREMENT `seq`."""
+    `set_plan`); insertion order becomes the stable AUTOINCREMENT `seq`.
+
+    Every row inserted here is, by definition, part of the CEO-CONFIRMED DAG —
+    `system_inserted` is always 0 (only `insert_step`, called by the ticker rule AFTER
+    confirm, ever sets it to 1). `step_type`/`needs_review` come from the caller's dict
+    (the decompose LLM's proposal, already code-validated by `task_decomposition
+    .validate_decomposition`) with the v12-compatible defaults `"work"`/`False` when
+    absent, so a caller that never sets these keys (every pre-P2 test/fixture) persists
+    rows byte-identical to before this phase existed.
+    """
     conn.execute("DELETE FROM team_steps WHERE task_id = ?", (task_id,))
     for step in steps:
         conn.execute(
-            "INSERT INTO team_steps (task_id, step_id, title, assigned_to, deps_json, status) "
-            "VALUES (?, ?, ?, ?, ?, 'pending')",
+            "INSERT INTO team_steps "
+            "(task_id, step_id, title, assigned_to, deps_json, status, acceptance, "
+            " step_type, needs_review, system_inserted) "
+            "VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, 0)",
             (
                 task_id, step["step_id"], step.get("title", ""), step.get("assigned_to", ""),
                 json.dumps(list(step.get("deps", ())), ensure_ascii=False),
+                step.get("acceptance", ""),
+                step.get("step_type") or "work",
+                1 if step.get("needs_review") else 0,
             ),
         )
+
+
+def insert_step(conn: sqlite3.Connection, task_id: str, step: dict[str, Any]) -> None:
+    """Append ONE dynamically-minted row (review/rework) AFTER the task's confirmed DAG
+    is already open — the AUTOINCREMENT `seq` continues from wherever it left off, so
+    this row always sorts after every existing step in `steps_for_task`/`next_pending_step`.
+
+    `system_inserted=1` and `needs_review=0` are ALWAYS forced here (never read off the
+    caller's dict, even if present) — Finding fail-F: a caller must never accidentally
+    copy `needs_review=True` from the REVIEWED step onto the new review/rework row,
+    which would make the ticker try to review-the-review forever. `step` must carry
+    `step_id`/`title`/`assigned_to`/`deps`/`step_type`/`parent_step_id`/`review_round`;
+    `acceptance` defaults to "" (a review/rework row has no self-check rubric of its
+    own — its rubric IS the parent content step's `acceptance`, read directly by
+    `review_graph.py`).
+    """
+    conn.execute(
+        "INSERT INTO team_steps "
+        "(task_id, step_id, title, assigned_to, deps_json, status, acceptance, "
+        " step_type, needs_review, system_inserted, parent_step_id, review_round) "
+        "VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, 0, 1, ?, ?)",
+        (
+            task_id, step["step_id"], step.get("title", ""), step.get("assigned_to", ""),
+            json.dumps(list(step.get("deps", ())), ensure_ascii=False),
+            step.get("acceptance", ""),
+            step.get("step_type") or "review",
+            step.get("parent_step_id"),
+            int(step.get("review_round") or 0),
+        ),
+    )
 
 
 def steps_for_task(conn: sqlite3.Connection, task_id: str) -> tuple[TeamStep, ...]:
@@ -292,3 +389,79 @@ def append_outcome(conn: sqlite3.Connection, task_id: str, step_id: str, outcome
         "UPDATE team_steps SET outcome_ref = ? WHERE task_id = ? AND step_id = ?",
         (outcome_ref, task_id, step_id),
     )
+
+
+def swap_pending_steps(
+    conn: sqlite3.Connection, task_id: str, new_pending: list[dict[str, Any]], *,
+    expected_pending_step_ids: list[str],
+) -> list[str]:
+    """Full-replan swap (v13 M34): DELETE every row in `expected_pending_step_ids`
+    (the step_ids that were `pending` AT DRAFT TIME) and INSERT `new_pending` in its
+    place — `done`/`running`/`failed`/`timeout`/`awaiting_approval` rows are NEVER
+    touched (Decision: amend only ever replaces the not-yet-started tail of the DAG).
+
+    Caller contract: MUST run this inside the SAME transaction as the `base_plan_hash`
+    re-validate (`team_task_amend.confirm_amendment`'s `BEGIN IMMEDIATE`) — this
+    function itself does not commit, so the caller controls the transaction boundary.
+
+    Skip-just-reserved race: between the CEO's draft preview and this confirm call, the
+    ticker may have ALREADY reserved one of the very steps this swap is about to delete
+    (`reserve_step` flips it `pending` -> `running` — a completely independent write
+    path this function has no lock over outside the caller's own `BEGIN IMMEDIATE`).
+    This race does NOT change `decomposition_content_hash`/`base_plan_hash` (that hash
+    deliberately excludes `status` — see `task_decomposition.decomposition_content_hash`'s
+    docstring), so the hash check alone cannot catch it; `expected_pending_step_ids`
+    (the draft's own snapshot of what was pending when it was created) is the
+    structural check that does. Deletes ONLY rows that are STILL `pending` right now
+    (re-read fresh, not the caller's possibly-stale in-memory snapshot) — deleting a
+    step a worker may already be running against would orphan that running process's
+    row out from under it. Returns the list of `expected_pending_step_ids` that were
+    NOT still `pending` (i.e. raced away); a non-empty return means the caller must
+    reject the confirm and ask the CEO to re-preview (the DAG moved between draft and
+    confirm).
+    """
+    rows = conn.execute(
+        "SELECT step_id, status FROM team_steps WHERE task_id = ?", (task_id,)
+    ).fetchall()
+    current_status = {step_id: status for step_id, status in rows}
+    # `BEGIN IMMEDIATE` (the caller's transaction) already holds a RESERVED write lock
+    # for this whole call, so this SELECT's snapshot cannot go stale between here and
+    # the per-row DELETE below — no other connection can write to `team_steps` until
+    # this transaction commits/rolls back. The per-row `AND status = 'pending'` guard on
+    # the DELETE is defense-in-depth (matches this codebase's `attempt_id`-guarded
+    # UPDATE convention in `set_step_status` of never trusting a bare SELECT snapshot
+    # alone), not the primary correctness mechanism — SQLite's txn isolation is.
+    skipped: list[str] = []
+    for step_id in expected_pending_step_ids:
+        if current_status.get(step_id) != "pending":
+            # No longer pending (raced to running, or vanished) — do not delete it, and
+            # report it so the caller rejects this confirm outright.
+            skipped.append(step_id)
+            continue
+        cur = conn.execute(
+            "DELETE FROM team_steps WHERE task_id = ? AND step_id = ? AND status = 'pending'",
+            (task_id, step_id),
+        )
+        if cur.rowcount == 0:
+            skipped.append(step_id)
+    if skipped:
+        # A partial swap would leave the DAG in a state neither the old nor the new
+        # plan describes — the caller (inside its own BEGIN IMMEDIATE) is expected to
+        # roll back the whole transaction on a non-empty return, so no INSERT happens
+        # here either; nothing has been committed by the caller yet at this point.
+        return sorted(skipped)
+    for step in new_pending:
+        conn.execute(
+            "INSERT INTO team_steps "
+            "(task_id, step_id, title, assigned_to, deps_json, status, acceptance, "
+            " step_type, needs_review, system_inserted) "
+            "VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, 0)",
+            (
+                task_id, step["step_id"], step.get("title", ""), step.get("assigned_to", ""),
+                json.dumps(list(step.get("deps", ())), ensure_ascii=False),
+                step.get("acceptance", ""),
+                step.get("step_type") or "work",
+                1 if step.get("needs_review") else 0,
+            ),
+        )
+    return []

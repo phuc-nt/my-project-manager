@@ -28,6 +28,13 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 #: CEO preview and bounds worst-case fan-out cost.
 MAX_STEPS = 7
 
+#: Valid `step_type` values a DECOMPOSE proposal may set. Only "work" is ever proposed
+#: by the LLM/CEO-confirmed DAG — "review"/"rework" are minted EXCLUSIVELY by the
+#: ticker rule (`coordinator_nodes.tick_actions`) after confirm, never by decompose;
+#: still validated here (not just accepted at face value) so a compromised/buggy LLM
+#: completion can never smuggle a system-reserved step_type into a CEO-confirmed plan.
+_STEP_TYPES = ("work", "review", "rework")
+
 
 class TeamStepPlan(BaseModel):
     """One proposed DAG step (pre-persistence — the store's own `TeamStep` is the
@@ -37,11 +44,35 @@ class TeamStepPlan(BaseModel):
     title: str = Field(min_length=1, max_length=300)
     assigned_to: str = Field(min_length=1, max_length=40)
     deps: tuple[str, ...] = Field(default_factory=tuple)
+    # Self-check acceptance criteria (optional, free text) — per-step METADATA, not DAG
+    # structure. Deliberately EXCLUDED from `decomposition_content_hash` (see that
+    # function's docstring): the hash binds the CEO's confirm to the DAG shape (which
+    # steps, who runs them, what depends on what), not to this rubric text, so a task
+    # WITH acceptance hashes byte-identical to one without. Round-trips into
+    # `team_steps.acceptance` (store) and from there into the self_check node's prompt.
+    acceptance: str = Field(default="", max_length=2000)
+    # step_type/needs_review (P2 peer review): a decompose proposal must only ever
+    # describe CONTENT work — "work" is the only value a real CEO-confirmed DAG should
+    # ever carry (see `_validate_step_type_bounds` below); review/rework rows are
+    # ticker-minted post-confirm, never part of what the CEO previews/confirms.
+    step_type: str = Field(default="work")
+    # LLM-settable, code-validated: True for a content step whose completion should
+    # trigger the ticker's peer-review insert rule. Defaults False (v12-compatible —
+    # a step without this field set never gets a review inserted).
+    needs_review: bool = False
 
     @field_validator("step_id", "assigned_to")
     @classmethod
     def _strip(cls, v: str) -> str:
         return v.strip()
+
+    @field_validator("step_type")
+    @classmethod
+    def _valid_step_type(cls, v: str) -> str:
+        v = v.strip() or "work"
+        if v not in _STEP_TYPES:
+            raise ValueError(f"step_type must be one of {_STEP_TYPES}, got {v!r}")
+        return v
 
     @field_validator("title")
     @classmethod
@@ -50,6 +81,11 @@ class TeamStepPlan(BaseModel):
         if not v:
             raise ValueError("title must not be blank")
         return v
+
+    @field_validator("acceptance")
+    @classmethod
+    def _strip_acceptance(cls, v: str) -> str:
+        return v.strip()
 
 
 class DecomposedTask(BaseModel):
@@ -82,6 +118,21 @@ class DecomposedTask(BaseModel):
                 raise ValueError(f"step {s.step_id!r} depends on unknown step(s) {unknown}")
             if s.step_id in s.deps:
                 raise ValueError(f"step {s.step_id!r} cannot depend on itself")
+        return self
+
+    @model_validator(mode="after")
+    def _step_type_bounds(self) -> DecomposedTask:
+        """Decompose-time bounds (Decision D's guardrail): a CEO-confirmed DAG must
+        only ever propose content ("work") steps — "review"/"rework" are ticker-
+        reserved, minted post-confirm only (see `team_task_steps.insert_step`), so
+        `needs_review` (only meaningful on a content step — review-of-review would loop
+        forever otherwise) is implicitly bounded to "work" steps by the same check."""
+        for s in self.steps:
+            if s.step_type != "work":
+                raise ValueError(
+                    f"step {s.step_id!r}: step_type {s.step_type!r} is reserved for "
+                    "ticker-inserted rows and cannot appear in a decompose proposal"
+                )
         return self
 
 
@@ -163,7 +214,14 @@ def decomposition_content_hash(task: DecomposedTask) -> str:
 
     Canonical JSON (sorted keys, stable step order) so the SAME decomposition always
     hashes the same, and any mutation (added/removed/reassigned step) changes the hash
-    — confirm re-verifies this hash before dispatch is ever allowed."""
+    — confirm re-verifies this hash before dispatch is ever allowed.
+
+    Deliberately reads ONLY `step_id`/`title`/`assigned_to`/`deps` — `acceptance` (a
+    per-step self-check rubric, metadata not DAG structure) is NOT included, so a task
+    with acceptance text hashes byte-identical to the same DAG without it. This also
+    makes `_verify_plan_hash`'s recompute (`coordinator_graph.py`, over `TeamStep` rows)
+    work unmodified: `TeamStep` carries an `acceptance` column this function never
+    reads, so neither side needs to agree on how to serialize it."""
     import hashlib
 
     canonical = json.dumps(

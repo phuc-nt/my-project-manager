@@ -54,13 +54,21 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
+from src.agent.coordinator_nodes.review_insert import (
+    maybe_handle_review_done,
+    maybe_insert_review,
+    maybe_insert_review_after_rework,
+)
 from src.agent.coordinator_nodes.tick_actions import (
     aggregate_and_deliver,
+    dispatch_ready_steps,
     poll_awaiting_approval_step,
     poll_running_step,
-    reserve_and_spawn,
+    ready_pending_steps,
 )
-from src.runtime.team_task_cost import check_cost_cap
+from src.runtime.company import DEFAULT_TEAM_TASK_CONCURRENCY
+from src.runtime.office_room_append import append_office_event
+from src.runtime.team_task_cost import CostCapResult, check_cost_cap, cost_warn_ratio
 from src.runtime.team_task_store import TeamStep, TeamTask, TeamTaskStore
 
 logger = logging.getLogger(__name__)
@@ -111,6 +119,16 @@ class CoordinatorDeps:
     retry_tracker: RetryTracker
     cost_cap_usd: float
     step_timeout_s: int = DEFAULT_STEP_TIMEOUT_S
+    # Max steps this ticker may hold `running` CONCURRENTLY for one task (v13 M34) — a
+    # tick counts currently-`running` steps and spawns up to `concurrency -
+    # running_count` new ones from the ready set, not just one. Default mirrors
+    # `company.yaml::team_task_concurrency`'s own default so a caller that does not
+    # wire this (every pre-v13 test) keeps single-spawn-per-tick behavior UNLESS
+    # multiple steps are simultaneously ready, in which case it now spawns up to 2 —
+    # this is a real behavior change from v12, not a compatibility shim (v12 already
+    # dispatched across separate ticks; this raises the same-tick ceiling from 1 to
+    # `concurrency`).
+    concurrency: int = DEFAULT_TEAM_TASK_CONCURRENCY
     # spawn(task_id, step) -> child pid. Spawns a DETACHED `team-step` worker for the
     # given step's `attempt_id` lease (already reserved by the caller) and returns
     # immediately — must NOT block on the child.
@@ -153,7 +171,18 @@ class CoordinatorDeps:
 
 @dataclass(frozen=True)
 class TickResult:
-    """What one tick did, for logging/tests — never raises, always returns this."""
+    """What one tick did, for logging/tests — never raises, always returns this.
+
+    v13 M34: dispatch may now spawn MORE THAN ONE step in a single tick (up to
+    `CoordinatorDeps.concurrency` minus however many were already `running`). This
+    stays ONE `TickResult` (not a list) — `action="spawned"` with `detail` joining
+    every spawned step's own `"{step_id} attempt={attempt_id} pid={pid}"` fragment with
+    "; " when more than one spawned this tick. A single spawn (the overwhelmingly
+    common case, and the ONLY case when `concurrency=1` or only one step is ready)
+    keeps `detail` byte-identical to pre-v13 (`"{step_id} attempt=... pid=..."`, no
+    joiner) — every existing caller/test asserting `detail.startswith("s1")` for a
+    single-ready-step fixture is unaffected.
+    """
 
     task_id: str | None
     action: str  # "none" | "spawned" | "failed" | "timeout_escalated" | "aggregated" |
@@ -206,6 +235,11 @@ def _act_on_task(deps: CoordinatorDeps, task: TeamTask) -> TickResult:
         )
         return TickResult(task_id=task.id, action="cap_exceeded",
                           detail=f"${cap.spent_usd:.4f} > ${cap.cap_usd:.2f}")
+    _maybe_warn_cost_cap(deps, task, cap)
+
+    review_result = _maybe_insert_review_rows(deps, task)
+    if review_result is not None:
+        return review_result
 
     running = [s for s in task.steps if s.status == "running"]
     for step in running:
@@ -219,9 +253,11 @@ def _act_on_task(deps: CoordinatorDeps, task: TeamTask) -> TickResult:
         if result.action != "none":
             return result
 
-    ready = deps.store.next_pending_step(task.id)
-    if ready is not None:
-        return reserve_and_spawn(deps, task, ready)
+    ready = ready_pending_steps(task)
+    if ready:
+        spawned = dispatch_ready_steps(deps, task, ready)
+        if spawned:
+            return _combine_spawn_results(task, spawned)
 
     if task.steps and all(s.status == "done" for s in task.steps):
         return aggregate_and_deliver(deps, task)
@@ -231,6 +267,90 @@ def _act_on_task(deps: CoordinatorDeps, task: TeamTask) -> TickResult:
         return dead_end
 
     return TickResult(task_id=task.id, action="none", detail="nothing actionable")
+
+
+def _combine_spawn_results(task: TeamTask, spawned: list[TickResult]) -> TickResult:
+    """Fold N `reserve_and_spawn` results from ONE tick into the single `TickResult`
+    this ticker's contract returns. `spawned` is always non-empty (the caller only
+    invokes this when `dispatch_ready_steps` actually spawned something) and every
+    entry's `action` is always `"spawned"` (that is the only action `reserve_and_spawn`
+    /`dispatch_ready_steps` ever produces on its success path) — a failed roster check
+    inside `reserve_and_spawn` returns `action="failed"` instead, which
+    `dispatch_ready_steps` would still include in `spawned`; fold that faithfully too by
+    preferring "spawned" as the label whenever AT LEAST one real spawn happened, so a
+    mixed roster-reject + successful-spawn tick is still reported as progress, not
+    misreported as a bare failure.
+    """
+    action = "spawned" if any(r.action == "spawned" for r in spawned) else spawned[0].action
+    if len(spawned) == 1:
+        return TickResult(task_id=task.id, action=action, detail=spawned[0].detail)
+    return TickResult(task_id=task.id, action=action, detail="; ".join(r.detail for r in spawned))
+
+
+#: Cost-cap warning threshold (M32) — a room `milestone` fires ONCE per task the first
+#: tick spend crosses this fraction of `cost_cap_usd`, well before the hard stop at
+#: `check_cost_cap`'s 100% (so the CEO has a heads-up before a task actually stalls).
+COST_WARN_RATIO = 0.8
+
+
+def _maybe_warn_cost_cap(deps: CoordinatorDeps, task: TeamTask, cap: CostCapResult) -> None:
+    """Room `milestone` once spend crosses `COST_WARN_RATIO` of the cap — deduped via
+    `task.escalated_at`-style "already warned" tracking is NOT available on this store
+    (no dedicated column), so this reuses the SAME dedup convention `milestone_mirror
+    _runner` documents for its own per-(task, milestone, day) key: the room event kind
+    is `milestone` with `milestone="cost_warn"`, and this function itself is called
+    EVERY tick — to avoid spamming the room every tick once past 80%, it only fires
+    while spend is BELOW the hard cap (>=100% already gets its own distinct
+    `cost_cap_exceeded` escalation+stall above, which removes the task from
+    `list_dispatchable` — so the warn path can literally never fire again for this task
+    once the real stall happens) AND `cap.spent_usd` is read fresh each tick — a
+    genuine re-fire on every tick while between 80–100% is accepted (v1, KISS): the
+    room is an append-only timeline, not a notification channel with per-user read
+    state, and a repeated "gần chạm trần chi phí" line is a low-cost accuracy signal,
+    not a nag a human must individually dismiss.
+    """
+    if not cost_warn_ratio(cap, warn_ratio=COST_WARN_RATIO):
+        return
+    append_office_event(
+        task.id, author="coordinator", kind="milestone",
+        body={"task_id": task.id, "task_title": task.title, "milestone": "cost_warn",
+              "message": f"Việc '{task.title}' đã dùng ${cap.spent_usd:.4f} / "
+                         f"${cap.cap_usd:.2f} — gần chạm trần chi phí."},
+        also_office=True,
+    )
+
+
+def _maybe_insert_review_rows(deps: CoordinatorDeps, task: TeamTask) -> TickResult | None:
+    """Run the M32 review-insert rule over every `done` step this tick, once. A hit
+    (row minted / task stalled) short-circuits the rest of this tick's dispatch
+    decisions — the caller must treat the task as changed and let the NEXT tick re-read
+    it, exactly like every other `TickResult`-returning branch in `_act_on_task`.
+
+    Order matches the phase's three sub-rules (`review_insert.py`'s module docstring):
+    a `done` `work` step may need a review minted; a `done` `review` step may need a
+    rework minted (or the task stalled); a `done` `rework` step may need its next
+    review round minted. Each check is independently idempotent (see that module), so
+    scanning ALL `done` steps every tick — not just the one that just transitioned —
+    is safe and simple (KISS): a step already fully handled (review/rework already
+    minted) is a fast no-op re-check.
+    """
+    for step in task.steps:
+        if step.status != "done":
+            continue
+        if maybe_insert_review(deps, task, step):
+            return TickResult(task_id=task.id, action="review_inserted", detail=step.step_id)
+        if step.step_type == "review":
+            before_status = task.status
+            if maybe_handle_review_done(deps, task, step):
+                refreshed = deps.store.get(task.id)
+                action = "stalled" if refreshed is not None and refreshed.status == "stalled" \
+                    else "rework_inserted"
+                if action == "stalled" and before_status == "stalled":
+                    continue  # already stalled by an earlier iteration this tick
+                return TickResult(task_id=task.id, action=action, detail=step.step_id)
+        if maybe_insert_review_after_rework(deps, task, step):
+            return TickResult(task_id=task.id, action="review_inserted", detail=step.step_id)
+    return None
 
 
 def _dead_end_result(deps: CoordinatorDeps, task: TeamTask) -> TickResult | None:
@@ -280,14 +400,29 @@ def _verify_plan_hash(deps: CoordinatorDeps, task: TeamTask) -> TickResult | Non
     tick. A mismatch means the on-disk plan no longer matches what was approved: stall
     the task + escalate rather than ever dispatching a step from an unverified DAG.
 
+    Recomputes over `system_inserted=0` rows ONLY — `confirmed_plan_hash` is the DAG the
+    CEO actually confirmed; a system-inserted row (e.g. a later phase's review/rework
+    step, auto-appended after confirm) is by definition NOT part of that confirmed DAG,
+    so including it would make this check falsely stall every task the moment such a row
+    is inserted. `system_inserted` is read via `getattr(s, "system_inserted", 0)` (default
+    0) — the store does not carry this column yet; this gate is written now so a later
+    column addition needs no change here, and today (no such column) every row reads as
+    `0`, i.e. behaves exactly like the un-gated recompute.
+
     Returns None (proceed normally) when the hash matches or the task has no steps yet
     (nothing to verify); a terminal `TickResult` when it stalls the task.
     """
     if not task.steps:
         return None
+    from dataclasses import replace
+
     from src.agent.task_decomposition import decomposition_content_hash
 
-    recomputed = decomposition_content_hash(task)  # duck-typed: TeamStep has the same fields
+    confirmed_steps = tuple(
+        s for s in task.steps if getattr(s, "system_inserted", 0) == 0
+    )
+    confirmed_task = replace(task, steps=confirmed_steps)
+    recomputed = decomposition_content_hash(confirmed_task)  # duck-typed: TeamStep fields
     if task.plan_hash == recomputed:
         return None
 

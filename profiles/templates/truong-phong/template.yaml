@@ -1,0 +1,12 @@
+# Staff template v1 — prefill source ONLY for the CreateAgent wizard (see
+# profiles/templates/pm-coordinator/template.yaml for the full contract note).
+#
+# The "Trưởng phòng" role IS the team coordinator: `company.yaml::coordinator_id` points
+# at an agent created from this template (the "Tạo trưởng phòng" 1-click bootstrap button
+# on the Team page). `reports: []` — the coordinator's work is the `team-tick` pseudo-kind,
+# not a scheduled `--report` run.
+role: "Trưởng phòng (Điều phối đội)"
+domain: office
+reports: []
+bindings_hint:
+  - slack

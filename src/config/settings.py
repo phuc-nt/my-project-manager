@@ -64,6 +64,12 @@ class Settings:
     # re-checked before every attempt, so a fallback can never spend past the cap.
     model_chain: tuple[str, ...] = ()
 
+    # Optional web-search provider keys for the coordinator's team-task search_hook
+    # (`tools/web_search_tool.py`). Both absent ⇒ `WebSearchConfig.available()` is
+    # False and the hook degrades to a no-op — no crash, no key required to run.
+    tavily_api_key: str | None = None
+    brave_api_key: str | None = None
+
     def effective_model_chain(self) -> tuple[str, ...]:
         """The chain `LlmClient.complete` walks: declared chain, or just the model."""
         return self.model_chain or (self.openrouter_model,)

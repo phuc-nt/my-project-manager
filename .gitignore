@@ -25,6 +25,14 @@ company-docs/
 profiles/*
 !profiles/default/
 !profiles/default/**
+# Staff templates: shipped prefill source for the CreateAgent wizard, not a per-agent
+# runtime profile — committed like profiles/default/.
+!profiles/templates/
+!profiles/templates/**
+
+# Company identity (name + coordinator + team-task cap) — per-install user data like
+# real profiles; load_company() degrades safely when absent on a fresh clone.
+company.yaml
 
 # Agent tooling / instructions — not part of the published project
 .claude/

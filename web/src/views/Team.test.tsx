@@ -31,6 +31,11 @@ beforeEach(() => {
     budget: { spent: 1, cap: 50, ratio: 0.02 },
     pending_approvals: 0,
   })
+  vi.spyOn(api, 'getCompany').mockResolvedValue({
+    name: 'Acme Co',
+    coordinator_id: null,
+    team_task_cap_usd: 2,
+  })
 })
 
 function wrap(ui: React.ReactElement) {
@@ -123,6 +128,64 @@ test('resume where the profile still vetoes the agent shows an inline notice', a
   await waitFor(() =>
     expect(screen.getByText(/Agent đang bị tắt trong hồ sơ/)).toBeInTheDocument(),
   )
+})
+
+test('+ Tạo trưởng phòng is hidden once a coordinator already exists', async () => {
+  vi.spyOn(api, 'getAgents').mockResolvedValue([])
+  vi.spyOn(api, 'getCompany').mockResolvedValue({
+    name: 'Acme Co',
+    coordinator_id: 'truong-phong',
+    team_task_cap_usd: 2,
+  })
+  wrap(<Team />)
+  await waitFor(() => expect(screen.getByText('+ Tạo nhân sự ảo')).toBeInTheDocument())
+  expect(screen.queryByText('+ Tạo trưởng phòng')).not.toBeInTheDocument()
+})
+
+test('+ Tạo trưởng phòng creates the coordinator from the truong-phong template then sets company.coordinator_id', async () => {
+  vi.spyOn(api, 'getAgents').mockResolvedValue([])
+  const getStaffTemplates = vi.spyOn(api, 'getStaffTemplates').mockResolvedValue({
+    templates: [
+      {
+        role_id: 'truong-phong',
+        role: 'Trưởng phòng (Điều phối đội)',
+        domain: 'office',
+        reports: [],
+        bindings_hint: ['slack'],
+        persona: 'persona text',
+  web_search: false,
+      },
+    ],
+  })
+  const createAgent = vi.spyOn(api, 'createAgent').mockResolvedValue({
+    created: { id: 'truong-phong', domain: 'office', reports: [] },
+  })
+  const saveCompany = vi.spyOn(api, 'saveCompany').mockResolvedValue({
+    name: 'Acme Co',
+    coordinator_id: 'truong-phong',
+    team_task_cap_usd: 2,
+  })
+  wrap(<Team />)
+  fireEvent.click(await screen.findByText('+ Tạo trưởng phòng'))
+  await waitFor(() => expect(getStaffTemplates).toHaveBeenCalled())
+  await waitFor(() =>
+    expect(createAgent).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'truong-phong', domain: 'office' }),
+    ),
+  )
+  await waitFor(() => expect(saveCompany).toHaveBeenCalledWith('Acme Co', 'truong-phong', 2))
+  await waitFor(() => expect(screen.queryByText('+ Tạo trưởng phòng')).not.toBeInTheDocument())
+})
+
+test('+ Tạo trưởng phòng surfaces an inline error and stays clickable when template lookup fails', async () => {
+  vi.spyOn(api, 'getAgents').mockResolvedValue([])
+  vi.spyOn(api, 'getStaffTemplates').mockResolvedValue({ templates: [] })
+  const createAgent = vi.spyOn(api, 'createAgent')
+  wrap(<Team />)
+  fireEvent.click(await screen.findByText('+ Tạo trưởng phòng'))
+  await waitFor(() => expect(screen.getByText(/Lỗi:/)).toBeInTheDocument())
+  expect(createAgent).not.toHaveBeenCalled()
+  expect(screen.getByText('+ Tạo trưởng phòng')).not.toBeDisabled()
 })
 
 test('delete requires confirm before calling DELETE, and default has no delete button', async () => {

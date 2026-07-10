@@ -1,0 +1,11 @@
+# Staff template v1 — prefill source ONLY for the CreateAgent wizard (see
+# profiles/templates/pm-coordinator/template.yaml for the full contract note).
+#
+# `web_search: true` here prefills the wizard's opt-in flag; the created profile.yaml
+# gets `web_search: true` (default false for every other role — opt-in). A missing
+# TAVILY_API_KEY/BRAVE_API_KEY still degrades the tool to off even when true.
+role: "Nghiên cứu"
+domain: office
+reports: []
+bindings_hint: []
+web_search: true

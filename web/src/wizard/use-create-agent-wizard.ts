@@ -2,7 +2,7 @@
 // no new deps, matches the rest of the SPA's style. Steps are 1..5; state accumulates
 // across steps and step 5 (Review) builds the POST body from it.
 import { useMemo, useState } from 'react'
-import type { CreateAgentBindings, CreateAgentSpec, Pack } from '../types'
+import type { CreateAgentBindings, CreateAgentSpec, Pack, StaffTemplate } from '../types'
 
 export interface WizardState {
   step: number
@@ -13,6 +13,7 @@ export interface WizardState {
   goals: string
   persona: string
   personaEdited: boolean
+  webSearch: boolean // opt-in profile flag; only meaningful for research-style roles
   reports: string[]
   schedule: Record<string, string> // kind -> cron5 (only for scheduled kinds)
   jiraProjectKey: string
@@ -54,7 +55,7 @@ const PACK_SCOPED_RESET: Pick<
 }
 
 const INITIAL: WizardState = {
-  step: 1,
+  step: 0, // 0 = optional staff-template picker; 1 = domain picker
   pack: null,
   id: '',
   name: '',
@@ -62,6 +63,7 @@ const INITIAL: WizardState = {
   goals: '',
   persona: '',
   personaEdited: false,
+  webSearch: false,
   ...PACK_SCOPED_RESET,
 }
 
@@ -81,6 +83,27 @@ export function useCreateAgentWizard() {
 
   function goTo(step: number) {
     setState((s) => ({ ...s, step }))
+  }
+
+  // Template prefill: templates are a PREFILL SOURCE ONLY — this sets the same
+  // fields the operator could set by hand (pack, role, persona, reports), then the CEO
+  // tunes/reviews before Create. `pack` is the resolved Pack for the template's domain
+  // (the caller looks it up from GET /api/packs, matched by template.domain) so the
+  // report-kind checkboxes and bindings step render correctly. Report kinds not actually
+  // served by the resolved pack are dropped (defends against a stale/hand-edited
+  // template.yaml naming a kind the installed pack no longer serves).
+  function applyTemplate(template: StaffTemplate, pack: Pack) {
+    const validReports = template.reports.filter((k) => pack.report_kinds.includes(k))
+    setState((s) => ({
+      ...s,
+      pack,
+      ...PACK_SCOPED_RESET,
+      reports: validReports,
+      role: template.role,
+      persona: template.persona,
+      personaEdited: template.persona.trim() !== '', // stop IdentityStep auto-regenerating over it
+      webSearch: template.web_search,
+    }))
   }
 
   function toggleReport(kind: string) {
@@ -150,6 +173,7 @@ export function useCreateAgentWizard() {
       schedule: state.schedule,
       bindings,
       ...(state.persona.trim() ? { persona: state.persona.trim() } : {}),
+      ...(state.webSearch ? { web_search: true } : {}),
     }
   }
 
@@ -157,6 +181,7 @@ export function useCreateAgentWizard() {
     state,
     update,
     selectPack,
+    applyTemplate,
     goTo,
     toggleReport,
     setCronFor,

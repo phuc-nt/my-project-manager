@@ -195,6 +195,7 @@ export interface CreateAgentSpec {
   schedule: Record<string, string>
   bindings: CreateAgentBindings
   persona?: string
+  web_search?: boolean
 }
 
 export interface CreateAgentResult {
@@ -203,6 +204,28 @@ export interface CreateAgentResult {
     domain: string
     reports: string[]
   }
+}
+
+// --- company + staff templates ---
+
+export interface CompanyPayload {
+  name: string
+  coordinator_id: string | null
+  team_task_cap_usd: number
+}
+
+export interface StaffTemplate {
+  role_id: string
+  role: string
+  domain: string
+  reports: string[]
+  bindings_hint: string[]
+  persona: string
+  web_search: boolean
+}
+
+export interface StaffTemplatesPayload {
+  templates: StaffTemplate[]
 }
 
 export interface EnabledResult {
@@ -282,4 +305,35 @@ export interface AgentTasks {
 
 export interface TasksPayload {
   agents: AgentTasks[]
+}
+
+// v12 M29: office group-chat room — SSE store-tail. `body` shape depends on `kind`
+// (see src/server/office_event_projection.py's allowlist per kind).
+export type OfficeEventKind = 'ceo' | 'assignment' | 'step_status' | 'handoff' | 'milestone'
+
+export interface OfficeEventBody {
+  text?: string
+  task_title?: string
+  step_title?: string
+  step_count?: number
+  summary?: string
+  status?: string
+  message?: string
+  milestone?: string
+  // `step_status`/`handoff` only: the agent id the desk-state reducer keys a desk by —
+  // NEVER the event's `author` (a `step_status/started` event is authored by the
+  // coordinator ticker, not the assignee doing the work).
+  assigned_to?: string
+}
+
+export interface OfficeMessage {
+  seq: number
+  ts: string
+  author: string
+  kind: OfficeEventKind
+  body: OfficeEventBody
+}
+
+export interface OfficeRoomsPayload {
+  rooms: string[]
 }

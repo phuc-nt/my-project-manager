@@ -7,6 +7,7 @@ import type {
   ApprovalsPayload,
   AuditPayload,
   AutomationPayload,
+  CompanyPayload,
   ConfigPayload,
   CostPayload,
   CreateAgentResult,
@@ -19,10 +20,12 @@ import type {
   KnowledgePayload,
   MemoryPayload,
   SkillsPayload,
+  OfficeRoomsPayload,
   OpsChatAvailable,
   OpsChatReply,
   PacksPayload,
   RunsPayload,
+  StaffTemplatesPayload,
   TasksPayload,
   TeamAlertsPayload,
   TriggerResult,
@@ -139,6 +142,15 @@ export const api = {
   deleteAgent: (id: string) => mutate<DeleteAgentResult>(`/api/agents/${id}`, 'DELETE'),
   getIntegrationHealth: () => request<IntegrationHealthPayload>('/api/health/integrations'),
   getTeamAlerts: () => request<TeamAlertsPayload>('/api/team/alerts'),
+  // Company identity (config-only) + staff-template picker.
+  getCompany: () => request<CompanyPayload>('/api/company'),
+  saveCompany: (name: string, coordinatorId: string | null, teamTaskCapUsd?: number) =>
+    post<CompanyPayload>('/api/company', {
+      name,
+      coordinator_id: coordinatorId,
+      ...(teamTaskCapUsd !== undefined ? { team_task_cap_usd: teamTaskCapUsd } : {}),
+    }),
+  getStaffTemplates: () => request<StaffTemplatesPayload>('/api/staff-templates'),
   // v6 M14b: CEO chat-ops — same engine + shared conversation as the Telegram DM path.
   opsChatAvailable: () => request<OpsChatAvailable>('/api/ops/chat/available'),
   opsChat: (message: string) => post<OpsChatReply>('/api/ops/chat', { message }),
@@ -205,6 +217,9 @@ export const api = {
       `/api/agents/${encodeURIComponent(agentId)}/company-docs`,
       { slugs },
     ),
+  // v12 M29: office group-chat room — the room list; the timeline itself streams via
+  // raw EventSource (see hooks/use-office-stream.ts), not this request() helper.
+  getOfficeRooms: () => request<OfficeRoomsPayload>('/api/office/rooms'),
 }
 
 export { ApiError }

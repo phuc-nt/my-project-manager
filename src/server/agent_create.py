@@ -118,9 +118,10 @@ def _build_profile_doc(spec: dict, profiles_dir) -> tuple[str, dict, str | None]
         raise ValidationError(f"unknown domain {domain!r} (installed: {', '.join(known)})")
 
     pack_kinds = _pack_report_kinds(domain)
+    # reports MAY be empty — a staffer whose work comes from assigned team tasks rather
+    # than a scheduled worker --report run has no report kind of its own. Only VALIDATE
+    # the kinds that ARE given.
     reports = [str(k) for k in (spec.get("reports") or [])]
-    if not reports:
-        raise ValidationError("select at least one report kind")
     bad_kinds = [k for k in reports if k not in pack_kinds]
     if bad_kinds:
         raise ValidationError(
@@ -146,6 +147,10 @@ def _build_profile_doc(spec: dict, profiles_dir) -> tuple[str, dict, str | None]
     doc["domain"] = domain
     doc["reports"] = reports
     doc["schedule"] = schedule
+    # Opt-in web-search flag (loader default false). Only ever written as a literal True
+    # so a spec can't smuggle arbitrary values into profile.yaml through this key.
+    if spec.get("web_search"):
+        doc["web_search"] = True
     _apply_bindings(doc, spec.get("bindings") or {})
 
     # Run the real builders — the exact validation `load_profile` applies (incl. the

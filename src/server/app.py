@@ -25,7 +25,9 @@ from src.server import (
     routes_agent_telegram,
     routes_agents,
     routes_agents_admin,
+    routes_company,
     routes_company_docs,
+    routes_office_stream,
     routes_ops_chat,
     routes_ops_json,
     routes_runs,
@@ -84,6 +86,8 @@ def create_app() -> FastAPI:
     app.include_router(routes_ops_json.router)
     # M7: agent admin (packs list / create wizard / lifecycle / integration health).
     app.include_router(routes_agents_admin.router)
+    # Company identity (config-only) + staff-template picker read API.
+    app.include_router(routes_company.router)
     # v6 M14b: CEO chat-ops web endpoint (same engine as the Telegram DM path).
     app.include_router(routes_ops_chat.router)
     # v7 M18: Agent Studio — telegram bind (M18a) + knowledge/skills form (M18b).
@@ -95,6 +99,9 @@ def create_app() -> FastAPI:
     app.include_router(routes_company_docs.router)
     # v6 M15b: assigned-tasks board (view + cancel; assigning stays on the chat path).
     app.include_router(routes_tasks.router)
+    # v12 M29: office group-chat room — SSE store-tail (multi-subscriber), protected
+    # (NOT in auth._PUBLIC_PREFIXES — a room's events are internal team activity).
+    app.include_router(routes_office_stream.router)
     # Legacy /static assets (kept for any non-SPA asset; the SPA's own assets live under
     # static/app and are served by the SPA mount below).
     app.mount(

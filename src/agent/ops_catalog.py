@@ -23,6 +23,22 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.agent.ops_assign_team_task import (
+    cancel_assign_team_task,
+    preview_assign_team_task,
+    run_assign_team_task,
+)
+
+#: An agent whose work comes only from `assign_team_task` (e.g. office roles) has no
+#: report kind of its own — the CEO says this instead of a report-kind list.
+_NO_REPORTS_WORDS = frozenset({"không", "khong", "none", "no", "-", ""})
+
+
+def _parse_reports(raw: str) -> list[str]:
+    if raw.strip().lower() in _NO_REPORTS_WORDS:
+        return []
+    return [r.strip() for r in raw.split(",") if r.strip()]
+
 
 def _run_create_agent(slots: dict[str, str]) -> str:
     """Create an agent via the SAME primitive the web wizard uses (agent_create)."""
@@ -32,7 +48,7 @@ def _run_create_agent(slots: dict[str, str]) -> str:
         "id": slots["id"],
         "name": slots.get("name") or slots["id"],
         "domain": slots["domain"],
-        "reports": [r.strip() for r in slots["reports"].split(",") if r.strip()],
+        "reports": _parse_reports(slots.get("reports", "")),
     }
     jira_key = slots.get("jira_project_key")
     if jira_key:
@@ -50,12 +66,13 @@ def _run_create_agent(slots: dict[str, str]) -> str:
 
 
 def _preview_create_agent(slots: dict[str, str]) -> str:
+    reports_text = ", ".join(_parse_reports(slots.get("reports", "")))
     lines = [
         "Mình sẽ TẠO một agent mới:",
         f"- Mã (id): {slots['id']}",
         f"- Tên: {slots.get('name') or slots['id']}",
         f"- Vai trò (domain): {slots['domain']}",
-        f"- Báo cáo: {slots['reports']}",
+        f"- Báo cáo: {reports_text or '(không có — nhận việc qua giao việc)'}",
     ]
     if slots.get("jira_project_key"):
         lines.append(f"- Jira project: {slots['jira_project_key']}")
@@ -304,18 +321,23 @@ OPS_COMMANDS: dict[str, dict] = {
                    "hint": "một mã kỹ thuật viết thường, không dấu, không khoảng trắng "
                            "(vd 'sales-pm')"},
             "domain": {"prompt": "Vai trò của agent? (pm = quản lý dự án, hr = nhân sự, "
-                                 "admin = giám sát đội)", "required": True, "max_len": 20,
+                                 "admin = giám sát đội, office = nhân viên văn phòng)",
+                       "required": True, "max_len": 20,
                        "choices": {
                            "pm": ("quản lý dự án", "quan ly du an", "project", "dự án", "du an"),
                            "hr": ("nhân sự", "nhan su", "human resources", "tuyển dụng"),
                            "admin": ("giám sát", "giam sat", "vận hành", "van hanh", "quản trị"),
+                           "office": ("văn phòng", "van phong", "nhân viên văn phòng",
+                                      "nhan vien van phong", "office"),
                        },
-                       "hint": "đúng MỘT mã: pm, hr, hoặc admin"},
+                       "hint": "đúng MỘT mã: pm, hr, admin, hoặc office"},
             "reports": {"prompt": "Loại báo cáo agent sẽ làm (vd 'daily' cho pm, "
-                                  "'headcount' cho hr)? Nhiều loại cách nhau bởi dấu phẩy.",
+                                  "'headcount' cho hr; nếu agent chỉ nhận việc qua giao "
+                                  "việc — không có báo cáo định kỳ — nhắn 'không')? "
+                                  "Nhiều loại cách nhau bởi dấu phẩy.",
                         "required": True, "max_len": 100, "lower": True,
                         "hint": "mã báo cáo VIẾT THƯỜNG cách nhau bởi dấu phẩy (vd 'daily' "
-                                "hoặc 'daily,weekly')"},
+                                "hoặc 'daily,weekly'), hoặc 'không' nếu không có"},
             "name": {"prompt": "Tên hiển thị (tuỳ chọn, bỏ qua để dùng mã)?",
                      "required": False, "max_len": 60},
             "jira_project_key": {"prompt": "Mã Jira project (tuỳ chọn, vd 'SCRUM')?",
@@ -408,6 +430,19 @@ OPS_COMMANDS: dict[str, dict] = {
         },
         "run": _run_cancel_task,
         "preview": _preview_cancel_task,
+    },
+    "assign_team_task": {
+        "description": "Giao một việc lớn cho cả đội — hệ thống tự chia thành các bước "
+                       "và phân công",
+        "readonly": False,
+        "slots": {
+            "brief": {"prompt": "Mô tả việc cần giao cho đội (mình sẽ tự chia thành các "
+                                "bước và phân công cho từng người)?",
+                      "required": True, "max_len": 1000},
+        },
+        "run": run_assign_team_task,
+        "preview": preview_assign_team_task,
+        "on_cancel": cancel_assign_team_task,
     },
 }
 

@@ -56,3 +56,52 @@ test('buildSpec never sends a report kind that is not in the currently selected 
   expect(spec.domain).toBe('hr')
   expect(spec.reports).toEqual([])
 })
+
+// Template prefill (staff-template-picker → applyTemplate).
+const PM_TEMPLATE = {
+  role_id: 'pm-coordinator',
+  role: 'Điều phối dự án',
+  domain: 'pm',
+  reports: ['daily'],
+  bindings_hint: ['jira', 'slack'],
+  persona: '# SOUL\n\nBạn là Điều phối dự án.',
+  web_search: false,
+}
+
+test('applyTemplate carries the web_search opt-in into buildSpec', () => {
+  const { result } = renderHook(() => useCreateAgentWizard())
+  const research = { ...PM_TEMPLATE, role_id: 'nghien-cuu', web_search: true }
+  act(() => result.current.applyTemplate(research, PM_PACK))
+
+  expect(result.current.state.webSearch).toBe(true)
+  expect(result.current.buildSpec().web_search).toBe(true)
+
+  // A non-research template resets it — the flag never leaks across templates.
+  act(() => result.current.applyTemplate(PM_TEMPLATE, PM_PACK))
+  expect(result.current.state.webSearch).toBe(false)
+  expect(result.current.buildSpec().web_search).toBeUndefined()
+})
+
+test('applyTemplate prefills pack/role/persona/reports and locks persona from auto-regen', () => {
+  const { result } = renderHook(() => useCreateAgentWizard())
+  act(() => result.current.applyTemplate(PM_TEMPLATE, PM_PACK))
+
+  expect(result.current.state.pack).toEqual(PM_PACK)
+  expect(result.current.state.role).toBe('Điều phối dự án')
+  expect(result.current.state.persona).toBe(PM_TEMPLATE.persona)
+  expect(result.current.state.personaEdited).toBe(true)
+  expect(result.current.state.reports).toEqual(['daily'])
+
+  const spec = result.current.buildSpec()
+  expect(spec.domain).toBe('pm')
+  expect(spec.reports).toEqual(['daily'])
+  expect(spec.persona).toBe(PM_TEMPLATE.persona)
+})
+
+test('applyTemplate drops report kinds the resolved pack does not actually serve', () => {
+  const { result } = renderHook(() => useCreateAgentWizard())
+  const staleTemplate = { ...PM_TEMPLATE, reports: ['daily', 'ghost-kind'] }
+  act(() => result.current.applyTemplate(staleTemplate, PM_PACK))
+
+  expect(result.current.state.reports).toEqual(['daily'])
+})

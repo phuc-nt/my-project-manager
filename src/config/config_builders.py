@@ -90,6 +90,8 @@ def build_settings_from_dict(d: dict[str, Any]) -> Settings:
         store=(d.get("store") or "memory").lower(),
         postgres_dsn=_d_str_or_none(d, "postgres_dsn"),
         tracing=_d_bool(d, "tracing", False),
+        tavily_api_key=_d_str_or_none(d, "tavily_api_key"),
+        brave_api_key=_d_str_or_none(d, "brave_api_key"),
     )
 
 
@@ -117,6 +119,8 @@ def build_settings_from_env() -> Settings:
             "checkpointer": os.getenv("CHECKPOINTER_TYPE"),
             "store": os.getenv("STORE_TYPE"),
             "postgres_dsn": os.getenv("POSTGRES_DSN"),
+            "tavily_api_key": os.getenv("TAVILY_API_KEY"),
+            "brave_api_key": os.getenv("BRAVE_API_KEY"),
             # Tracing is on (env side) when either the V2 flag is truthy OR an API key is
             # present — normalized to a bool so an API-key string (not a true/false word)
             # still enables. Shared helper so the worker/cli settings path and the server

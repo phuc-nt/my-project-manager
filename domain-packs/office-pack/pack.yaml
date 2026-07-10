@@ -1,0 +1,12 @@
+# office-pack manifest (v12 M28b) — the coordinator's domain.
+#
+# The coordinator does not run a scheduled `--report` kind (like inbox/tasks/ops-alerts,
+# its work is a pseudo-kind: `team-tick`), so `report_kinds` is empty. `servers` (and
+# therefore the gateway allowlist this pack contributes) is empty too: the coordinator's
+# only two verbs are "write to team_task_store" (internal, no gateway) and "spawn a
+# worker subprocess" (also no gateway) — it performs NO external write of its own, so an
+# empty allowlist here is correct default-deny, not an oversight.
+id: office
+name: Office (Coordinator)
+report_kinds: []
+servers: []

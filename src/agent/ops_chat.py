@@ -272,8 +272,22 @@ def _advance_or_confirm(
     if missing is not None:
         store.save(conversation_key, OpsDraft(command_id, slots, "collecting", now))
         return spec["slots"][missing]["prompt"], cost
+    # `preview` runs BEFORE the save: a command whose preview must compute something
+    # confirm-time needs (e.g. `assign_team_task` binding a `task_id`/`plan_hash`) may
+    # mutate `slots` in place — saving only after preview returns is what persists that
+    # mutation into the draft `_handle_confirm` later reloads (see `assign_team_task`'s
+    # module docstring on why confirm must bind to the EXACT previewed plan).
+    # A preview's ValueError is a user-facing validation message (missing escalation
+    # route, un-decomposable brief, ...) — surface it as the reply instead of letting it
+    # 500 the route into a generic "máy chủ đang gặp lỗi". The draft is dropped so the
+    # CEO retries the command fresh after fixing the cause.
+    try:
+        preview_text = spec["preview"](slots)
+    except ValueError as exc:
+        store.clear(conversation_key)
+        return f"Chưa giao được việc: {exc}", cost
     store.save(conversation_key, OpsDraft(command_id, slots, "awaiting_confirm", now))
-    return spec["preview"](slots), cost
+    return preview_text, cost
 
 
 def _handle_confirm(
@@ -290,4 +304,13 @@ def _handle_confirm(
             logger.exception("ops command %r failed at run", draft.command_id)
             return f"Có lỗi khi thực hiện: {exc}", None
     store.clear(conversation_key)
+    # A command whose preview left a side effect the CEO must be able to fully abandon
+    # (e.g. `assign_team_task` persists a draft plan row so its preview/confirm hash
+    # binding works) declares an optional `on_cancel(slots)` hook — best-effort, never
+    # lets a cleanup failure block reporting the cancellation back to the CEO.
+    if spec is not None and spec.get("on_cancel") is not None:
+        try:
+            spec["on_cancel"](draft.slots)
+        except Exception:  # noqa: BLE001 — cancellation cleanup must never crash the poller
+            logger.exception("ops command %r on_cancel hook failed", draft.command_id)
     return "Đã huỷ (chưa xác nhận rõ). Cần làm lại bạn nhắn mình từ đầu nhé.", None

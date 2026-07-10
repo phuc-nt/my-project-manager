@@ -67,6 +67,9 @@ class LoadedProfile:
     # Shape: {"scheduled_reports": [kind...], "actions": {type: {enabled, max_per_day,
     # channels|recipients}}, "trusted_senders": {"telegram": [id...]}}. Validated at load.
     auto_approve: dict | None = None
+    # Opt-in web-search flag for team-task steps. Default False ⇒ `search_hook`
+    # resolves to None regardless of provider keys (see `team_step_runner.py`).
+    web_search: bool = False
 
 
 def _read_md(profile_dir: Path, name: str) -> str:
@@ -127,6 +130,7 @@ def load_profile(
     )
     inbox = _parse_inbox(yaml_doc.get("inbox"), config)
     auto_approve = _parse_auto_approve(yaml_doc.get("auto_approve"))
+    web_search = bool(yaml_doc.get("web_search", False))
     return LoadedProfile(
         profile_id=profile_id,
         name=str(yaml_doc.get("name") or profile_id),
@@ -144,6 +148,7 @@ def load_profile(
         domain=domain,
         inbox=inbox,
         auto_approve=auto_approve,
+        web_search=web_search,
     )
 
 

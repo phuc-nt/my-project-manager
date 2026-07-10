@@ -37,12 +37,27 @@ def run_agent(args: list[str], *, spawn=None, timeout: int = _DEFAULT_TIMEOUT) -
     # enforces that the agent's own pack serves the kind.
     from src.packs.registry import all_report_kinds
 
-    # `inbox` is a generic run kind (M11 ask-agent poll), not a pack report kind — the
-    # worker handles it before graph dispatch, so it is always a valid --report value.
-    valid_kinds = all_report_kinds() | {"inbox"}
+    # `inbox` is a generic run kind (M11 ask-agent poll); `team-step` (v12 M28a) is a
+    # per-step team-task run; `team-tick` (v12 M28b) is the coordinator's own short poll;
+    # `milestone-mirror` (v12 M29) is the admin agent's room→Telegram digest — none is a
+    # pack report kind, so all four are handled by the worker before graph dispatch and
+    # are always valid --report values.
+    valid_kinds = all_report_kinds() | {"inbox", "team-step", "team-tick", "milestone-mirror"}
     if kind not in valid_kinds:
         print(
             f"error: --report must be one of {sorted(valid_kinds)}; got {kind!r}.",
+            file=sys.stderr,
+        )
+        return 2
+    # v12 M28a: a team-step invocation needs the (task, step, attempt) triple the P3
+    # coordinator's reserve_step issued as its lease token; the worker rejects a
+    # bare/malformed invocation as a clean no-op (no open step ⇒ nothing to run).
+    task_id = _flag_value(args, "--task-id")
+    step_id = _flag_value(args, "--step-id")
+    attempt_id = _flag_value(args, "--attempt-id")
+    if kind == "team-step" and not (task_id and step_id and attempt_id):
+        print(
+            "error: --report team-step requires --task-id --step-id --attempt-id",
             file=sys.stderr,
         )
         return 2
@@ -59,6 +74,8 @@ def run_agent(args: list[str], *, spawn=None, timeout: int = _DEFAULT_TIMEOUT) -
         return 1
 
     argv = _worker_argv(agent_id, kind, audience)
+    if kind == "team-step":
+        argv += ["--task-id", task_id, "--step-id", step_id, "--attempt-id", attempt_id]
     if "--dry-run" in args:
         argv.append("--dry-run")
 

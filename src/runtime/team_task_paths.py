@@ -1,0 +1,25 @@
+"""Cross-agent path helpers for the team-task store + handoff artifacts.
+
+Both the store DB and the handoff artifacts live at the repo-root `DATA_DIR`
+(`.data/`), NOT under any single agent's `.data/agents/<id>/` — a team task spans
+multiple agents by design, so its shared state cannot live inside one agent's
+isolated dir. This is the single source of truth for that root path so the
+coordinator, the worker's `team-step` branch, `team_task_store`, and
+`team_task_artifact` never disagree on where the shared state lives.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from src.config.settings import DATA_DIR
+
+
+def team_tasks_root() -> Path:
+    """The shared cross-agent data dir: repo-root `.data/`."""
+    return DATA_DIR
+
+
+def team_tasks_db_path() -> Path:
+    """`<team_tasks_root()>/team_tasks.sqlite3` — the one shared team-task store file."""
+    return team_tasks_root() / "team_tasks.sqlite3"

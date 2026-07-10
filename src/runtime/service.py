@@ -76,6 +76,27 @@ def _effective_schedule(loaded) -> tuple[dict[str, str], tuple[str, ...]]:
         schedule["ops-alerts"] = "0 */6 * * *"
         reports.append("ops-alerts")
         changed = True
+    # v12 M29: the same admin agent runs a `milestone-mirror` tick every 15min — DMs the
+    # CEO only `kind == "milestone"` office-room events (nhận việc / hoàn thành / cần
+    # duyệt). Tighter cadence than ops-alerts (health issues can wait 6h; a CEO watching
+    # a task's progress on Telegram wants it sooner).
+    if getattr(loaded, "domain", "") == "admin" and getattr(loaded.config, "telegram", None):
+        schedule["milestone-mirror"] = "*/15 * * * *"
+        reports.append("milestone-mirror")
+        changed = True
+    # v12 M28b: the coordinator agent (company.yaml::coordinator_id) runs a `team-tick`
+    # every minute — a short poll (read store, take ONE action, exit), not a report.
+    # Only the ONE agent configured as coordinator gets this pseudo-kind; every other
+    # agent's schedule is unaffected (byte-identical to pre-M28b for them).
+    from src.runtime.company import load_company
+
+    company = load_company()
+    # getattr: a degraded/partial profile object (or a test double) may lack the id —
+    # an unidentifiable agent simply never gets the coordinator pseudo-kind.
+    if company.coordinator_id and getattr(loaded, "profile_id", None) == company.coordinator_id:
+        schedule["team-tick"] = "* * * * *"
+        reports.append("team-tick")
+        changed = True
     if not changed:
         return loaded.schedule, loaded.reports  # byte-identical when nothing synthesized
     return schedule, tuple(reports)

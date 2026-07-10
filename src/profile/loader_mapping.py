@@ -96,6 +96,10 @@ def build_settings_dict(yaml_doc: dict[str, Any], data_dir: Any) -> dict[str, An
     _put(out, "postgres_dsn", _fallback(runtime.get("postgres_dsn"), "POSTGRES_DSN"))
     # M3-P12 (B4): opt-in tracing flag (present yaml bool wins; else env). Default OFF.
     _put(out, "tracing", _explicit_bool(runtime, "tracing", "LANGCHAIN_TRACING_V2"))
+    # Web-search provider keys are never in profile.yaml (installation-wide secrets,
+    # same posture as the OpenRouter key) — fixed env names only.
+    _put(out, "tavily_api_key", os.environ.get("TAVILY_API_KEY"))
+    _put(out, "brave_api_key", os.environ.get("BRAVE_API_KEY"))
     return out
 
 

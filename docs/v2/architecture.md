@@ -99,6 +99,47 @@ Vị trí Postgres/Store: **M1 vẫn dùng SqliteSaver per-agent** (1 file / age
 
 **Unchanged invariant (restate)**: Every new write (Linear comment, email, email + attachment) stays behind Action Gateway — Lớp A hard-deny + default-DENY allowlist + Lớp B approve. New write tools deny by default until explicitly allowlisted. Config flows through all 3 entry points (worker/cron/cli) automatically. Backward-compat: no `integrations:` + no `smtp:` ⇒ byte-identical pre-P11 behavior (Slack+Confluence only). `classify()` / `needs_interrupt()` unchanged.
 
+## 7. v12 Agent Office — Orchestrated team task execution + group chat + 3D office
+
+**M27–M30 deliver orchestrated team task workflow with centralized office.** Coordinator (TICKER pseudo-kind) decomposes CEO task → plan hash bind (TOCTOU-proof) → sequential step dispatch DETACHED workers (per-agent isolation preserved). Artifacts handoff via `data_dir/artifacts/team-tasks/<id>/step-<n>.json` (internal, NO egress). Every step write vẫn Lớp B per-agent. Web search (Tavily/Brave snippets-only) fail-closed pattern-scan BEFORE egress. Office room (SQLite WAL+seq SSoT) events feed SSE store-tail (multi-subscriber, seq-cursored resume-safe) → OfficeRoom timeline + office-3d r3f wireframe (lazy chunk ~930KB, driven by real SSE only). Telegram mirrors milestone events (cursor-after-send, no spam).
+
+**THE INVARIANT extended:**
+- **Handoff = artifact inside data_dir** (KHÔNG egress, KHÔNG qua gateway). Per-step writes vẫn Lớp B per-agent.
+- **office-pack allowlist wiring bắt buộc** (M8-class guard): `ActionGateway.execute(..., mcp_allowlist=pack.allowlist or None)`. Pack allowlist rỗng = default-deny; coordinator/step KHÔNG handler mặc định.
+- **Role authz gate deterministic** (decompose-validation + dispatch): `assigned_to` ∈ company.yaml staff + CEO-confirmed plan hash.
+- **PII firewall office events**: default-drop allowlist projection AT WRITE TIME (safe replay, cấm free-form body_json).
+
+```
+CEO giao việc (ops chat) → assign_team_task (admin ops agent, sync 1 LLM) → DecomposedTask (max 7, role-constrained)
+   ├─► plan draft + content HASH → preview → CEO confirm (bind HASH, TOCTOU-proof)
+   │
+   ▼ set plan status = open
+   
+coordinator TICKER (short tick, no 600s-kill, lease reserve attempt_id+pid+lease_expires_at)
+   ├─► next_pending_step → spawn DETACHED worker "team-step" (per-agent isolation)
+   ├─► running: pid chết → failed/retry; lease > timeout → kill pid + escalate Telegram
+   └─► reboot recovery = tick sau read store (không resume trigger riêng)
+
+team_task_graph (perceive→work→deliver)
+   ├─► perceive: brief + handoff artifact từ step trước
+   ├─► work: LLM + persona + company-docs + web search (role Nghiên cứu)
+   │   ├─ web search: Tavily/Brave snippets-only, fail-closed pattern-scan BEFORE egress
+   │   └─ audit: redacted query only
+   └─► deliver: atomic artifact + append office_room_store (PII projection AT WRITE TIME)
+
+office_room_store (SQLite WAL+seq SSoT) ──► routes_office_stream (SSE store-tail, multi-subscriber)
+   ├─► OfficeRoom.tsx (timeline)
+   ├─► office-3d/office-scene (wireframe, tween by state, 2D fallback)
+   └─► milestone_mirror_runner (store-poller, cursor-after-send, milestone→Telegram)
+```
+
+**Web-search egress threat model:**
+- **Stage 1 (fail-closed redaction)**: pattern-scan query before egress → no match = NO egress (FAIL-CLOSED).
+- **Stage 2 (injection delimiting)**: 4-layer defense (delimiter markers / regex markers / ToolMessage sandbox / spotlight highlighting).
+- **Stage 3 (snippets-only)**: Tavily/Brave return snippets; no page-fetch (reduces injection surface).
+- **Stage 4 (ToolMessage audit)**: content-search result never assigned external write permission; audit logs redacted-only query.
+- **Accepted residual risk**: regex KHÔNG bắt free-form secrets (composed inside query từ internal context) — same class accepted-risk as Atlassian tokens (pattern-undetectable). Mitigated by: snippets-only + fail-closed on known patterns + audit redacted.
+
 ## 7. What's PRESERVED from v1
 
 - **Action Gateway guardrail** — Lớp A hard-deny (red line, trước LLM), allowlist-default-deny, Lớp B approve, audit immutable + secret redaction, budget cap, dedup reserve-before-execute. **Giữ nguyên logic, chỉ per-agent hóa** (path + config từ profile). `classify()` / `needs_interrupt()` không đổi.

@@ -5,11 +5,19 @@
 // confirm; the `default` agent's Delete action is hidden (backend also 400s it).
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
-import { api } from '../api/client'
+import { ApiError, api } from '../api/client'
 import { IntegrationHealthPanel } from '../components/IntegrationHealthPanel'
 import { KIND_LABEL, RUN_STATUS_LABEL, labelFor } from '../labels'
 import { useUiMode } from '../ui-mode-context'
 import type { AgentStatus, AgentSummary, TeamAlert } from '../types'
+
+// 1-click coordinator bootstrap ("Tạo trưởng phòng"): scaffolds an agent from the
+// `truong-phong` staff template (role_id) and points `company.yaml::coordinator_id` at
+// it. Fixed id — the button is hidden once a coordinator already exists (see
+// `coordinatorId` gate below), so a repeat click racing itself is the only collision
+// path; that already 409s cleanly via api.createAgent same as the wizard's manual path.
+const COORDINATOR_TEMPLATE_ROLE_ID = 'truong-phong'
+const COORDINATOR_AGENT_ID = 'truong-phong'
 
 export function Team() {
   const [agents, setAgents] = useState<AgentSummary[]>([])
@@ -26,6 +34,8 @@ export function Team() {
   // v3 M8: deterministic fleet alerts (budget near cap, stuck approvals, deny spikes).
   const [alerts, setAlerts] = useState<TeamAlert[]>([])
   const [creating, setCreating] = useState(false)
+  const [coordinatorId, setCoordinatorId] = useState<string | null | undefined>(undefined) // undefined = not loaded yet
+  const [creatingCoordinator, setCreatingCoordinator] = useState(false)
   const { isHigh } = useUiMode()
   const navigate = useNavigate()
 
@@ -66,8 +76,43 @@ export function Team() {
       .finally(() => setLoading(false))
   }, [])
 
+  const loadCompany = useCallback(() => {
+    api
+      .getCompany()
+      .then((c) => setCoordinatorId(c.coordinator_id))
+      .catch(() => setCoordinatorId(null)) // treat "unknown" as "no coordinator yet" — never blocks the button
+  }, [])
+
   useEffect(() => {
     loadAgents()
+    loadCompany()
+  }, [loadAgents, loadCompany])
+
+  const createCoordinator = useCallback(async () => {
+    setCreatingCoordinator(true)
+    setOpError(null)
+    try {
+      const templates = await api.getStaffTemplates()
+      const template = templates.templates.find((t) => t.role_id === COORDINATOR_TEMPLATE_ROLE_ID)
+      if (!template) throw new Error(`không tìm thấy mẫu "${COORDINATOR_TEMPLATE_ROLE_ID}"`)
+      const created = await api.createAgent({
+        id: COORDINATOR_AGENT_ID,
+        name: template.role,
+        domain: template.domain,
+        reports: template.reports,
+        schedule: {},
+        bindings: {},
+        ...(template.persona.trim() ? { persona: template.persona } : {}),
+      })
+      const company = await api.getCompany()
+      await api.saveCompany(company.name, created.created.id, company.team_task_cap_usd)
+      setCoordinatorId(created.created.id)
+      loadAgents()
+    } catch (e: unknown) {
+      setOpError(e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'tạo trưởng phòng thất bại')
+    } finally {
+      setCreatingCoordinator(false)
+    }
   }, [loadAgents])
 
   async function toggleEnabled(agent: AgentSummary) {
@@ -127,6 +172,16 @@ export function Team() {
         <button type="button" className="btn-link" disabled={creating} onClick={goCreate}>
           + Tạo nhân sự ảo
         </button>
+        {coordinatorId === null && (
+          <button
+            type="button"
+            className="btn-link"
+            disabled={creatingCoordinator}
+            onClick={createCoordinator}
+          >
+            {creatingCoordinator ? 'Đang tạo…' : '+ Tạo trưởng phòng'}
+          </button>
+        )}
         <Link to="/company-docs" className="btn-link">
           📄 Kho tài liệu
         </Link>

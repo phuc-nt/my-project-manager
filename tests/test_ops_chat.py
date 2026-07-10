@@ -243,6 +243,32 @@ def test_cancel_at_confirm_creates_nothing(tmp_path, monkeypatch):
         store.close()
 
 
+def test_preview_value_error_becomes_friendly_reply_and_clears_draft(tmp_path, monkeypatch):
+    """A `preview` hook's `ValueError` (e.g. `assign_team_task` when no Telegram
+    escalation route is configured, or a brief the decomposer rejects) is a user-facing
+    validation message, not a server crash: `_advance_or_confirm` must catch it, reply
+    with the message, and drop the draft — never let it propagate out of
+    `handle_ops_message` (which would 500 the poller) and never leave a half-formed
+    draft the CEO's next message would be confused by."""
+    import src.agent.ops_chat as ops_chat_module
+
+    def _boom_preview(slots):
+        raise ValueError("chưa có đường báo cáo sự cố")
+
+    monkeypatch.setitem(ops_chat_module.OPS_COMMANDS["assign_team_task"], "preview", _boom_preview)
+    store = _store(tmp_path)
+    try:
+        reply, _ = handle_ops_message(
+            message="giao việc viết báo cáo tháng", conversation_key="ceo", store=store,
+            llm=_FakeLlm('{"intent":"command","command_id":"assign_team_task",'
+                         '"slots":{"brief":"viết báo cáo tháng"}}'), now=1.0,
+        )
+        assert reply == "Chưa giao được việc: chưa có đường báo cáo sự cố"
+        assert store.load("ceo", now=1.0) is None  # no half-formed draft left behind
+    finally:
+        store.close()
+
+
 def test_cancel_during_collecting(tmp_path):
     store = _store(tmp_path)
     store.save("ceo", OpsDraft("create_agent", {"id": "x"}, "collecting", 1.0))

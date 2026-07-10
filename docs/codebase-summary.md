@@ -1,7 +1,7 @@
 # Codebase Summary — my-project-manager
 
 > Bản đồ codebase, cập nhật khi code hình thành. Đọc để biết "cái gì ở đâu" nhanh.
-> Status: **2026-07-10 — v11 D4 COMPLETE (XLSX report export + email attachment).** 1257 tests, ruff clean, attachment confinement red line + internal-only delivery.
+> Status: **2026-07-10 — v12 M27–M30 COMPLETE (Agent Office: company setup, team orchestration, group chat, 3D office).** 1500 backend + 146 FE tests, ruff clean, office-pack allowlist wired, THE INVARIANT extended (PII firewall at write time).
 
 ## Trạng thái hiện tại (v2 COMPLETE: M1+M2+M3)
 
@@ -37,6 +37,15 @@
 
 ### M19: Company Docs (2026-07-04)
 - **P13**: Company Docs library — flat files `company-docs/<slug>.md` (frontmatter title/updated). Agents opt-in via `company_docs:` list in profile.yaml (mirrors `skills:`). Doc bodies inject into INTERNAL compose prompt only as `<company_docs>` block (char-budget declared). **RED LINE: external audience gets zero bytes** (same guard as P10 skills; `company_docs_text` checks `audience != "internal"`). No DB, no RAG/embeddings; per-agent opt-in is selection mechanism (YAGNI). New modules: `src/company_docs/{store,inject,pool}.py`. New routes: `src/server/routes_company_docs.py` (library CRUD) + `src/server/routes_agent_company_docs.py` (per-agent opt-in). Web UI: `web/src/views/CompanyDocs.tsx` + picker in agent profile page. Backup: `deploy/backup.sh` tars `company-docs/`; `.gitignore` ignores (user data, restored from backup).
+
+### M27–M30: Agent Office (2026-07-10)
+- **M27 — Company setup**: `company.yaml` (name/coordinator_id/team_task_cap_usd=$2, gitignored per-install, mirror registry loader pattern). Staff templates in `profiles/templates/<role>/` = wizard prefill, 6 roles incl 5 office roles (Trưởng phòng, Nghiên cứu, Nội dung, Phân tích, Kiểm định, domain `office`). 1-click create coordinator (button ở Team page). New modules: `src/runtime/company.py` loader; `src/server/routes_company.py` CRUD; `web/src/wizard/staff-template-picker.tsx` + extend wizard.
+- **M28a — Team-task store + graph**: `team_task_store.py` (SQLite WAL+seq+lease for step execution state machine). `team_task_graph.py` (perceive→work→deliver, atomic artifact handoff `/data_dir/artifacts/team-tasks/<id>/step-<n>.json`). Worker CLI gains `--task-id --step-id --attempt-id` argv (generic `team-step` run-kind). New modules: `src/runtime/{team_task_store,team_task_steps,team_task_paths,team_step_runner,team_tick_runner,team_tick_collaborators,team_task_cost,team_task_roster}.py`; `src/agent/{team_task_graph,team_task_artifact}.py`.
+- **M28b — Coordinator + web search**: Coordinator = TICKER pseudo-kind (mirror tasks/ops-alerts, short tick exit, KHÔNG 600s-kill, lease reserve per-step). Decompose+confirm on admin ops agent via `assign_team_task` (1 LLM sync call → DecomposedTask, max 7 steps, role-constrained, plan hash bind TOCTOU-proof). Step dispatch DETACHED with lease (attempt_id+pid+lease_expires_at), per-step timeout → kill pid + escalate Telegram try/degrade (dedup_hint). **Web search** Tavily primary / Brave fallback, snippets-only, fail-closed query redaction BEFORE egress, 4-layer injection defense (delimiter/regex-filter/ToolMessage-sandbox/spotlight). New modules: `src/agent/{coordinator_graph,task_decomposition,ops_assign_team_task,team_task_roster}.py`; `src/tools/{web_search_tool,search_result_formatter}.py`; extend `src/actions/secret_patterns.py` redaction; `src/server/routes_setup.py` search-key whitelist.
+- **M29 — Office room**: `office_room_store.py` (SQLite WAL+seq AUTOINCREMENT SSoT). `office_event_projection.py` (default-drop allowlist PII firewall AT WRITE TIME). `routes_office_stream.py` (SSE store-tail `/api/office/rooms/{id}/stream`, multi-subscriber, seq-cursored resume-safe). `milestone_mirror_runner.py` (store-poller pseudo-kind, cursor-after-send, milestone-only Telegram DM). New modules: `src/runtime/{office_room_store,office_room_append,milestone_mirror_runner}.py`; `src/server/{routes_office_stream,office_event_projection}.py`; `web/src/views/OfficeRoom.tsx`, `web/src/hooks/use-office-stream.ts`.
+- **M30 — Office 3D**: r3f wireframe (~930KB lazy chunk `routes/office-scene-lazy.tsx`, isolated from main bundle). 2D fallback (table) for `prefers-reduced-motion`/mobile. Driven ONLY by real SSE events from office_room_store. New modules: `web/src/views/office-3d/{office-scene,agent-desk,coordinator-desk,speech-bubble,agent-status-table}.tsx`; add `three`, `@react-three/fiber@^9`, `@react-three/drei@^10` to `web/package.json`.
+- **office-pack** new domain (`domain-packs/office-pack/`, Coordinator topology). Allowlist wiring: all `ActionGateway` MUST pass `mcp_allowlist=pack.allowlist or None` (M8-class regression guard). Default-deny on pack allowlist rests. Coordinator/step KHÔNG có write handler mặc định.
+- **THE INVARIANT EXTENDED**: handoff nội bộ (/data_dir/artifacts/team-tasks/) KHÔNG egress. External write per-step vẫn Lớp B per-agent. Allowlist default-deny giữ. **PII firewall office events**: default-drop allowlist projection AT WRITE TIME → replay tự động an toàn; cấm free-form body_json. Role authz gate deterministic (decompose-validation + dispatch, assigned_to ∈ company staff + CEO-confirmed plan hash).
 
 **Entry points**: Legacy `python -m src.entrypoints.cli`/`cron` (single-agent). Multi-agent: `python -m src.entrypoints.mpm agent {list,register,run,resume,replay,automate,approvals,approve,reject,audit}`. Runtime: `python -m src.runtime.worker`, `python -m src.runtime.service`.
 
@@ -146,6 +155,21 @@ registry.yaml     # [NEW P3] agents: [{id, enabled}]
 | Tạo page Confluence | `src/actions/confluence_write.py` (create_report_page via gateway) |
 | **[v11 D4] XLSX export** | `src/reporting/xlsx_export.py` — `build_resource_xlsx()`, `build_okr_xlsx()`, `artifact_path()` (deterministic from dataclasses, no LLM) |
 | **[v11 D4] Email attachment** | `src/actions/email_write.py::deliver_email_report()` — gateway-routed, ALL Lớp B; `_attachment_bytes()` re-validates attachment path; `make_email_handler()` binds SMTP config |
+| **[M27] Company loader** | `src/runtime/company.py::load_company()` — parse `company.yaml` (name/coordinator_id/team_task_cap_usd); default safe no-crash if missing |
+| **[M27] Staff templates** | `profiles/templates/<role>/profile.yaml` + SOUL/PROJECT/MEMORY (wizard prefill) — 6 roles incl 5 office: Trưởng phòng, Nghiên cứu, Nội dung, Phân tích, Kiểm định |
+| **[M28a] Team-task store** | `src/runtime/team_task_store.py` — WAL+seq+lease state machine (pending → open → running → completed/failed); `reserve_step()` atomic lease (attempt_id+pid+lease_expires_at) |
+| **[M28a] Team-task graph** | `src/agent/team_task_graph.py` — perceive(brief+handoff) → work(LLM+persona+company-docs+web-search) → deliver(artifact atomic + append office_room_store) |
+| **[M28b] Coordinator ticker** | `src/agent/coordinator_graph.py` — TICKER pseudo-kind (short tick exit, no 600s-kill), lease logic, step spawn DETACHED, reboot recovery via store read |
+| **[M28b] Decompose+confirm** | `src/agent/task_decomposition.py` — Pydantic schema (max 7 steps, role-constrained), `assign_team_task` on admin ops agent (1 LLM sync), plan hash bind TOCTOU-proof, no re-materialize |
+| **[M28b] Web search** | `src/tools/web_search_tool.py` + `src/tools/search_result_formatter.py` — Tavily primary/Brave fallback, snippets-only (no page fetch), fail-closed pattern-scan before egress, 4-layer injection defense |
+| **[M28b] Query redaction** | Extend `src/actions/secret_patterns.py` — redact query before egress, audit logs redacted query only (KHÔNG raw) |
+| **[M28b] Cost cap per task** | `src/runtime/team_task_cost.py` — sum `HistoryEntry.cost_usd` (decompose+step+aggregate), default $2/task via `company.yaml::team_task_cap_usd` |
+| **[M29] Office room store** | `src/runtime/office_room_store.py` — SQLite WAL+seq AUTOINCREMENT SSoT; append-only, seq-indexed for stream-tail |
+| **[M29] Office event projection** | `src/server/office_event_projection.py` — default-drop allowlist firewall, PII projection AT WRITE TIME (safe replay) |
+| **[M29] Office stream SSE** | `src/server/routes_office_stream.py::stream_office_room()` — store-tail per seq, multi-subscriber (KHÔNG 1-drain 409 limit), resume-from-seq safe |
+| **[M29] Telegram mirror** | `src/runtime/milestone_mirror_runner.py` — store-poller pseudo-kind, cursor-after-send, milestone-only DM (chỉ nhận việc/xong/hoàn/duyệt), dedup, không spam |
+| **[M30] Office 3D** | `web/src/views/office-3d/` — r3f wireframe (lazy chunk ~930KB), agent-desk/coordinator-desk/speech-bubble, driven by SSE thật; 2D fallback (table) reduced-motion/mobile |
+| **[M27–M30] office-pack** | `domain-packs/office-pack/` — coordinator domain, allowlist wiring bắt buộc (`mcp_allowlist=pack.allowlist or None`) |
 | Guardrail allow/deny | `src/actions/hard_block.py` (allowlist + Lớp A/B + per-agent in P3) |
 | **[v11 D4] Attachment confinement** | `src/actions/hard_block.py::confined_xlsx_path()` — NEW Lớp A red line; verify attachment is .xlsx, exists, inside artifact_root (symlink-safe via resolve()) |
 | Guardrail giải thích | `docs/v1/action-gateway-explainer.md` — safety model (giữ nguyên từ v1) |
@@ -177,7 +201,8 @@ registry.yaml     # [NEW P3] agents: [{id, enabled}]
 
 ## Testing
 
-- **Unit tests**: `uv run pytest` — 816 tests pass (M1-P1..P4 + M2-P5..P8 + M3-P10/P9/P11/P12 + M5 pack/dispatch/red-line coverage).
+- **Unit tests**: `uv run pytest` — 1500 backend tests pass (M1–M6, M19, M27–M30 + coverage pack/dispatch/red-line/office/web-search injection).
+- **Frontend tests**: `vitest` — 146 tests (M30 3D/office views, M27 template-picker, M28 team components).
 - **Linting**: `uv run ruff check src tests` — clean.
 - **Byte-identity**: pm-pack output (report text, Slack mrkdwn, Confluence XHTML) diff vs pre-v3 = empty (2026-06-30).
 - **E2E Red-line suite** (M5 verified live, 2026-06-30): pack allowlist loaded; Lớp A hard-deny refuses destructive unplugged tools; default-DENY preserves invariant. `default` profile (no domain field) routes to pm-pack; M1-style e2e (Jira read, Confluence create, Slack post) re-runs without code change.

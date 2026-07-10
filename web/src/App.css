@@ -165,6 +165,42 @@ h4 { font-size: var(--fs-h4); }
   padding: 0.3rem 0.8rem; font-size: 0.85rem; cursor: pointer; text-decoration: none; color: var(--color-text); transition: background var(--motion-fast); }
 .chip:hover { background: var(--color-neutral-bg); }
 .chip-alert { border-color: var(--color-danger); color: var(--color-danger); background: var(--color-danger-bg); font-weight: 600; }
+.chip-active { background: var(--color-primary); color: var(--color-primary-contrast); border-color: var(--color-primary); }
+
+/* Office group-chat room (v12 M29) — a room picker + live timeline, reusing .chip for the
+   picker and .ops-chat-* spacing conventions for the log itself. */
+.office-room-layout { display: flex; gap: var(--space-4); align-items: flex-start; }
+.office-room-picker { display: flex; flex-direction: column; gap: var(--space-2); min-width: 160px; }
+.office-room-timeline { flex: 1; min-width: 0; }
+.office-room-status { color: var(--color-muted); font-size: var(--fs-sm); margin: 0 0 var(--space-2); }
+.office-room-log { list-style: none; margin: 0; padding: 0; border: 1px solid var(--color-border);
+  border-radius: var(--radius); max-height: 60vh; overflow-y: auto; background: var(--color-bg-faint); }
+.office-room-entry { padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--color-border); }
+.office-room-entry:last-child { border-bottom: none; }
+.office-room-kind { display: inline-block; font-size: 0.75rem; font-weight: 600; color: var(--color-subtle);
+  margin-right: var(--space-2); }
+.office-room-author { font-size: 0.75rem; color: var(--color-muted); }
+.office-room-text { margin: 0.2rem 0 0; white-space: pre-wrap; }
+.office-room-milestone .office-room-kind { color: var(--color-primary); }
+
+/* Office 3D wireframe (v12 M30) — the Canvas always renders on its own fixed dark background
+   (see office-scene.tsx's <color attach="background">), independent of the app's light/dark
+   theme, so wire colors are chosen for contrast against THAT background rather than tokens.
+   Surrounding chrome (heading, hint, HTML overlays) still uses the normal --color-* tokens so it
+   reads correctly in both app themes. */
+.office-3d-canvas-wrap { width: 100%; height: 70vh; min-height: 420px; border: 1px solid var(--color-border);
+  border-radius: var(--radius); overflow: hidden; background: #121212; }
+.office-3d-bubble { background: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius); padding: 0.3rem 0.6rem; font-size: 0.78rem; white-space: nowrap; box-shadow: var(--shadow-sm); }
+.office-3d-bubble strong { display: block; }
+.office-3d-bubble-step { display: block; color: var(--color-muted); font-size: 0.72rem; }
+.office-3d-label { color: #e8e8e8; font-size: 0.72rem; font-weight: 600; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8); white-space: nowrap; }
+.office-3d-fallback-table { margin-top: var(--space-3); }
+.office-3d-state { font-weight: 600; }
+.office-3d-state-idle { color: var(--color-muted); }
+.office-3d-state-assigned { color: var(--color-accent); }
+.office-3d-state-working { color: var(--color-warn); }
+.office-3d-state-done { color: var(--color-ok); }
 /* High-mode ("Chế độ nâng cao") secondary nav row — v10 M25. Lighter than the primary row so
    the 4 CEO items stay dominant; sits directly under them. */
 .app-nav-advanced { gap: var(--space-3); font-size: var(--fs-sm); margin-top: calc(-1 * var(--space-2)); }

@@ -105,13 +105,44 @@ def test_create_scaffolds_profile_and_registry(client, tmp_world):
     assert (profiles / "hr-team" / "MEMORY.md").exists()
 
 
+def test_create_accepts_empty_reports(client, tmp_world):
+    # v12 M27: a staffer created from a team-task/office-role template has no scheduled
+    # report kind of its own — create_agent must accept reports: [] (empty schedule too).
+    _, profiles = tmp_world
+    spec = {**_GOOD_SPEC, "id": "staffer-1", "reports": [], "schedule": {}}
+    res = client.post("/api/agents/create", json=spec)
+    assert res.status_code == 201, res.text
+    assert res.json()["created"]["reports"] == []
+    import yaml
+
+    doc = yaml.safe_load((profiles / "staffer-1" / "profile.yaml").read_text(encoding="utf-8"))
+    assert doc["reports"] == []
+    # web_search was not requested — the opt-in key must not appear at all.
+    assert "web_search" not in doc
+
+
+def test_create_writes_web_search_opt_in(client, tmp_world):
+    # The research-role template pre-fills web_search; the wizard forwards it and the
+    # created profile carries the literal flag the loader reads (opt-in, default false).
+    _, profiles = tmp_world
+    spec = {**_GOOD_SPEC, "id": "researcher-1", "reports": [], "schedule": {},
+            "web_search": True}
+    res = client.post("/api/agents/create", json=spec)
+    assert res.status_code == 201, res.text
+    import yaml
+
+    doc = yaml.safe_load(
+        (profiles / "researcher-1" / "profile.yaml").read_text(encoding="utf-8")
+    )
+    assert doc["web_search"] is True
+
+
 @pytest.mark.parametrize(
     ("patch", "fragment"),
     [
         ({"id": "Bad/Id"}, "id"),
         ({"domain": "nope"}, "unknown domain"),
         ({"reports": ["daily"]}, "not served"),
-        ({"reports": []}, "at least one"),
         ({"schedule": {"headcount": "not-cron"}}, "cron"),
         ({"schedule": {"weekly": "0 9 * * 1"}}, "not a selected"),
         ({"bindings": {"slack": {"hack": "x"}}}, "not settable"),

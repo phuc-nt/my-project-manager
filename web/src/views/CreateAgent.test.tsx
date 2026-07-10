@@ -24,15 +24,24 @@ const HR_PACK = {
 beforeEach(() => {
   vi.restoreAllMocks()
   vi.spyOn(api, 'getPacks').mockResolvedValue({ packs: [PM_PACK, HR_PACK] })
+  vi.spyOn(api, 'getStaffTemplates').mockResolvedValue({ templates: [] })
 })
 
 function wrap(ui: React.ReactElement) {
   return render(<MemoryRouter>{ui}</MemoryRouter>)
 }
 
+// Step 0 is the optional staff-template picker — these tests exercise the manual path,
+// so skip it every time.
+async function skipTemplateStep() {
+  await waitFor(() => expect(screen.getByText('Bỏ qua, tự chọn')).toBeInTheDocument())
+  fireEvent.click(screen.getByText('Bỏ qua, tự chọn'))
+  await waitFor(() => expect(screen.getByText('Project Management')).toBeInTheDocument())
+}
+
 async function goToReview() {
   wrap(<CreateAgent />)
-  await waitFor(() => expect(screen.getByText('Project Management')).toBeInTheDocument())
+  await skipTemplateStep()
 
   // Step 1: pick the pack
   fireEvent.click(screen.getByRole('radio', { name: /Project Management/ }))
@@ -87,7 +96,7 @@ test('switching packs after selecting reports does not leak the stale report kin
     created: { id: 'acme-hr', domain: 'hr', reports: ['headcount'] },
   })
   wrap(<CreateAgent />)
-  await waitFor(() => expect(screen.getByText('Project Management')).toBeInTheDocument())
+  await skipTemplateStep()
 
   // Step 1: pick pm, select "daily" in step 3, then go Back to step 1 and pick hr instead.
   fireEvent.click(screen.getByRole('radio', { name: /Project Management/ }))

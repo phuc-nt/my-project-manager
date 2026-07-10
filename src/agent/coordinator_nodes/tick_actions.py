@@ -1,0 +1,153 @@
+"""One-action bodies for the coordinator ticker (v12 M28b) — split out of
+`coordinator_graph.py` to keep that module under the repo's ~200 LOC guideline.
+
+Each function performs exactly the ONE action `coordinator_graph.run_one_tick`
+delegates to it and returns a `TickResult`; none of them loop or poll beyond the
+single task/step they were called with — the looping/selection logic stays in
+`coordinator_graph._act_on_task`.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from src.runtime.office_room_append import append_office_event
+from src.runtime.team_task_store import TeamStep, TeamTask
+
+if TYPE_CHECKING:
+    from src.agent.coordinator_graph import CoordinatorDeps, TickResult
+
+#: A dead-pid step is retried exactly once before being marked permanently `failed`.
+MAX_STEP_RETRIES = 1
+
+
+def reserve_and_spawn(deps: CoordinatorDeps, task: TeamTask, step: TeamStep) -> TickResult:
+    """Reserve-before-spawn: `reserve_step` always claims (idempotency guard already
+    passed — this step was either `pending` or an already-caught dead/expired
+    `running` step whose caller cleared it back to reservable via `poll_running_step`).
+
+    Dispatch-time role re-check: the step's `assigned_to` was authorized once
+    at decompose-validation time, but the registry/roles can drift between confirm and
+    dispatch (an agent disabled, removed, or promoted to coordinator/admin since). A
+    mismatch here must fail the step + escalate, NEVER spawn a process under a no-longer
+    -authorized identity — checked BEFORE `reserve_step` so a rejected step never
+    consumes a lease/attempt_id at all.
+    """
+    from src.agent.coordinator_graph import TickResult
+
+    if not deps.roster_ok(step.assigned_to):
+        deps.store.mark_failed(task.id, step.step_id)
+        deps.escalate(
+            task, step, "step_assignee_unauthorized",
+            f"Bước '{step.title}' của việc '{task.title}' bị dừng: người được giao "
+            f"'{step.assigned_to}' không còn hợp lệ (đã bị xoá/vô hiệu hoá) — cần CEO xem lại.",
+        )
+        return TickResult(task_id=task.id, action="failed", detail=step.step_id)
+
+    attempt_id = deps.store.reserve_step(task.id, step.step_id)
+    pid = deps.spawn_step(task, step, attempt_id)
+    deps.store.record_spawn(task.id, step.step_id, pid)
+    # `author` stays "coordinator" (the ticker is the one dispatching this event, not
+    # the assignee doing any work yet) but the office-room reducer needs to know WHICH
+    # agent's desk should animate — carried via `assigned_to` in the body, not authorship.
+    append_office_event(
+        task.id, author="coordinator", kind="step_status",
+        body={"task_title": task.title, "step_title": step.title, "status": "started",
+              "assigned_to": step.assigned_to},
+        also_office=True,
+    )
+    return TickResult(task_id=task.id, action="spawned",
+                      detail=f"{step.step_id} attempt={attempt_id} pid={pid}")
+
+
+def poll_running_step(deps: CoordinatorDeps, task: TeamTask, step: TeamStep) -> TickResult:
+    from src.agent.coordinator_graph import TickResult
+
+    pid_dead = step.child_pid is None or not deps.pid_alive(step.child_pid)
+    has_artifact = step.outcome_ref is not None
+    lease_expired = deps.store.lease_expired(task.id, step.step_id, now=deps.now())
+
+    if pid_dead and not has_artifact:
+        retries = deps.retry_tracker.get(task.id, step.step_id)
+        if retries >= MAX_STEP_RETRIES:
+            # attempt-guarded: the ticker read `step` as a snapshot at the top
+            # of this tick — pass its OWN attempt_id so a concurrent re-reservation
+            # (another ticker instance, or the worker's own terminal write racing this
+            # one) makes this a clean no-op instead of clobbering a newer attempt's row.
+            deps.store.mark_failed(task.id, step.step_id, attempt_id=step.attempt_id)
+            deps.retry_tracker.clear(task.id, step.step_id)
+            deps.escalate(
+                task, step, "step_failed",
+                f"Bước '{step.title}' của việc '{task.title}' thất bại sau "
+                f"{MAX_STEP_RETRIES + 1} lần thử (tiến trình chết, không có kết quả).",
+            )
+            return TickResult(task_id=task.id, action="failed", detail=step.step_id)
+        deps.retry_tracker.increment(task.id, step.step_id)
+        # Re-reserve NOW (idempotent: caller already verified pid-dead+no-artifact,
+        # the store-level double-spawn guard per M28a's docstring).
+        return reserve_and_spawn(deps, task, step)
+
+    if lease_expired:
+        if step.child_pid is not None and step.attempt_id is not None:
+            deps.kill_pid(step.child_pid, step.attempt_id)
+        deps.store.mark_timeout(task.id, step.step_id, attempt_id=step.attempt_id)
+        deps.escalate(
+            task, step, "step_timeout",
+            f"Bước '{step.title}' của việc '{task.title}' quá thời hạn "
+            f"({deps.step_timeout_s}s) — đã dừng tiến trình, cần CEO xem lại.",
+        )
+        return TickResult(task_id=task.id, action="timeout_escalated", detail=step.step_id)
+
+    return TickResult(task_id=task.id, action="none", detail=f"{step.step_id} still running")
+
+
+def poll_awaiting_approval_step(
+    deps: CoordinatorDeps, task: TeamTask, step: TeamStep
+) -> TickResult:
+    """A step paused on a Lớp B gate WITH a known `approval_id`: poll `ApprovalStore`
+    (via `deps.approval_status`) and act on a resolved decision.
+
+    `approved` -> re-reserve + re-spawn the SAME step. There is no LangGraph
+    checkpointer on the team-step graph (`team_task_graph.py`'s module docstring), so
+    "resume" means re-running perceive/work/deliver from scratch on a fresh
+    `attempt_id` — safe because `deliver`'s external write goes back through the SAME
+    per-agent `ActionGateway`, whose reserve-before-execute dedup claim (content-hash or
+    `dedup_hint`, see `action_gateway._action_dedup_key`) makes an identical re-attempt
+    a no-op `"deduplicated"` result if the write already went out, and a normal single
+    execution if it never did — either way the CEO never gets a duplicate external
+    effect from this replay.
+
+    `rejected` -> terminal: mark the step `failed` (no retry — the CEO explicitly said
+    no) and escalate.
+
+    `pending` (or an id that no longer resolves, `None`) -> leave the step exactly
+    alone, same as a step with no `approval_id` at all — the lease clock stays PAUSED,
+    nothing is timed out or re-polled until the next tick.
+    """
+    from src.agent.coordinator_graph import TickResult
+
+    decision = deps.approval_status(step.approval_id) if step.approval_id else None
+    if decision == "approved":
+        return reserve_and_spawn(deps, task, step)
+    if decision == "rejected":
+        # attempt-guarded: same rationale as `poll_running_step`'s terminal
+        # writes — `step.attempt_id` is the lease this ticker read the row under.
+        deps.store.mark_failed(task.id, step.step_id, attempt_id=step.attempt_id)
+        deps.escalate(
+            task, step, "step_approval_rejected",
+            f"Bước '{step.title}' của việc '{task.title}' bị từ chối phê duyệt — đã dừng.",
+        )
+        return TickResult(task_id=task.id, action="failed", detail=step.step_id)
+    return TickResult(task_id=task.id, action="none",
+                      detail=f"{step.step_id} awaiting_approval (id={step.approval_id})")
+
+
+def aggregate_and_deliver(deps: CoordinatorDeps, task: TeamTask) -> TickResult:
+    from src.agent.coordinator_graph import TickResult
+
+    summary, cost = deps.aggregate(task)
+    if cost is not None:
+        deps.store.record_task_cost(task.id, aggregate=cost)
+    deps.deliver_room(task, summary)
+    deps.store.set_task_status(task.id, "done")
+    return TickResult(task_id=task.id, action="aggregated", detail=summary[:80])

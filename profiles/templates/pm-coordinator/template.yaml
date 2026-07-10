@@ -1,0 +1,18 @@
+# Staff template v1 — prefill source ONLY for the CreateAgent wizard.
+#
+# Contract v1 = {role, domain, reports, bindings_hint}. Deliberately NO `skills` field:
+# there is no channel from the wizard's buildSpec()/agent_create into a skills list yet
+# (that would be a phantom knob nobody reads) — adding it here would silently do nothing.
+#
+# Creating an agent from a template still goes through the SAME `create_agent` path as a
+# hand-filled wizard; this file only prefills the wizard's state (IdentityStep/ReportsStep
+# + persona from SOUL.md). `bindings_hint` names the binding KEYS the wizard should surface
+# for this role — values are still entered by the CEO (never a secret or id guessed here).
+role: "Điều phối dự án"
+domain: pm
+reports:
+  - daily
+  - weekly
+bindings_hint:
+  - jira
+  - slack

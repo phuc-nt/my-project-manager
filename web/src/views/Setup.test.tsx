@@ -8,7 +8,26 @@ import { Setup } from './Setup'
 beforeEach(() => {
   vi.restoreAllMocks()
   vi.spyOn(api, 'setupEnv').mockResolvedValue({ ok: true, written: [] })
+  vi.spyOn(api, 'getAgents').mockResolvedValue([])
+  vi.spyOn(api, 'saveCompany').mockResolvedValue({
+    name: '',
+    coordinator_id: null,
+    team_task_cap_usd: 2.0,
+  })
 })
+
+// One extra "Công ty" step sits between the 5 key groups (openrouter, atlassian, slack,
+// github, websearch) and the password step — walk it too (mocked api.saveCompany,
+// asserted separately where relevant).
+async function advanceThroughGroupsAndCompany() {
+  for (let i = 0; i < 5; i++) {
+    fireEvent.click(screen.getByText('Tiếp tục'))
+    await waitFor(() => {}) // let saveGroup resolve
+  }
+  await waitFor(() => expect(screen.getByText('Công ty')).toBeInTheDocument())
+  fireEvent.click(screen.getByText('Tiếp tục'))
+  await waitFor(() => {}) // let saveCompany resolve
+}
 
 test('renders the first group and can test the connection', async () => {
   const setupTest = vi
@@ -33,11 +52,8 @@ test('advances through groups to the password step and finishes', async () => {
   const onDone = vi.fn()
   render(<Setup onDone={onDone} />)
 
-  // click "Tiếp tục" through the 4 groups → password step
-  for (let i = 0; i < 4; i++) {
-    fireEvent.click(screen.getByText('Tiếp tục'))
-    await waitFor(() => {}) // let saveGroup resolve
-  }
+  // click "Tiếp tục" through the 4 groups + company step → password step
+  await advanceThroughGroupsAndCompany()
   await waitFor(() => expect(screen.getByText('Đặt mật khẩu đăng nhập')).toBeInTheDocument())
 
   fireEvent.change(screen.getByLabelText(/Mật khẩu/), { target: { value: 'ceopass' } })
@@ -49,13 +65,36 @@ test('advances through groups to the password step and finishes', async () => {
 test('short password blocks finish', async () => {
   const finish = vi.spyOn(api, 'setupFinish')
   render(<Setup onDone={vi.fn()} />)
-  for (let i = 0; i < 4; i++) {
-    fireEvent.click(screen.getByText('Tiếp tục'))
-    await waitFor(() => {})
-  }
+  await advanceThroughGroupsAndCompany()
   await screen.findByText('Đặt mật khẩu đăng nhập')
   fireEvent.change(screen.getByLabelText(/Mật khẩu/), { target: { value: '12' } })
   // button disabled at <6 chars → finish never called
   expect(screen.getByText('Hoàn tất & khởi động')).toBeDisabled()
   expect(finish).not.toHaveBeenCalled()
+})
+
+test('company step writes name + chosen coordinator via POST /api/company', async () => {
+  vi.spyOn(api, 'getAgents').mockResolvedValue([
+    { id: 'default', name: 'Default Agent', enabled: true, last_run: null },
+  ])
+  const saveCompany = vi.spyOn(api, 'saveCompany').mockResolvedValue({
+    name: 'Acme JSC',
+    coordinator_id: 'default',
+    team_task_cap_usd: 2.0,
+  })
+  render(<Setup onDone={vi.fn()} />)
+
+  for (let i = 0; i < 5; i++) {
+    fireEvent.click(screen.getByText('Tiếp tục'))
+    await waitFor(() => {})
+  }
+  await waitFor(() => expect(screen.getByText('Công ty')).toBeInTheDocument())
+  await waitFor(() => expect(screen.getByText(/Default Agent/)).toBeInTheDocument())
+
+  fireEvent.change(screen.getByLabelText('Tên công ty'), { target: { value: 'Acme JSC' } })
+  fireEvent.change(screen.getByLabelText(/Trưởng phòng/), { target: { value: 'default' } })
+  fireEvent.click(screen.getByText('Tiếp tục'))
+
+  await waitFor(() => expect(screen.getByText('Đặt mật khẩu đăng nhập')).toBeInTheDocument())
+  expect(saveCompany).toHaveBeenCalledWith('Acme JSC', 'default')
 })

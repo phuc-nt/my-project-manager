@@ -1,0 +1,294 @@
+"""Step-level SQL for the team-task store — split out of `team_task_store.py`
+to keep each module under the repo's ~200 LOC guideline.
+
+Pure functions over a raw `sqlite3.Connection` (no class): `TeamTaskStore` owns the
+connection/schema/task-level API and delegates every `team_steps` row operation here.
+Kept function-style (not a second class) because every call already takes the shared
+connection as its first argument — a class would add no encapsulation, only ceremony.
+
+Lease semantics (mirrors the store's docstring): `reserve_step` always claims (issues a
+fresh `attempt_id`, marks `running`); the caller decides whether re-reserving an already-
+`running` step is legitimate via `lease_expired` (lease-clock check only — the artifact-
+absence half of the double-spawn guard is owned by the coordinator ticker, since only it
+knows the artifact path convention).
+
+Heartbeat owner: the WORKER refreshes `last_seen`/`lease_expires_at` at each of its own
+graph node boundaries (perceive/work/deliver — see `team_step_runner.run_team_step`), so
+a long-running-but-alive step's lease never goes stale mid-work. The ticker still kills
+the pid and marks `timeout` unconditionally once a lease IS expired (it does not probe
+"is the heartbeat merely late" — a missed heartbeat past the TTL is itself the timeout
+signal), so double-spawn is prevented two ways: normally the heartbeat keeps the lease
+alive so expiry never fires on live work; if it ever did anyway (e.g. a heartbeat write
+lost a race), `set_step_status`'s optional `attempt_id` guard makes the ORIGINAL worker's
+terminal write (`mark_done`/`mark_failed`) a no-op against the new attempt's row.
+"""
+
+from __future__ import annotations
+
+import json
+import sqlite3
+import uuid
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
+from typing import Any
+
+STEP_STATUSES = ("pending", "running", "awaiting_approval", "done", "failed", "timeout")
+
+
+@dataclass(frozen=True)
+class TeamStep:
+    task_id: str
+    step_id: str
+    seq: int
+    title: str
+    assigned_to: str
+    deps: tuple[str, ...]
+    status: str
+    outcome_ref: str | None
+    cost_usd: float | None
+    attempt_id: str | None
+    child_pid: int | None
+    spawned_at: str | None
+    last_seen: str | None
+    lease_expires_at: str | None
+    escalated_at: str | None
+    # Set only when `deliver` gated this step's external write behind a Lớp B approval
+    # (`ActionGateway`'s own `GatewayResult.approval_id`) — the correlation key the
+    # ticker needs to poll `ApprovalStore` and resume the step once a human decides.
+    # None for every step that never hit an external-write gate (the overwhelming
+    # majority — an internal-only step has nothing to approve).
+    approval_id: int | None
+
+
+def create_schema(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS team_steps ("
+        "  seq INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "  task_id TEXT NOT NULL,"
+        "  step_id TEXT NOT NULL,"
+        "  title TEXT NOT NULL DEFAULT '',"
+        "  assigned_to TEXT NOT NULL DEFAULT '',"
+        "  deps_json TEXT NOT NULL DEFAULT '[]',"
+        "  status TEXT NOT NULL DEFAULT 'pending',"
+        "  outcome_ref TEXT,"
+        "  cost_usd REAL,"
+        "  attempt_id TEXT,"
+        "  child_pid INTEGER,"
+        "  spawned_at TEXT,"
+        "  last_seen TEXT,"
+        "  lease_expires_at TEXT,"
+        "  escalated_at TEXT,"
+        "  approval_id INTEGER,"
+        "  UNIQUE(task_id, step_id)"
+        ")"
+    )
+    # Additive column for a store created before this field existed — `ALTER TABLE`
+    # is a no-op (caught + ignored) once the column is already present, matching the
+    # rest of this codebase's migration-free "CREATE TABLE IF NOT EXISTS" posture for
+    # a single-tenant local SQLite file.
+    try:
+        conn.execute("ALTER TABLE team_steps ADD COLUMN approval_id INTEGER")
+    except sqlite3.OperationalError:
+        pass
+
+
+def _now() -> str:
+    return datetime.now(UTC).isoformat()
+
+
+def _row_to_step(data: dict[str, Any]) -> TeamStep:
+    try:
+        deps = tuple(json.loads(data["deps_json"]))
+    except (json.JSONDecodeError, TypeError):
+        deps = ()
+    return TeamStep(
+        task_id=data["task_id"], step_id=data["step_id"], seq=int(data["seq"]),
+        title=data["title"], assigned_to=data["assigned_to"], deps=deps,
+        status=data["status"], outcome_ref=data["outcome_ref"],
+        cost_usd=data["cost_usd"], attempt_id=data["attempt_id"],
+        child_pid=data["child_pid"], spawned_at=data["spawned_at"],
+        last_seen=data["last_seen"], lease_expires_at=data["lease_expires_at"],
+        escalated_at=data["escalated_at"], approval_id=data.get("approval_id"),
+    )
+
+
+def _cols(conn: sqlite3.Connection) -> list[str]:
+    return [d[0] for d in conn.execute("SELECT * FROM team_steps LIMIT 0").description]
+
+
+def replace_steps(conn: sqlite3.Connection, task_id: str, steps: list[dict[str, Any]]) -> None:
+    """Delete any existing steps for `task_id` and insert the confirmed DAG (used by
+    `set_plan`); insertion order becomes the stable AUTOINCREMENT `seq`."""
+    conn.execute("DELETE FROM team_steps WHERE task_id = ?", (task_id,))
+    for step in steps:
+        conn.execute(
+            "INSERT INTO team_steps (task_id, step_id, title, assigned_to, deps_json, status) "
+            "VALUES (?, ?, ?, ?, ?, 'pending')",
+            (
+                task_id, step["step_id"], step.get("title", ""), step.get("assigned_to", ""),
+                json.dumps(list(step.get("deps", ())), ensure_ascii=False),
+            ),
+        )
+
+
+def steps_for_task(conn: sqlite3.Connection, task_id: str) -> tuple[TeamStep, ...]:
+    rows = conn.execute(
+        "SELECT * FROM team_steps WHERE task_id = ? ORDER BY seq", (task_id,)
+    ).fetchall()
+    cols = _cols(conn)
+    return tuple(_row_to_step(dict(zip(cols, r, strict=True))) for r in rows)
+
+
+def get_step_row(conn: sqlite3.Connection, task_id: str, step_id: str) -> dict[str, Any] | None:
+    row = conn.execute(
+        "SELECT * FROM team_steps WHERE task_id = ? AND step_id = ?", (task_id, step_id),
+    ).fetchone()
+    if row is None:
+        return None
+    return dict(zip(_cols(conn), row, strict=True))
+
+
+def get_step(conn: sqlite3.Connection, task_id: str, step_id: str) -> TeamStep | None:
+    data = get_step_row(conn, task_id, step_id)
+    return _row_to_step(data) if data is not None else None
+
+
+def next_pending_step(conn: sqlite3.Connection, task_id: str) -> TeamStep | None:
+    """Lowest-`seq` `pending` step whose deps are ALL `done` — None if nothing is ready."""
+    steps = steps_for_task(conn, task_id)
+    done_ids = {s.step_id for s in steps if s.status == "done"}
+    for step in steps:  # already ordered by seq
+        if step.status == "pending" and all(dep in done_ids for dep in step.deps):
+            return step
+    return None
+
+
+def reserve_step(conn: sqlite3.Connection, task_id: str, step_id: str, *, lease_ttl_s: int) -> str:
+    """Claim a fresh spawn attempt: new `attempt_id`, `running`, lease clock reset.
+
+    Always claims — the caller (ticker) must decide beforehand whether re-reserving an
+    already-`running` step is legitimate (lease expired AND outcome artifact absent).
+
+    Raises `ValueError` if `(task_id, step_id)` does not exist: a lease minted for a row
+    that was never planned (typo, stale task) can never be verified by anyone, so a
+    silent "successful" reserve here would only surface as a confusing later failure —
+    fail loud at the point of the actual mistake instead.
+    """
+    attempt_id = uuid.uuid4().hex
+    now = _now()
+    expires = (datetime.now(UTC) + timedelta(seconds=lease_ttl_s)).isoformat()
+    # `approval_id = NULL`: a fresh attempt starts with no pending gate of its own — a
+    # stale id from a PRIOR attempt (e.g. this reserve is the resume-after-approval
+    # re-run) must never be read by the next `awaiting_approval` poll as if it still
+    # applied to the new attempt.
+    cur = conn.execute(
+        "UPDATE team_steps SET status = 'running', attempt_id = ?, spawned_at = ?, "
+        "last_seen = ?, lease_expires_at = ?, approval_id = NULL "
+        "WHERE task_id = ? AND step_id = ?",
+        (attempt_id, now, now, expires, task_id, step_id),
+    )
+    if cur.rowcount == 0:
+        raise ValueError(f"cannot reserve unknown team step ({task_id!r}, {step_id!r})")
+    return attempt_id
+
+
+def lease_expired(conn: sqlite3.Connection, task_id: str, step_id: str, *,
+                   now: datetime | None = None) -> bool:
+    """True when the lease is missing or its expiry is in the past (or the step
+    itself does not exist — treated as expired/reservable)."""
+    data = get_step_row(conn, task_id, step_id)
+    if data is None:
+        return True
+    expires_raw = data.get("lease_expires_at")
+    if not expires_raw:
+        return True
+    try:
+        expires = datetime.fromisoformat(expires_raw)
+    except ValueError:
+        return True
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=UTC)
+    return (now or datetime.now(UTC)) >= expires
+
+
+def verify_attempt(conn: sqlite3.Connection, task_id: str, step_id: str, attempt_id: str) -> bool:
+    """True iff the step is `running` with EXACTLY this `attempt_id`."""
+    data = get_step_row(conn, task_id, step_id)
+    if data is None:
+        return False
+    return data.get("status") == "running" and data.get("attempt_id") == attempt_id
+
+
+def record_spawn(conn: sqlite3.Connection, task_id: str, step_id: str, pid: int) -> None:
+    conn.execute(
+        "UPDATE team_steps SET child_pid = ?, last_seen = ? WHERE task_id = ? AND step_id = ?",
+        (pid, _now(), task_id, step_id),
+    )
+
+
+def heartbeat(conn: sqlite3.Connection, task_id: str, step_id: str, *, lease_ttl_s: int) -> None:
+    expires = (datetime.now(UTC) + timedelta(seconds=lease_ttl_s)).isoformat()
+    conn.execute(
+        "UPDATE team_steps SET last_seen = ?, lease_expires_at = ? "
+        "WHERE task_id = ? AND step_id = ?",
+        (_now(), expires, task_id, step_id),
+    )
+
+
+def set_step_status(
+    conn: sqlite3.Connection, task_id: str, step_id: str, status: str, *,
+    outcome_ref: str | None = None, cost_usd: float | None = None,
+    attempt_id: str | None = None, approval_id: int | None = None,
+) -> bool:
+    """Write a step's status (+ optionally its outcome/cost/approval_id). Returns True
+    iff a row was actually updated.
+
+    `attempt_id`, when given, guards the write: it only applies `WHERE ... AND
+    attempt_id = ?`, so a worker whose lease was re-reserved out from under it (e.g. the
+    ticker killed it for a timeout, or legitimately re-reserved it after the lease
+    expired) writes a no-op instead of clobbering the NEW attempt's row or double-
+    counting cost against the task. Terminal writes from `run_team_step`
+    (`mark_done`/`mark_failed`) always pass their own `attempt_id`. The ticker's own
+    terminal writes (`mark_failed` on retries-exhausted/rejection, `mark_timeout` on
+    lease expiry) pass the `attempt_id` it read the step's row under (`step.attempt_id`
+    off its own snapshot), same guard against a concurrent re-reservation racing the
+    ticker's write. `mark_awaiting_approval` is called only by the worker process
+    itself (`team_step_runner.py`), which always holds and passes its own `attempt_id`
+    — the ticker never calls it directly (resuming a step it approved is a fresh
+    reserve+spawn, not a status write on the paused row).
+
+    `approval_id`, when given, is stashed on the row so the ticker can later poll
+    `ApprovalStore` for this step's decision (see `coordinator_nodes.tick_actions
+    .poll_awaiting_approval_step`) — only ever set alongside `status="awaiting_approval"`.
+    """
+    if status not in STEP_STATUSES:
+        raise ValueError(f"invalid team step status {status!r}; expected one of {STEP_STATUSES}")
+    where = "WHERE task_id = ? AND step_id = ?"
+    params: tuple[Any, ...] = (task_id, step_id)
+    if attempt_id is not None:
+        where += " AND attempt_id = ?"
+        params = (*params, attempt_id)
+    if outcome_ref is not None or cost_usd is not None or approval_id is not None:
+        cur = conn.execute(
+            "UPDATE team_steps SET status = ?, "
+            "outcome_ref = COALESCE(?, outcome_ref), "
+            "cost_usd = COALESCE(?, cost_usd), "
+            "approval_id = COALESCE(?, approval_id) " + where,
+            (status, outcome_ref, cost_usd, approval_id, *params),
+        )
+    else:
+        cur = conn.execute("UPDATE team_steps SET status = ? " + where, (status, *params))
+    updated = cur.rowcount > 0
+    if updated and cost_usd is not None:
+        conn.execute(
+            "UPDATE team_tasks SET cost_usd_total = cost_usd_total + ? WHERE id = ?",
+            (cost_usd, task_id),
+        )
+    return updated
+
+
+def append_outcome(conn: sqlite3.Connection, task_id: str, step_id: str, outcome_ref: str) -> None:
+    conn.execute(
+        "UPDATE team_steps SET outcome_ref = ? WHERE task_id = ? AND step_id = ?",
+        (outcome_ref, task_id, step_id),
+    )

@@ -253,6 +253,57 @@ def main(argv: list[str] | None = None, *, run_report: RunReport = _default_run_
                     result.get("checked"))
         return 0  # a tick with zero new alerts is a SUCCESS
 
+    # v12 M29: the office-room milestone mirror is a generic run kind (fleet-wide tick
+    # on the admin agent) — DMs the CEO ONLY milestone-kind office events, branching
+    # before graph dispatch like ops-alerts above.
+    if kind == "milestone-mirror":
+        from src.runtime.milestone_mirror_runner import run_milestone_mirror
+
+        try:
+            result = run_milestone_mirror(loaded, settings)
+        except Exception as exc:  # noqa: BLE001 — record the failure, never crash
+            logger.exception("worker %s/milestone-mirror failed", agent_id)
+            append_run_event(data_dir, _event(agent_id, kind, "internal", "error", None, False))
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        append_run_event(
+            data_dir,
+            _event(agent_id, kind, "internal", result["status"], result.get("cost_usd"),
+                   bool(result.get("delivered"))),
+        )
+        logger.info("worker %s milestone-mirror: %s (checked=%s)", agent_id, result["status"],
+                    result.get("checked"))
+        return 0  # a tick with zero new milestones is a SUCCESS
+
+    # v12 M28a: one team-task STEP is a generic run kind (not a pack report) — the
+    # coordinator (P3) reserves a step (issuing a lease `attempt_id`) then spawns this
+    # exact invocation. Branches before graph dispatch like inbox/tasks/ops-alerts above.
+    if kind == "team-step":
+        return _run_team_step_kind(args, agent_id=agent_id, loaded=loaded, settings=settings,
+                                    data_dir=data_dir)
+
+    # v12 M28b: the coordinator ticker is a generic run kind — one SHORT tick (read
+    # store, take ONE action, exit) on the coordinator agent only. Branches before
+    # graph dispatch like every other pseudo-kind above.
+    if kind == "team-tick":
+        from src.runtime.team_tick_runner import run_team_tick
+
+        try:
+            result = run_team_tick(loaded, settings)
+        except Exception as exc:  # noqa: BLE001 — record the failure, never crash
+            logger.exception("worker %s/team-tick failed", agent_id)
+            append_run_event(data_dir, _event(agent_id, kind, "internal", "error", None, False))
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        append_run_event(
+            data_dir,
+            _event(agent_id, kind, "internal", result["status"], result.get("cost_usd"),
+                   bool(result.get("delivered"))),
+        )
+        logger.info("worker %s team-tick: %s (checked=%s)", agent_id, result["status"],
+                    result.get("checked"))
+        return 0  # a tick with nothing actionable is a SUCCESS (mirrors tasks/ops-alerts)
+
     thread_id = agent_thread_id(agent_id, kind, audience)
     try:
         result = run_report(loaded, settings, kind, audience, thread_id)
@@ -299,6 +350,110 @@ def main(argv: list[str] | None = None, *, run_report: RunReport = _default_run_
         agent_id, kind, audience, delivered, result.get("delivery_summary", ""),
     )
     return 0 if delivered else 1
+
+
+def _run_team_step_kind(args: list[str], *, agent_id: str, loaded: LoadedProfile, settings: Any,
+                         data_dir) -> int:
+    """The `team-step` branch body (v12 M28a): verify the lease, run one step of the
+    team-task graph, write the outcome artifact on EVERY exit path, append a run-event
+    on every exit, and return the worker's exit code (0 done / 1 error-or-rejected /
+    3 paused-at-Lớp-B). Exit 3 fires whenever the step's `deliver` node gated an
+    external write behind `ApprovalStore` (`TeamTaskDeps.external_write` returning
+    "not yet"); the coordinator ticker POLLS that approval every tick and re-reserves
+    the step once it resolves (`coordinator_nodes.tick_actions
+    .poll_awaiting_approval_step`) — this exit code is reachable in production, not a
+    placeholder for a future step kind.
+
+    A malformed invocation (missing --task-id/--step-id/--attempt-id) is a clean no-op
+    error — NOT an outcome-artifact write, since there is no valid task/step to write
+    one for (mirrors the worker's own --agent-id-missing early exit).
+    """
+    from src.agent.team_task_artifact import write_step_artifact
+    from src.runtime.team_step_runner import STATUS_DONE, STATUS_PAUSED, run_team_step
+    from src.runtime.team_task_paths import team_tasks_root
+    from src.runtime.team_task_store import TeamTaskStore, team_tasks_db_path
+
+    task_id = _flag_value(args, "--task-id")
+    step_id = _flag_value(args, "--step-id")
+    attempt_id = _flag_value(args, "--attempt-id")
+    if not task_id or not step_id or not attempt_id:
+        print(
+            "error: --report team-step requires --task-id --step-id --attempt-id",
+            file=sys.stderr,
+        )
+        append_run_event(data_dir, _event(agent_id, "team-step", "internal", "error", None, False))
+        return 1
+
+    def _write_outcome(status: str, *, error: str = "") -> None:
+        """Fallback outcome artifact for the paths where the GRAPH never reached its
+        own `deliver` node (failed / paused) — the next step's `perceive` still needs
+        SOMETHING to read there instead of a missing file. On the "done" path the
+        graph's `deliver` already wrote the real artifact (with `result_text`); this
+        must NOT be called there, or it would clobber that artifact with a smaller
+        status-only payload.
+
+        A write failure here must not mask the real result (logged, not raised): the
+        step's store row is the source of truth, the artifact is the cross-agent
+        handoff convenience."""
+        store = TeamTaskStore(team_tasks_db_path())
+        try:
+            step = store.get_step(task_id, step_id)
+        finally:
+            store.close()
+        if step is None:
+            return  # no valid step row — nothing to attach the artifact to
+        payload: dict[str, Any] = {"status": status, "step_title": step.title}
+        if error:
+            payload["error"] = error
+        try:
+            write_step_artifact(team_tasks_root(), task_id, step.seq, payload)
+        except (OSError, ValueError) as exc:  # noqa: BLE001 — never let this crash the worker
+            logger.warning("team-step %s/%s: outcome artifact write failed: %s",
+                            task_id, step_id, exc)
+
+    try:
+        result = run_team_step(
+            loaded, settings, task_id=task_id, step_id=step_id, attempt_id=attempt_id,
+        )
+    except Exception as exc:  # noqa: BLE001 — record the failure, never crash
+        logger.exception("worker %s/team-step %s/%s failed", agent_id, task_id, step_id)
+        _write_outcome("failed", error=str(exc))
+        append_run_event(data_dir, _event(agent_id, "team-step", "internal", "error", None, False))
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    status = result["status"]
+    if status == STATUS_PAUSED:
+        _write_outcome("awaiting_approval")
+        append_run_event(
+            data_dir, _event(agent_id, "team-step", "internal", "interrupted", None, False)
+        )
+        logger.info(
+            "worker %s team-step %s/%s: PAUSED at approval gate", agent_id, task_id, step_id
+        )
+        return 3
+
+    if status != STATUS_DONE:
+        # STATUS_REJECTED (bad/stale attempt_id lease) — a clean no-op, no artifact
+        # written (the step never ran), but still an audited run-event.
+        append_run_event(
+            data_dir, _event(agent_id, "team-step", "internal", status, None, False)
+        )
+        logger.warning(
+            "worker %s team-step %s/%s: rejected (%s)", agent_id, task_id, step_id, status
+        )
+        return 1
+
+    # No `_write_outcome("done")` here — the graph's `deliver` node already wrote the
+    # real artifact (result_text + step_title) when `run_team_step` returned STATUS_DONE;
+    # overwriting it here would clobber the content the NEXT step's `perceive` reads.
+    append_run_event(
+        data_dir,
+        _event(agent_id, "team-step", "internal", "done", result.get("cost_usd"),
+               bool(result.get("delivered"))),
+    )
+    logger.info("worker %s team-step %s/%s: done", agent_id, task_id, step_id)
+    return 0
 
 
 def _event(agent_id, kind, audience, status, cost, delivered, *, report_summary="",

@@ -1,0 +1,6 @@
+# Staff template v1 — prefill source ONLY for the CreateAgent wizard (see
+# profiles/templates/pm-coordinator/template.yaml for the full contract note).
+role: "Nội dung"
+domain: office
+reports: []
+bindings_hint: []

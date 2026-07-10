@@ -122,3 +122,65 @@ def test_missing_id_exit_2_no_spawn(capsys):
     rc = mpm_run_cmd.run_agent([], spawn=_fake_spawn(record))
     assert rc == 2 and record == []
     assert "usage:" in capsys.readouterr().err
+
+
+def test_team_step_requires_the_full_task_step_attempt_triple(monkeypatch, capsys):
+    _patch_known(monkeypatch)
+    record = []
+    rc = mpm_run_cmd.run_agent(
+        ["acme", "--report", "team-step", "--task-id", "t1"], spawn=_fake_spawn(record)
+    )
+    assert rc == 2 and record == []
+    err = capsys.readouterr().err
+    assert "--report team-step requires --task-id --step-id --attempt-id" in err
+
+
+def test_team_step_missing_all_three_flags_exit_2_no_spawn(monkeypatch, capsys):
+    _patch_known(monkeypatch)
+    record = []
+    rc = mpm_run_cmd.run_agent(["acme", "--report", "team-step"], spawn=_fake_spawn(record))
+    assert rc == 2 and record == []
+    assert "requires --task-id --step-id --attempt-id" in capsys.readouterr().err
+
+
+def test_team_step_happy_path_appends_the_triple_to_argv(monkeypatch):
+    _patch_known(monkeypatch)
+    _patch_detail(monkeypatch, {"status": "delivered", "delivered": True, "cost_usd": 0.002})
+    record = []
+    rc = mpm_run_cmd.run_agent(
+        [
+            "acme", "--report", "team-step",
+            "--task-id", "t1", "--step-id", "s2", "--attempt-id", "a3",
+        ],
+        spawn=_fake_spawn(record),
+    )
+    assert rc == 0
+    assert record[0] == [
+        sys.executable, "-m", "src.runtime.worker",
+        "--agent-id", "acme", "--report", "team-step", "--audience", "internal",
+        "--task-id", "t1", "--step-id", "s2", "--attempt-id", "a3",
+    ]
+
+
+def test_team_step_unknown_agent_still_rejected_before_spawn(monkeypatch, capsys):
+    _patch_known(monkeypatch, ids=("acme",))
+    record = []
+    rc = mpm_run_cmd.run_agent(
+        [
+            "ghost", "--report", "team-step",
+            "--task-id", "t1", "--step-id", "s2", "--attempt-id", "a3",
+        ],
+        spawn=_fake_spawn(record),
+    )
+    assert rc == 1
+    assert record == []
+    assert "unknown agent" in capsys.readouterr().err
+
+
+def test_team_tick_is_a_valid_kind_with_no_triple_required(monkeypatch):
+    _patch_known(monkeypatch)
+    _patch_detail(monkeypatch, {})
+    record = []
+    rc = mpm_run_cmd.run_agent(["acme", "--report", "team-tick"], spawn=_fake_spawn(record))
+    assert rc == 0
+    assert record[0][-4:] == ["--report", "team-tick", "--audience", "internal"]

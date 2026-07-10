@@ -56,7 +56,15 @@ _RUN_EVENT_TAIL = 5000
 _FAILURE_STATUSES = frozenset({"error", "load_error"})
 #: Kinds that are synthetic pollers, not scheduled reports — never "overdue" (a poll with
 #: nothing to do is a success, and inbox/tasks fire on a fast synthetic cron).
-_NON_REPORT_KINDS = frozenset({"inbox", "tasks", "ops-alerts"})
+#: v12 M28a: "team-step" is a per-step team-task run spawned on-demand by the P3
+#: coordinator (not on the agent's own cron) — same non-report treatment.
+#: v12 M28b: "team-tick" is the coordinator's own short poll (like ops-alerts) — same
+#: non-report treatment.
+#: v12 M29: "milestone-mirror" is the admin agent's office-room Telegram mirror poll —
+#: same non-report treatment (a tick with nothing new to push is a success, not overdue).
+_NON_REPORT_KINDS = frozenset(
+    {"inbox", "tasks", "ops-alerts", "team-step", "team-tick", "milestone-mirror"}
+)
 
 
 def read_agent_state(agent_id: str) -> dict:

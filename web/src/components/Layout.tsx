@@ -1,8 +1,11 @@
-// App shell (v7 M20): CEO-first nav — 4 primary destinations (Trợ lý / Đội / Việc / Cài đặt)
-// instead of the old flat 12-item bar. "Việc" carries a badge with the total pending-approval
-// count across all agents (client-side aggregate — no new backend). The old per-agent global
-// picker is gone: per-agent context now lives on each agent page (M18). Technical views
-// (Overview/Timeline/Guardrail/Trigger/Memory/Cost) are reachable under Cài đặt → Nâng cao.
+// App shell (v7 M20): CEO-first nav — primary destinations (Trợ lý / Đội / Việc / Văn phòng /
+// Cài đặt) instead of the old flat 12-item bar. "Việc" carries a badge with the total
+// pending-approval count across all agents (client-side aggregate — no new backend). The old
+// per-agent global picker is gone: per-agent context now lives on each agent page (M18).
+// Technical views (Overview/Timeline/Guardrail/Trigger/Memory/Cost) are reachable under
+// Cài đặt → Nâng cao. "Văn phòng" (v12 M29) is the team's live activity timeline; "Văn phòng 3D"
+// (v12 M30) is a lazy-loaded 3D wireframe view of the same event stream, linked as a secondary
+// item next to it rather than its own top-level nav slot (keeps the primary row at 4 CEO items).
 import { NavLink, Outlet } from 'react-router'
 import { api } from '../api/client'
 import { useTeamHealth } from '../hooks/use-team-health'
@@ -22,6 +25,9 @@ const NAV = [
   { to: 'chat', label: 'Trợ lý' },
   { to: 'team', label: 'Đội', badge: 'health' as const },
   { to: 'work', label: 'Việc', badge: 'approvals' as const },
+  // v12 M29: office group-chat room — the team's live activity timeline (CEO-first,
+  // same tier as Đội/Việc since it is where a CEO watches work happen in real time).
+  { to: 'office', label: 'Văn phòng' },
   { to: 'settings', label: 'Cài đặt' },
 ]
 
@@ -35,6 +41,9 @@ const ADVANCED_NAV = [
   { to: 'guardrail', label: 'Guardrail' },
   { to: 'config', label: 'Cấu hình' },
   { to: 'trigger', label: 'Chạy tay' },
+  // v12 M30: 3D wireframe view of the office stream — lazy-loaded, so it lives in the advanced
+  // row (not the primary CEO nav) to avoid implying it should load on every visit.
+  { to: 'office/3d', label: 'Văn phòng 3D' },
 ]
 
 export function Layout() {

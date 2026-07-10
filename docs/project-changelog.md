@@ -9,6 +9,17 @@ Lớp A hard-deny (never reaches the LLM) + Lớp B human approval. No version w
 
 ---
 
+## v12 — Agent Office (2026-07-10)
+
+Orchestrated team task execution with group chat room + 3D office visualization. **M27–M30** deliver:
+- **M27** Company setup (company.yaml name/coordinator/cap-$2, gitignored per-install; staff templates profiles/templates/ = wizard prefill, 6 roles incl 5 office roles VN personas; 1-click "Tạo trưởng phòng").
+- **M28a** Team-task store (SQLite WAL+seq+lease) + task execution graph (perceive/work/deliver atomic handoff).
+- **M28b** Coordinator pipeline (TICKER pseudo-kind, sequential dispatch DETACHED workers per-step with lease/pid/600s timeout, awaiting_approval pauses clock, reboot-safe) + web search (Tavily/Brave snippets-only, fail-closed query redaction, 4-layer injection defense, audit redacted-only).
+- **M29** Office room (office_room_store SQLite WAL+seq SSoT, PII projection AT WRITE TIME, SSE store-tail multi-subscriber /api/office/rooms/{id}/stream, Telegram milestone-mirror store-poller cursor-after-send).
+- **M30** Office 3D (r3f wireframe lazy chunk ~930KB isolated from main bundle, 2D fallback reduced-motion/mobile).
+- **THE INVARIANT extended**: office-pack allowlist wiring, deterministic role authz gate (decompose + dispatch, admin/coordinator never assignable), PII write-time firewall.
+- **E2E-verified live 2026-07-10**: real 6-step marketing-plan task through 4 agents (LLM OpenRouter), room + 3D in browser, real Telegram milestone DM; 1500 backend + 146 FE tests.
+
 ## v11 — MCP suite optimization + XLSX report export (2026-07-08 → 10)
 
 Backend performance + reliability overhaul. **P1–P4** optimized 3 MCP servers (Slack/Confluence/Jira)

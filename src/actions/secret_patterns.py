@@ -125,3 +125,76 @@ def _redact_text(text: str) -> str:
     for rx in _SECRET_REGEXES:
         masked = rx.sub(REDACTED, masked)
     return masked
+
+
+# ---- Query redaction (v12 M28b) -------------------------------------------------
+#
+# A SEPARATE, additive pattern group from `_SECRET_REGEXES` above: those catch
+# vendor-credential SHAPES (a Slack token, a PEM key) that must never appear anywhere,
+# including free text. This group catches PII/identifier SHAPES that are fine inside
+# the product (a ticket id in an internal report) but must never ride on an OUTBOUND
+# web-search query to a third-party provider (Tavily/Brave) — a different threat model
+# (query egress, not audit-log leakage), hence a distinct table rather than folding
+# into `_SECRET_REGEXES` (which would over-redact internal audit text that legitimately
+# names a ticket id).
+_QUERY_SENSITIVE_GROUPS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("email", re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")),
+    # Phone: a run of 7-15 digits, optionally grouped by spaces/dashes/dots/parens,
+    # optionally a leading "+". Word-bounded-ish via lookaround so it doesn't eat a
+    # trailing digit run that is just part of a longer number/id token.
+    ("phone", re.compile(r"(?<![\w])(\+?\d[\d\-.\s()]{6,14}\d)(?![\w])")),
+    # Ticket id: PROJECT-123 style (Jira/Linear/GitHub issue references) — a query
+    # naming an internal ticket key should not leave the system either. Narrower than
+    # `api_token_shaped` below (which also matches its full dash-joined shape once it
+    # is >=20 chars) — must run BEFORE it or every ticket id gets mis-bucketed.
+    ("ticket_id", re.compile(r"\b[A-Z][A-Z0-9]{1,9}-\d{1,6}\b")),
+    # Cloud-key-shaped: AWS-style 20-char uppercase+digit id. Narrower than
+    # `api_token_shaped` below (same charset minus lowercase/`_`/`-`, so every
+    # cloud-key-shaped 20-char run also matches the broad pattern) — must run BEFORE
+    # it or this bucket is unreachable (every match would be counted as
+    # `api_token_shaped` instead, silently discarding the more specific bucket).
+    ("cloud_key_shaped", re.compile(r"\b[A-Z0-9]{20}\b")),
+    # API-token-shaped: a long (>=20 char) run of base62 + common token punctuation,
+    # the generic shape underneath most vendor prefixes already covered above. Runs
+    # LAST (broadest pattern) so it only catches what the narrower groups above did
+    # not already claim — this is what makes redaction ORDER load-bearing, not just
+    # cosmetic bucketing: `subn` mutates the string in place per group, so an earlier
+    # narrow match is already replaced with `REDACTED` (which itself no longer matches
+    # the broad pattern) by the time this group runs.
+    ("api_token_shaped", re.compile(r"\b[A-Za-z0-9_-]{20,}\b")),
+)
+
+
+def redact_query(query: str) -> tuple[str, dict[str, int]]:
+    """Stage-1 deterministic redaction for an OUTBOUND web-search query.
+
+    Returns `(redacted_query, counts)` where `counts` maps each sensitive-group name
+    to how many matches it replaced (a group absent from `counts` matched zero times).
+    Order matters: the broad `api_token_shaped` group runs AFTER the narrower
+    `email`/`phone`/`ticket_id` groups so a phone number or ticket id is not first
+    swallowed into a generic token match and mis-attributed in the count.
+
+    This function only REDACTS; it does not decide fail-open/fail-closed — the caller
+    (`web_search_tool`) re-scans the redacted text and refuses egress if anything still
+    matches (defense in depth: redaction is regex-based and can miss a novel shape).
+    """
+    redacted = query
+    counts: dict[str, int] = {}
+    for name, rx in _QUERY_SENSITIVE_GROUPS:
+        redacted, n = rx.subn(REDACTED, redacted)
+        if n:
+            counts[name] = n
+    return redacted, counts
+
+
+def query_still_sensitive(text: str) -> bool:
+    """True if ANY query-sensitive pattern (or a generic secret pattern) still matches.
+
+    Used by `web_search_tool` as the fail-closed gate AFTER `redact_query`: a genuinely
+    clean redaction leaves nothing for either pattern set to match; any residual match
+    (a shape the regex redacted imperfectly, e.g. overlapping matches) blocks egress
+    entirely rather than sending a partially-masked query.
+    """
+    if find_secret(text) is not None:
+        return True
+    return any(rx.search(text) for _, rx in _QUERY_SENSITIVE_GROUPS)

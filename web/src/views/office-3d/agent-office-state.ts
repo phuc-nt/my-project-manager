@@ -35,10 +35,10 @@ export interface AgentDeskState {
   attemptId: string | null
   // M33: the colleague id THIS desk is currently consulting/being consulted by, null
   // when no consult bubble should show. Event-driven only (no timer): a `consult`
-  // event SETS this on both the `from` and `to` desks; the desk's OWN next event of
-  // ANY other kind CLEARS it (the bubble shows "until the next thing happens to this
-  // desk", not for a fixed duration) — see the `consult` case below + the reset at
-  // the top of every other case for the two desks this loop touches.
+  // event SETS this on both the `from` and `to` desks; EITHER desk's own next event
+  // of ANY other kind CLEARS it on BOTH (v14 — the consulted colleague may be idle
+  // and never emit its own event, see `endConsult` below) — see the `consult` case
+  // below + the endConsult call at the top of every other case.
   consultWith: string | null
 }
 
@@ -74,6 +74,19 @@ export function deriveAgentDesks(messages: OfficeMessage[]): Map<string, AgentDe
     return d
   }
 
+  // A consult ends for BOTH parties when EITHER desk gets its own next event (v14):
+  // the asker moves on the moment its step emits anything, but the CONSULTED colleague
+  // may be idle with no event of its own for hours — without the symmetric clear, its
+  // avatar would stand at the meeting point indefinitely (review finding m3; pre-v14
+  // this was just a lingering bubble, with walk-to-consult it is a stuck body).
+  const endConsult = (d: AgentDeskState) => {
+    if (d.consultWith) {
+      const partner = desks.get(d.consultWith)
+      if (partner && partner.consultWith === d.id) partner.consultWith = null
+    }
+    d.consultWith = null
+  }
+
   for (const m of messages) {
     switch (m.kind) {
       case 'assignment': {
@@ -84,7 +97,7 @@ export function deriveAgentDesks(messages: OfficeMessage[]): Map<string, AgentDe
         const assignedTo = m.body.assigned_to
         if (!assignedTo) break // defensive: an event missing the field updates no desk
         const d = ensure(assignedTo)
-        d.consultWith = null // this desk moved on — any consult bubble is stale now
+        endConsult(d) // this desk moved on — the consult is over for BOTH parties
         const incomingAttempt = m.body.attempt_id ?? null
         // Zombie-attempt guard: the step graph's phase events (work/self_check/rework,
         // this phase's addition) carry the reserving `attempt_id`; the ticker's OWN
@@ -112,7 +125,7 @@ export function deriveAgentDesks(messages: OfficeMessage[]): Map<string, AgentDe
       case 'handoff': {
         const assignedTo = m.body.assigned_to ?? m.author
         const d = ensure(assignedTo)
-        d.consultWith = null // this desk moved on — any consult bubble is stale now
+        endConsult(d) // this desk moved on — the consult is over for BOTH parties
         d.taskTitle = m.body.task_title ?? d.taskTitle
         d.stepTitle = m.body.step_title ?? d.stepTitle
         // A handoff marks the step as delivered to the next person — the desk shows "done"
@@ -132,7 +145,7 @@ export function deriveAgentDesks(messages: OfficeMessage[]): Map<string, AgentDe
         // timeline text (OfficeRoom.tsx), not the 3D desk state.
         const assignedTo = m.body.assigned_to ?? m.author
         const d = ensure(assignedTo)
-        d.consultWith = null // this desk moved on — any consult bubble is stale now
+        endConsult(d) // this desk moved on — the consult is over for BOTH parties
         d.taskTitle = m.body.task_title ?? d.taskTitle
         d.stepTitle = m.body.step_title ?? d.stepTitle
         d.state = 'done'

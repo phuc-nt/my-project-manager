@@ -10,3 +10,21 @@ export function deskPosition(index: number, total: number): [number, number, num
   const z = Math.cos(angle) * RING_RADIUS
   return [x, 0, z]
 }
+
+// Where an avatar stands during a consult (v14): a point on the line between the two
+// desks, biased 40% from OWN desk toward the colleague's — each side computes its own
+// point, so the pair stops short of each other (gap = 20% of the desk-to-desk distance)
+// instead of overlapping at the exact chord midpoint. Pure math (no r3f) so it is
+// unit-testable in plain vitest, like deskPosition above.
+const CONSULT_APPROACH = 0.4
+
+export function consultMeetPoint(
+  own: [number, number, number],
+  other: [number, number, number],
+): [number, number, number] {
+  return [
+    own[0] + (other[0] - own[0]) * CONSULT_APPROACH,
+    own[1] + (other[1] - own[1]) * CONSULT_APPROACH,
+    own[2] + (other[2] - own[2]) * CONSULT_APPROACH,
+  ]
+}

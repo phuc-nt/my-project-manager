@@ -226,7 +226,7 @@ describe('deriveAgentDesks', () => {
     expect(desk?.consultWith).toBe('agent-b')
   })
 
-  test('a desk\'s own NEXT event (any kind) clears its consultWith — event-driven, no timer', () => {
+  test('either desk\'s NEXT event (any kind) clears consultWith on BOTH — event-driven, no timer', () => {
     const desks = deriveAgentDesks([
       msg({ kind: 'consult', author: 'agent-a', body: { from: 'agent-a', to: 'agent-b' } }),
       msg({
@@ -235,8 +235,26 @@ describe('deriveAgentDesks', () => {
       }),
     ])
     expect(desks.get('agent-a')?.consultWith).toBeNull()
-    // agent-b's own bubble is untouched — only the desk that got a NEW event clears.
-    expect(desks.get('agent-b')?.consultWith).toBe('agent-a')
+    // v14: the consulted colleague is released too — an idle colleague may never emit
+    // its own event, and with walk-to-consult its avatar would otherwise stand at the
+    // meeting point forever (asymmetric clearing was fine when this was only a bubble).
+    expect(desks.get('agent-b')?.consultWith).toBeNull()
+  })
+
+  test('the symmetric clear only releases a partner still consulting THIS desk', () => {
+    const desks = deriveAgentDesks([
+      // b's live consult is with c (b→c came after a→b overwrote it) — a moving on
+      // must NOT tear down b↔c.
+      msg({ kind: 'consult', author: 'agent-a', body: { from: 'agent-a', to: 'agent-b' } }),
+      msg({ kind: 'consult', author: 'agent-b', body: { from: 'agent-b', to: 'agent-c' } }),
+      msg({
+        kind: 'step_status', author: 'coordinator',
+        body: { status: 'started', assigned_to: 'agent-a' },
+      }),
+    ])
+    expect(desks.get('agent-a')?.consultWith).toBeNull()
+    expect(desks.get('agent-b')?.consultWith).toBe('agent-c')
+    expect(desks.get('agent-c')?.consultWith).toBe('agent-b')
   })
 
   test('a handoff event also clears a stale consultWith on that desk', () => {

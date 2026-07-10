@@ -1,4 +1,5 @@
-"""Task execution graph: `perceive → work → self_check → (deliver | rework→self_check)`.
+"""Task execution graph:
+`perceive → work → (self_check | recover→work) → (deliver | rework→self_check)`.
 
 Runs ONE step of a team task, on ONE agent, as the `team-step` generic run kind (see
 `worker.py`). Per-agent isolation is unchanged — this graph runs inside the SAME
@@ -24,6 +25,14 @@ artifact(s) (`team_task_artifact`) written by this step's DEPENDENCIES.
     of the DAG hash). Binary `passed` + `failures` list + `confidence` — routing
     (`route_after_check`) uses ONLY `passed` + the rework counter, never `confidence`
     (kept for observability/logging only).
+  - `recover` (v14 "blocked-step tự cứu"): when the work LLM call itself RAISES (API
+    error, provider outage, hard prompt rejection), the failure gets ONE bounded
+    in-graph recovery pass before propagating: `recover` asks a colleague about the
+    exact blocker (same consult seam/budget as pre-work consult, best-effort) and
+    routes back to `work` for one retry with the advice folded into the context. The
+    retry failing (or the consult being off) re-raises exactly as pre-v14 — the
+    runner's mark_failed/escalate contract is untouched, this only gives a step one
+    chance to unblock ITSELF before waking the CEO.
   - `rework`: re-runs the work LLM call with the ORIGINAL brief + the prior attempt's
     `result_text` + the self-check's structured `failures`, asking the model to fix
     ONLY the listed failures. Bumps `rework_count`. Capped at `max_rework` (2) —
@@ -105,11 +114,24 @@ MAX_REWORK = 2
 #: the consult module's own internals, only on the `deps.ask_colleague` callable shape).
 MAX_CONSULTS = 2
 
+#: Hard ceiling on in-graph recovery attempts per step ATTEMPT (v14 "blocked-step tự
+#: cứu"): a `work` LLM failure gets ONE consult-then-retry pass through the `recover`
+#: node before the exception propagates exactly as it always did (runner marks the step
+#: failed + escalates). Bounded like `MAX_REWORK` — counter-in-state, primitives only.
+MAX_RECOVER = 1
+
+#: Cap on how much of a work-failure's exception text rides into state/consult prompts —
+#: enough to describe the blocker, never a full traceback/content echo.
+_WORK_ERROR_CHARS = 200
+
 #: Custom stream-writer phase tags (`team_step_runner._run_graph` maps these to a
-#: room `step_status` event's `body.phase`) — one per node that does real work.
+#: room `step_status` event's `body.phase`) — one per node that does real work. Each
+#: tag MUST also be in `office_event_projection._STEP_PHASES` (write-time allowlist)
+#: and the FE's `speech-bubble.tsx` PHASE_LABEL, or the room event drops/hides it.
 PHASE_WORK = "dang-lam"
 PHASE_SELF_CHECK = "tu-soat"
 PHASE_REWORK = "dang-sua"
+PHASE_RECOVER = "nho-tro-giup"
 
 
 class TeamStepState(TypedDict, total=False):
@@ -136,6 +158,14 @@ class TeamStepState(TypedDict, total=False):
     # --- consult (M33, all primitives, reset per attempt by design) ---
     consult_count: int  # how many ask_colleague calls this attempt has made so far
     consult_log: list[str]  # short "asked <id>: <question>" lines, observability-only
+    # Accumulated "[Tham vấn <id>] <answer>" blocks — PERSISTED in state (not a work-
+    # local variable) so a recovery retry still sees the answers the FIRST pass paid
+    # for even when the recover consult itself came up empty (v14 review finding M1).
+    consult_context: str
+    # --- blocked-step recovery (v14, all primitives, reset per attempt by design) ---
+    work_error: str  # truncated failure text from the last work call, "" once handled
+    recover_count: int  # how many recover passes this attempt has burned (<= MAX_RECOVER)
+    recover_hint: str  # colleague's unblock advice, folded into the retry's handoff
 
 
 @dataclass
@@ -331,9 +361,13 @@ def default_team_task_deps(
 
         def _propose_consults(title: str, handoff: str) -> list[tuple[str, str]]:
             from src.agent.team_task_consult_propose import propose_consult_targets
-            from src.agent.team_task_roster import assignable_staff
+            from src.agent.team_task_roster import assignable_staff, roster_with_role_hints
 
-            roster = [(a, d) for a, d in assignable_staff() if a != self_id]
+            # v14: each roster entry carries a short role hint (SOUL.md first line, RO)
+            # so the propose call picks a colleague by expertise, not by domain word.
+            roster = roster_with_role_hints(
+                [(a, d) for a, d in assignable_staff() if a != self_id]
+            )
             return propose_consult_targets(
                 title, handoff, roster, settings=settings, persona=context.persona,
                 project=context.project, memory=context.memory,
@@ -419,15 +453,22 @@ def _make_team_task_nodes(deps: TeamTaskDeps):
         writer({"phase": PHASE_WORK})
         title = state.get("step_title", "")
         handoff = state.get("handoff_context", "")
+        recover_hint = state.get("recover_hint", "")
 
         consult_count = state.get("consult_count", 0)
         consult_log = list(state.get("consult_log", ()))
+        consult_context = state.get("consult_context", "")
         consult_cost = 0.0
         # Pre-work consult (M33): a bounded, OPTIONAL heuristic hook — never a full
         # tool-calling loop (KISS v1, see module docstring). Off entirely unless both
         # `ask_colleague` and `propose_consults` are wired (`self_id` was passed to
-        # `default_team_task_deps`, or a test injects both directly).
-        if deps.ask_colleague is not None and deps.propose_consults is not None:
+        # `default_team_task_deps`, or a test injects both directly). Skipped on a
+        # recovery retry (`recover_count` > 0, hint or no hint): the recover node
+        # already made the ONE targeted consult attempt that matters for the retry —
+        # re-proposing here would just burn budget on a question the failure already
+        # answered (or that recover already found unanswerable).
+        if deps.ask_colleague is not None and deps.propose_consults is not None \
+                and not state.get("recover_count", 0):
             if deps.set_attempt_id is not None:
                 deps.set_attempt_id(state.get("attempt_id", ""))
             remaining = MAX_CONSULTS - consult_count
@@ -449,14 +490,46 @@ def _make_team_task_nodes(deps: TeamTaskDeps):
                     consult_cost += cost or 0.0
                     if answer:
                         consult_log.append(f"Hỏi {agent_id}: {question} -> {answer}")
-                        handoff = f"{handoff}\n\n[Tham vấn {agent_id}] {answer}" if handoff \
-                            else f"[Tham vấn {agent_id}] {answer}"
+                        block = f"[Tham vấn {agent_id}] {answer}"
+                        consult_context = f"{consult_context}\n\n{block}" \
+                            if consult_context else block
 
-        result_text, cost = deps.run_work(title, handoff, deps.search_hook)
-        total_cost = (cost or 0.0) + consult_cost if (cost or consult_cost) else None
+        # Fold the STATE-persisted consult context (this pass's answers AND a prior
+        # failed pass's — paid-for advice must survive the recovery retry, review
+        # finding M1) + the recover hint into what run_work sees.
+        if consult_context:
+            handoff = f"{handoff}\n\n{consult_context}" if handoff else consult_context
+        if recover_hint:
+            handoff = f"{handoff}\n\n{recover_hint}" if handoff else recover_hint
+
+        # cost_usd accumulates ACROSS recovery passes (prior pass's consult spend must
+        # not vanish when the retry overwrites the slice) — first pass has no prior,
+        # so pre-v14 runs are byte-identical.
+        prior_cost = state.get("cost_usd")
+        try:
+            result_text, cost = deps.run_work(title, handoff, deps.search_hook)
+        except Exception as exc:  # noqa: BLE001 — v14 blocked-step tự cứu: ONE bounded
+            # in-graph recovery pass before the failure propagates exactly as before.
+            if state.get("recover_count", 0) >= MAX_RECOVER:
+                raise
+            logger.warning("team-step work failed, routing to recover: %s", exc)
+            spent = (prior_cost or 0.0) + consult_cost
+            return {
+                # single-line + truncated: an exception string can embed newlines /
+                # provider echo — it rides into the recover consult's brief, so it is
+                # squashed to one short line first (review finding m1).
+                "work_error": " ".join(str(exc).split())[:_WORK_ERROR_CHARS]
+                or "lỗi không rõ",
+                "cost_usd": spent if spent else None,
+                "consult_count": consult_count, "consult_log": consult_log,
+                "consult_context": consult_context,
+            }
+        total = (prior_cost or 0.0) + (cost or 0.0) + consult_cost
         return {
-            "result_text": result_text, "cost_usd": total_cost,
+            "result_text": result_text, "cost_usd": total if total else None,
             "consult_count": consult_count, "consult_log": consult_log,
+            "consult_context": consult_context,
+            "work_error": "",
         }
 
     def self_check(state: TeamStepState) -> dict:
@@ -494,6 +567,56 @@ def _make_team_task_nodes(deps: TeamTaskDeps):
         total_cost = (prior_cost or 0.0) + (cost or 0.0) if (prior_cost or cost) else None
         return {"result_text": result_text, "cost_usd": total_cost, "rework_count": new_count}
 
+    def recover(state: TeamStepState) -> dict:
+        """v14 blocked-step tự cứu: ONE best-effort colleague consult about the exact
+        blocker, then route back to `work` for the bounded retry. Consult off/failed/
+        no-target ⇒ a plain retry (still valid: transient LLM/API errors are the
+        common case). NEVER raises — the retry's own failure is what terminates."""
+        writer = get_stream_writer()
+        writer({"phase": PHASE_RECOVER})
+        title = state.get("step_title", "")
+        error = state.get("work_error", "")
+        consult_count = state.get("consult_count", 0)
+        consult_log = list(state.get("consult_log", ()))
+        prior_cost = state.get("cost_usd")
+        consult_cost = 0.0
+        hint = ""
+        if deps.ask_colleague is not None and deps.propose_consults is not None \
+                and consult_count < MAX_CONSULTS:
+            if deps.set_attempt_id is not None:
+                deps.set_attempt_id(state.get("attempt_id", ""))
+            # Reuse the SAME propose seam pre-work consult uses, with the blocker folded
+            # into the brief — one call, first target only (a recovery is one focused
+            # question, not a survey). `error` is an exception string (system-origin,
+            # truncated) — the propose prompt already treats briefs as data, not orders.
+            stuck_brief = f"{title} — ĐANG BỊ KẸT, lỗi hệ thống: {error}"
+            try:
+                proposals = deps.propose_consults(stuck_brief, state.get("handoff_context", ""))
+            except Exception as exc:  # noqa: BLE001 — consult is advisory, never fatal
+                logger.warning("team-step recover propose_consults failed, skipping: %s", exc)
+                proposals = []
+            for agent_id, question in proposals[:1]:
+                try:
+                    answer, cost = deps.ask_colleague(agent_id, question)
+                except Exception as exc:  # noqa: BLE001 — same advisory contract
+                    logger.warning(
+                        "team-step recover ask_colleague(%r) failed, skipping: %s",
+                        agent_id, exc,
+                    )
+                    continue
+                consult_count += 1
+                consult_cost += cost or 0.0
+                if answer:
+                    consult_log.append(f"Gỡ kẹt, hỏi {agent_id}: {question} -> {answer}")
+                    hint = f"[Gợi ý gỡ kẹt từ {agent_id}] {answer}"
+        spent = (prior_cost or 0.0) + consult_cost
+        return {
+            "recover_count": state.get("recover_count", 0) + 1,
+            "recover_hint": hint, "work_error": "",
+            "consult_count": consult_count, "consult_log": consult_log,
+            "cost_usd": spent if spent else None,
+        }
+
     def deliver(state: TeamStepState) -> dict:
         result_text = state.get("result_text", "")
         version = state.get("version") or state.get("attempt_id", "")
@@ -505,7 +628,17 @@ def _make_team_task_nodes(deps: TeamTaskDeps):
         delivered, room_message = deps.deliver_step(result_text, version, self_check_failed)
         return {"status": "done", "delivered": delivered, "room_message": room_message}
 
-    return perceive, work, self_check, rework, deliver
+    return perceive, work, self_check, rework, recover, deliver
+
+
+def route_after_work(state: TeamStepState) -> str:
+    """Conditional edge out of `work` (v14): a handled work failure (`work_error` set,
+    recovery budget still open — `work` itself re-raises once the budget is spent, so
+    this route never sees an over-budget failure) -> `recover`; the normal success
+    path -> `self_check`, exactly the edge that was unconditional before v14."""
+    if state.get("work_error"):
+        return "recover"
+    return "self_check"
 
 
 def route_after_check(state: TeamStepState) -> str:
@@ -565,20 +698,24 @@ def build_team_task_graph(
             task_id=task_id, step_seq=step_seq, step_deps=step_deps, search_hook=search_hook,
             self_id=self_id,
         )
-    perceive, work, self_check, rework, deliver = _make_team_task_nodes(deps)
+    perceive, work, self_check, rework, recover, deliver = _make_team_task_nodes(deps)
 
     builder = StateGraph(TeamStepState)
     builder.add_node("perceive", perceive)
     builder.add_node("work", work)
     builder.add_node("self_check", self_check)
     builder.add_node("rework", rework)
+    builder.add_node("recover", recover)
     builder.add_node("deliver", deliver)
     builder.add_edge(START, "perceive")
     builder.add_edge("perceive", "work")
-    builder.add_edge("work", "self_check")
+    builder.add_conditional_edges(
+        "work", route_after_work, {"self_check": "self_check", "recover": "recover"},
+    )
     builder.add_conditional_edges(
         "self_check", route_after_check, {"deliver": "deliver", "rework": "rework"},
     )
     builder.add_edge("rework", "self_check")
+    builder.add_edge("recover", "work")
     builder.add_edge("deliver", END)
     return builder.compile(checkpointer=checkpointer)

@@ -2,7 +2,7 @@
 // context — see office-scene.test.tsx's note on the same constraint), so this covers the
 // piece of its logic that can be verified without a Canvas: the phase-tag vocabulary the
 // 3D bubble is supposed to render must exactly match the backend's phase constants
-// (team_task_graph.py's PHASE_WORK/PHASE_SELF_CHECK/PHASE_REWORK). A regression here — the
+// (team_task_graph.py's PHASE_WORK/PHASE_SELF_CHECK/PHASE_REWORK/PHASE_RECOVER). A regression here — the
 // map going empty/renamed, or agent-desk.tsx failing to pass `phase` through to
 // `<SpeechBubble>` at all — is the exact class of bug that left the 3D phase render dead
 // (the map existed and was correct, but nothing fed it a value).
@@ -14,6 +14,7 @@ test('PHASE_LABEL covers exactly the backend phase vocabulary', () => {
     'dang-lam': 'đang làm',
     'tu-soat': 'tự soát',
     'dang-sua': 'đang sửa',
+    'nho-tro-giup': 'nhờ trợ giúp',
   })
 })
 

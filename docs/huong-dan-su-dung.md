@@ -201,20 +201,26 @@ Vào **Trợ lý** (hoặc nhắn qua Telegram). Gõ câu hỏi/lệnh vào ô "
 
     ![Phòng Văn phòng — dòng thời gian công việc của cả đội](images/van-phong-timeline.png)
 
-  - **Văn phòng 3D** (menu nâng cao): không gian 3D của công ty — bàn trưởng phòng ở giữa,
-    mỗi nhân sự một bàn với màu và phụ kiện riêng (nón / kính / cà vạt). Màu viền bàn = trạng
-    thái: xám (chờ việc), xanh dương (nhận việc), cam (đang làm), xanh lá (xong). Bong bóng
-    thoại phía trên hiện việc + bước đang làm. V13 thêm bong bóng hỏi-đáp giữa 2 bàn (khi nhân sự hỏi ý kiến đồng nghiệp). Mọi chuyển động đều từ sự kiện thật — không có
-    hoạt cảnh giả.
+  - **Văn phòng 3D** (menu nâng cao): không gian 3D "sống" của công ty — bàn trưởng phòng ở
+    giữa, mỗi nhân sự một bàn với màu và phụ kiện riêng (nón / kính / cà vạt), có tay chân và
+    nhịp thở nhẹ. V14 thêm: **camera tự xoay 360° chậm** để đổi góc nhìn liên tục (dừng khi
+    bạn kéo chuột, chạy tiếp sau đó), nội thất văn phòng (chậu cây, bảng viết, ghế sofa, đèn
+    cây), và khi hai nhân sự hỏi ý kiến nhau thì **hai avatar rời bàn đi lại gần nhau** rồi tự
+    về chỗ khi xong. Màu viền bàn = trạng thái: xám (chờ việc), xanh dương (nhận việc), cam
+    (đang làm), xanh lá (xong). Bong bóng thoại phía trên hiện việc + bước đang làm. Mọi
+    chuyển động đều từ sự kiện thật — không có hoạt cảnh giả.
 
     Bong bóng còn hiện **giai đoạn của bước** theo thời gian thực: *đang làm* → *tự soát* →
-    *đang sửa* (khi nhân sự tự kiểm hoặc bị soát chéo yêu cầu sửa).
+    *đang sửa*, và V14 thêm *nhờ trợ giúp* (khi bước gặp lỗi, nhân sự tự hỏi đồng nghiệp và
+    thử lại một lần trước khi báo thất bại).
 
-    ![Văn phòng 3D — cả đội hoạt động: bong bóng hiện giai đoạn (đang làm / tự soát / soát chéo) và ai đang hỏi ý kiến ai](images/van-phong-3d-toan-canh.png)
+    ![Văn phòng 3D — toàn cảnh văn phòng sống: nội thất, avatar tay chân, bong bóng giai đoạn](images/van-phong-3d-toan-canh.png)
+
+    ![Văn phòng 3D — noi-dung và kiem-dinh rời bàn đi lại gần nhau khi tham vấn (💬 hai phía)](images/van-phong-3d-tham-van-di-lai-gan.png)
+
+    ![Văn phòng 3D — bước gặp lỗi: bong bóng noi-dung hiện "nhờ trợ giúp", hai nhân sự đã tự về bàn](images/van-phong-3d-nho-tro-giup.png)
 
     ![Văn phòng 3D — kiem-dinh soát chéo, nghien-cuu tự soát, phan-tich đang làm cùng lúc](images/van-phong-3d-tu-soat-review.png)
-
-    ![Văn phòng 3D — nhân sự đang làm việc (bàn cam = đang làm, xanh lá = đã xong)](images/van-phong-3d-dang-lam-viec.png)
 - Nếu một agent **chết ngầm** (quá hạn không chạy), hệ thống tự nhắn cảnh báo cho bạn qua Telegram.
 
 ## B.6. Đổi giao diện (sáng / tối)

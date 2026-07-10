@@ -43,6 +43,41 @@ def assignable_staff() -> list[tuple[str, str]]:
     return roster
 
 
+#: Cap on the per-colleague role hint pulled from SOUL.md's first line — a targeting
+#: nudge, never a persona mirror (the full SOUL only ever reaches the ANSWER call,
+#: `team_task_consult.ask_colleague`, not the roster listing every step sees).
+_ROLE_HINT_CHARS = 80
+
+
+def roster_with_role_hints(roster: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """v14 consult targeting: enrich each `(agent_id, domain)` roster entry into
+    `(agent_id, "domain — <first SOUL.md line>")` so the consult-propose LLM picks a
+    colleague by what they actually DO, not just a one-word domain.
+
+    Same read Decision C already sanctions (`team_task_consult`'s module docstring):
+    a colleague's SOUL.md is an internal-only persona FILE, read RO — no Store, no
+    sibling-memory, no red-line widening. Per-colleague fail-degrade: an unreadable/
+    empty SOUL keeps the plain domain (this helper must never make a roster SHORTER
+    than its input — targeting is advisory, availability is not). The hint is squashed
+    to one line + truncated; the CALLER's prompt builder is responsible for wrapping
+    the whole roster block as untrusted content (agent-authored text — see
+    `team_task_consult_propose.build_propose_messages`)."""
+    from src.profile.loader import load_profile
+    from src.runtime.agent_paths import agent_data_dir
+
+    enriched: list[tuple[str, str]] = []
+    for agent_id, domain in roster:
+        hint = ""
+        try:
+            soul = load_profile(agent_id, data_dir=agent_data_dir(agent_id)).soul
+            first_line = next((ln.strip() for ln in soul.splitlines() if ln.strip()), "")
+            hint = first_line.lstrip("# ").strip()[:_ROLE_HINT_CHARS]
+        except Exception:  # noqa: BLE001 — hint is advisory; a bad profile keeps plain domain
+            hint = ""
+        enriched.append((agent_id, f"{domain} — {hint}" if hint else domain))
+    return enriched
+
+
 def is_assignable(agent_id: str) -> bool:
     """True iff `agent_id` is currently a valid team-task step assignee — same rules
     as `assignable_staff`, as a single-id check for the dispatch-time re-verify."""

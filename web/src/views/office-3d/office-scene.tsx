@@ -14,6 +14,7 @@ import { AgentStatusTable } from './agent-status-table'
 import { CoordinatorDesk } from './coordinator-desk'
 import { deskPosition } from './desk-layout'
 import { OfficeFloor } from './office-floor'
+import { OfficeProps } from './office-props'
 import { use3dFallback } from './use-3d-fallback'
 
 const OFFICE_ROOM_ID = 'office'
@@ -42,13 +43,30 @@ export function OfficeScene() {
           <ambientLight intensity={0.6} />
           <directionalLight position={[5, 8, 5]} intensity={0.8} />
           <OfficeFloor />
+          <OfficeProps />
           <CoordinatorDesk />
           {agentIds.map((id, i) => {
             const desk = desks.get(id)
             if (!desk) return null
-            return <AgentDesk key={id} position={deskPosition(i, agentIds.length)} label={id} desk={desk} />
+            // Colleague desk position while this desk is consulting — drives the
+            // walk-toward-each-other tween in AgentDesk. The ring index of the
+            // colleague comes from the same first-seen order this map iterates in.
+            const colleagueIdx = desk.consultWith ? agentIds.indexOf(desk.consultWith) : -1
+            const consultPos = colleagueIdx >= 0 ? deskPosition(colleagueIdx, agentIds.length) : null
+            return (
+              <AgentDesk
+                key={id}
+                position={deskPosition(i, agentIds.length)}
+                label={id}
+                desk={desk}
+                consultPos={consultPos}
+              />
+            )
           })}
-          <OrbitControls enablePan={false} minDistance={4} maxDistance={20} />
+          {/* autoRotate = the v14 "living office" slow 360° pan (~0.5 ≈ full turn / 4 min);
+              drei pauses it while the user drags and resumes after. Reduced-motion users
+              never reach this branch — use3dFallback already routed them to the 2D table. */}
+          <OrbitControls enablePan={false} minDistance={4} maxDistance={20} autoRotate autoRotateSpeed={0.5} />
         </Canvas>
       </div>
       {agentIds.length === 0 && (

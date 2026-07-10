@@ -48,12 +48,12 @@ def _short_consult(value: object) -> str:
 #: an unrecognized `kind`.
 _REVIEW_VERDICTS = frozenset({"passed", "needs_rework"})
 
-#: `step_status`'s `phase` field is likewise a closed enum — the exact 3 tags the step
+#: `step_status`'s `phase` field is likewise a closed enum — the exact 4 tags the step
 #: graph's `get_stream_writer()` calls emit (`team_task_graph.PHASE_WORK/
-#: PHASE_SELF_CHECK/PHASE_REWORK`). A value outside this set is dropped (empty string)
-#: rather than passed through truncated — same "unknown -> drop" posture as `verdict`
-#: above, not just a length cap.
-_STEP_PHASES = frozenset({"dang-lam", "tu-soat", "dang-sua"})
+#: PHASE_SELF_CHECK/PHASE_REWORK/PHASE_RECOVER`). A value outside this set is dropped
+#: (empty string) rather than passed through truncated — same "unknown -> drop" posture
+#: as `verdict` above, not just a length cap.
+_STEP_PHASES = frozenset({"dang-lam", "tu-soat", "dang-sua", "nho-tro-giup"})
 
 
 def summarize_office_event(kind: str, body: dict) -> dict:

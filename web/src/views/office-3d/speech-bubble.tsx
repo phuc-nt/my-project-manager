@@ -16,6 +16,7 @@ export const PHASE_LABEL: Record<string, string> = {
   'dang-lam': 'đang làm',
   'tu-soat': 'tự soát',
   'dang-sua': 'đang sửa',
+  'nho-tro-giup': 'nhờ trợ giúp',
 }
 
 interface SpeechBubbleProps {

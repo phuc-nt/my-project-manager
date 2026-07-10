@@ -9,7 +9,7 @@ the 3D office in a LIVING end-state for a demo walk-in:
 
   - nghien-cuu: done (handoff xanh lá) — nghiên cứu thị trường đã bàn giao
   - phan-tich: working + đang tham vấn nghien-cuu (💬 hai phía, avatar đi lại gần nhau)
-  - noi-dung: working, phase "đang sửa" (bị kiểm định trả về 2 lỗi)
+  - noi-dung: working, phase "đang sửa" (bị kiểm định trả về 2 lỗi) + PIC ⭐ (v15)
   - kiem-dinh: done (vừa soát chéo xong, verdict cần sửa)
   - thiet-ke: vừa được điều phối giao bước (bàn cam "đang làm", chưa có phase)
 """
@@ -39,9 +39,13 @@ def main() -> None:
     _ev("ceo", "ceo", {"text": "Giao đội: chuẩn bị bộ tài liệu ra mắt Trợ lý AI Văn Phòng "
                                "— nghiên cứu thị trường, phân tích đối thủ, viết nội dung, "
                                "kiểm định trước khi công bố."})
+    # v15: `pic` + `task_id` badge the PIC's desk (⭐) — noi-dung chịu trách nhiệm chính
+    # cho việc ra mắt này (bước chốt cuối thuộc noi-dung trong kịch bản demo).
     _ev("coordinator", "assignment",
         {"task_title": TASK, "step_count": 5,
-         "summary": "5 bước: nghiên cứu → phân tích ∥ nội dung → kiểm định → thiết kế"})
+         "summary": "PIC: noi-dung — 5 bước: nghiên cứu → phân tích ∥ nội dung → "
+                    "kiểm định → thiết kế",
+         "pic": "noi-dung", "task_id": TASK_ID})
 
     # nghien-cuu: làm xong, bàn giao (desk xanh lá)
     _dispatch("nghien-cuu", "Nghiên cứu thị trường trợ lý AI")

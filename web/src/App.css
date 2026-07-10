@@ -184,14 +184,14 @@ h4 { font-size: var(--fs-h4); }
 .office-room-milestone .office-room-kind { color: var(--color-primary); }
 
 /* Office 3D wireframe (v12 M30) — the Canvas always renders on its own fixed dark background
-   (see office-scene.tsx's <color attach="background">), independent of the app's light/dark
+   (see office-canvas.tsx's <color attach="background">), independent of the app's light/dark
    theme, so wire colors are chosen for contrast against THAT background rather than tokens.
    Surrounding chrome (heading, hint, HTML overlays) still uses the normal --color-* tokens so it
    reads correctly in both app themes. */
 .office-3d-canvas-wrap { width: 100%; height: 70vh; min-height: 420px; border: 1px solid var(--color-border);
   border-radius: var(--radius); overflow: hidden; background: #fafafa; }
 /* Fixed-width bubble frame: long titles ellipsize per line instead of stretching across the
-   scene. The canvas is always light (see office-scene.tsx) so the bubble uses fixed light
+   scene. The canvas is always light (see office-canvas.tsx) so the bubble uses fixed light
    colors, not theme tokens. */
 .office-3d-bubble { background: #ffffff; color: #1c1c1c; border: 1px solid #c9c9c9;
   border-radius: var(--radius); padding: 0.3rem 0.6rem; font-size: 0.78rem;
@@ -203,8 +203,42 @@ h4 { font-size: var(--fs-h4); }
    cleared by the desk's own next event, never a timer). */
 .office-3d-bubble-consult { display: block; color: #7a5200; font-size: 0.72rem;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* v15 PIC tag — desk belongs to the người-chịu-trách-nhiệm-chính of a running task. */
+.office-3d-bubble-pic { display: inline-block; background: #b8860b; color: #fff;
+  font-size: 0.62rem; font-weight: 700; padding: 0 4px; border-radius: 3px;
+  margin-bottom: 2px; }
 .office-3d-label { font-size: 0.72rem; font-weight: 700; white-space: nowrap;
   text-shadow: 0 1px 2px rgba(255, 255, 255, 0.9); }
+
+/* v15 unified office: canvas left, live feed right, composer below. */
+.office-unified-layout { display: flex; gap: var(--space-3); align-items: stretch; }
+.office-unified-main { flex: 1 1 62%; min-width: 0; }
+.office-unified-feed { flex: 1 1 38%; min-width: 260px; max-width: 460px;
+  display: flex; flex-direction: column; }
+.office-unified-log { flex: 1; overflow-y: auto; max-height: 70vh; min-height: 420px; }
+@media (max-width: 900px) {
+  .office-unified-layout { flex-direction: column; }
+  .office-unified-feed { max-width: none; }
+  .office-unified-log { min-height: 200px; max-height: 40vh; }
+}
+.office-composer { margin-top: var(--space-3); }
+.office-composer-row { display: flex; gap: var(--space-2); }
+.office-composer-row input { flex: 1; padding: 0.55rem 0.75rem;
+  border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-bg);
+  color: var(--color-text); }
+.office-composer-mentions { list-style: none; margin: 4px 0 0; padding: 4px;
+  border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-bg);
+  max-height: 220px; overflow-y: auto; }
+.office-composer-mentions button { width: 100%; text-align: left; background: none;
+  border: none; padding: 0.35rem 0.5rem; cursor: pointer; color: var(--color-text);
+  border-radius: 6px; }
+.office-composer-mentions button:hover { background: var(--color-border); }
+.office-composer-domain { color: #8a8a8a; font-size: 0.82rem; }
+.office-composer-preview { margin-top: var(--space-2); border: 1px solid var(--color-border);
+  border-radius: 8px; padding: var(--space-2); }
+.office-composer-preview pre { white-space: pre-wrap; margin: 0; font-size: 0.86rem; }
+.office-composer-actions { display: flex; gap: var(--space-2); margin-top: var(--space-2); }
+.office-composer-done { border-color: #2e7d32; }
 .office-3d-label-coordinator { color: #2b2b2b; }
 .office-3d-fallback-table { margin-top: var(--space-3); }
 .office-3d-state { font-weight: 600; }

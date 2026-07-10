@@ -286,6 +286,14 @@ def _advance_or_confirm(
     except ValueError as exc:
         store.clear(conversation_key)
         return f"Chưa giao được việc: {exc}", cost
+    # v15 auto-confirm (red-team F3): a preview that ALREADY ran its own confirm
+    # (assign_team_task under `team_task_auto_confirm`) must not park an
+    # awaiting_confirm draft — there is nothing left to confirm/cancel, and a parked
+    # draft would turn the CEO's NEXT unrelated message into a ghost "Đã huỷ" (or a
+    # confusing "kế hoạch đã thay đổi" on "xác nhận") for a task that is already running.
+    if slots.get("auto_confirmed"):
+        store.clear(conversation_key)
+        return preview_text, cost
     store.save(conversation_key, OpsDraft(command_id, slots, "awaiting_confirm", now))
     return preview_text, cost
 

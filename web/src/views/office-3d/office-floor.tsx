@@ -1,5 +1,5 @@
 // Static floor + wall wireframe grid — the office "room" shell. Pure geometry, no state; split
-// out from office-scene.tsx to keep that file focused on data wiring. Colors tuned for the
+// out from office-canvas.tsx to keep that file focused on data wiring. Colors tuned for the
 // light canvas background (see desk-colors.ts).
 import { Edges } from '@react-three/drei'
 

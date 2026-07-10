@@ -2,6 +2,8 @@
 // directly. Centralizes the base URL, JSON parsing, and error mapping. The base is relative
 // (''), so requests hit the same origin whether served by FastAPI static or the vite dev proxy.
 import type {
+  AssignPreviewPayload,
+  AssignStaffPayload,
   AgentStatus,
   AgentSummary,
   ApprovalsPayload,
@@ -144,12 +146,25 @@ export const api = {
   getTeamAlerts: () => request<TeamAlertsPayload>('/api/team/alerts'),
   // Company identity (config-only) + staff-template picker.
   getCompany: () => request<CompanyPayload>('/api/company'),
-  saveCompany: (name: string, coordinatorId: string | null, teamTaskCapUsd?: number) =>
+  saveCompany: (
+    name: string, coordinatorId: string | null, teamTaskCapUsd?: number,
+    teamTaskAutoConfirm?: boolean,
+  ) =>
     post<CompanyPayload>('/api/company', {
       name,
       coordinator_id: coordinatorId,
       ...(teamTaskCapUsd !== undefined ? { team_task_cap_usd: teamTaskCapUsd } : {}),
+      // omitted ⇒ backend preserves the current value (load-modify-save, v15 F7)
+      ...(teamTaskAutoConfirm !== undefined ? { team_task_auto_confirm: teamTaskAutoConfirm } : {}),
     }),
+  // v15 office composer — thin wrappers over the assign command's preview/confirm/cancel.
+  getAssignableStaff: () => request<AssignStaffPayload>('/api/office/assign/staff'),
+  assignPreview: (brief: string) =>
+    post<AssignPreviewPayload>('/api/office/assign/preview', { brief }),
+  assignConfirm: (taskId: string, planHash: string) =>
+    post<{ text: string }>('/api/office/assign/confirm', { task_id: taskId, plan_hash: planHash }),
+  assignCancel: (taskId: string) =>
+    post<{ ok: boolean }>('/api/office/assign/cancel', { task_id: taskId }),
   getStaffTemplates: () => request<StaffTemplatesPayload>('/api/staff-templates'),
   // v6 M14b: CEO chat-ops — same engine + shared conversation as the Telegram DM path.
   opsChatAvailable: () => request<OpsChatAvailable>('/api/ops/chat/available'),

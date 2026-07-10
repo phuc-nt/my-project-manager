@@ -6,55 +6,11 @@ import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { api } from '../api/client'
 import { useOfficeStream } from '../hooks/use-office-stream'
-import type { OfficeEventKind, OfficeMessage } from '../types'
-
-const KIND_LABEL: Record<OfficeEventKind, string> = {
-  ceo: 'CEO giao việc',
-  assignment: 'Phân công',
-  step_status: 'Tiến độ bước',
-  handoff: 'Bàn giao',
-  milestone: 'Cột mốc',
-  consult: 'Tham vấn',
-  review: 'Soát chéo',
-}
+// v15: line rendering shared with the unified office screen's activity feed — one
+// vocabulary, one place to extend (see office-shared/office-message-line.ts).
+import { KIND_LABEL, messageLine } from './office-shared/office-message-line'
 
 const OFFICE_ROOM_ID = 'office'
-
-//: Closed-set phase tag -> short Vietnamese label. Matches `team_task_graph.py`'s
-//: PHASE_WORK/PHASE_SELF_CHECK/PHASE_REWORK constants — an unrecognized tag renders
-//: nothing extra rather than the raw code.
-const PHASE_LABEL: Record<string, string> = {
-  'dang-lam': 'đang làm',
-  'tu-soat': 'tự soát',
-  'dang-sua': 'đang sửa',
-}
-
-function messageLine(m: OfficeMessage): string {
-  const b = m.body
-  switch (m.kind) {
-    case 'ceo':
-      return b.text ?? ''
-    case 'assignment':
-      return `${b.task_title ?? ''} — ${b.summary ?? ''} (${b.step_count ?? 0} bước)`
-    case 'step_status': {
-      const phaseLabel = b.phase ? PHASE_LABEL[b.phase] : undefined
-      const suffix = phaseLabel ? ` (${phaseLabel})` : ''
-      return `${b.task_title ?? ''} / ${b.step_title ?? ''}: ${b.status ?? ''}${suffix}`
-    }
-    case 'handoff':
-      return `${b.task_title ?? ''} / ${b.step_title ?? ''}: ${b.message ?? ''}`
-    case 'milestone':
-      return `${b.task_title ?? ''}: ${b.message ?? ''}`
-    case 'consult':
-      return `${b.from ?? ''} hỏi ${b.to ?? ''}: ${b.question_summary ?? ''} → ${b.answer_summary ?? ''}`
-    case 'review': {
-      const verdictLabel = b.verdict === 'passed' ? 'đạt' : `cần sửa (${b.failure_count ?? 0} lỗi)`
-      return `${b.task_title ?? ''} / ${b.step_title ?? ''}: ${verdictLabel}`
-    }
-    default:
-      return ''
-  }
-}
 
 export function OfficeRoom() {
   const [rooms, setRooms] = useState<string[] | null>(null)

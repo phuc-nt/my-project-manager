@@ -40,6 +40,13 @@ export interface AgentDeskState {
   // and never emit its own event, see `endConsult` below) — see the `consult` case
   // below + the endConsult call at the top of every other case.
   consultWith: string | null
+  // v15 PIC: the task_ids this desk is currently PIC (chịu trách nhiệm chính) of.
+  // Set by an `assignment` event's `pic`+`task_id`; a task_id is REMOVED by that
+  // task's `milestone` event with the HARD field value `milestone === 'done'`
+  // (team_tick_collaborators posts it at completion) — never by matching Vietnamese
+  // message text. Badge shows while the set is non-empty. Multiple concurrent tasks
+  // ⇒ multiple desks legitimately badged at once.
+  picTasks: Set<string>
 }
 
 function nextState(prev: AgentState, status: string | undefined): AgentState {
@@ -67,7 +74,7 @@ export function deriveAgentDesks(messages: OfficeMessage[]): Map<string, AgentDe
     if (!d) {
       d = {
         id, state: 'idle', taskTitle: null, stepTitle: null, phase: null, attemptId: null,
-        consultWith: null,
+        consultWith: null, picTasks: new Set<string>(),
       }
       desks.set(id, d)
     }
@@ -90,7 +97,10 @@ export function deriveAgentDesks(messages: OfficeMessage[]): Map<string, AgentDe
   for (const m of messages) {
     switch (m.kind) {
       case 'assignment': {
-        // Task-level (coordinator-authored, no single assignee) — no per-agent desk update.
+        // Task-level (coordinator-authored, no single assignee) — no state-machine
+        // update. v15: a `pic`+`task_id` pair badges the PIC's desk (advisory layer,
+        // like consultWith — never touches state/attempt/zombie logic).
+        if (m.body.pic && m.body.task_id) ensure(m.body.pic).picTasks.add(m.body.task_id)
         break
       }
       case 'step_status': {
@@ -134,8 +144,12 @@ export function deriveAgentDesks(messages: OfficeMessage[]): Map<string, AgentDe
         break
       }
       case 'milestone': {
-        // Milestones are task-level (coordinator-authored), not desk state — no per-agent desk
-        // update needed.
+        // Milestones are task-level (coordinator-authored), not desk state. v15: the
+        // HARD `milestone === 'done'` value (posted by team_tick_collaborators at task
+        // completion) releases every PIC badge keyed to that task_id.
+        if (m.body.milestone === 'done' && m.body.task_id) {
+          for (const d of desks.values()) d.picTasks.delete(m.body.task_id)
+        }
         break
       }
       case 'review': {
@@ -174,7 +188,7 @@ export function deriveAgentDesks(messages: OfficeMessage[]): Map<string, AgentDe
 }
 
 // Distinct agent ids seen in the stream, in first-seen order — drives desk layout (grid
-// position assignment happens in office-scene.tsx, not here). Uses the SAME `assigned_to`
+// position assignment happens in office-canvas.tsx, not here). Uses the SAME `assigned_to`
 // keying as deriveAgentDesks (never `author`) so the id list and the desk map always agree.
 export function agentIdsInOrder(messages: OfficeMessage[]): string[] {
   const seen: string[] = []
@@ -192,6 +206,9 @@ export function agentIdsInOrder(messages: OfficeMessage[]): string[] {
       add(m.body.from)
       add(m.body.to)
     }
+    // v15 (F8): the PIC's desk exists the moment the assignment lands — before any
+    // step event names them — so the ⭐ badge is never invisible for lack of a desk.
+    if (m.kind === 'assignment') add(m.body.pic)
   }
   return seen
 }

@@ -10,7 +10,7 @@ import { Html } from '@react-three/drei'
 //: PHASE_WORK/PHASE_SELF_CHECK/PHASE_REWORK constants — an unrecognized tag (future
 //: phase value not yet wired here) renders nothing rather than the raw code. Exported
 //: so it can be unit-tested directly: drei's <Html> needs a live Fiber/Canvas context
-//: (see office-scene.test.tsx's note), so this component itself cannot render in
+//: (see office-unified.test.tsx's note), so this component itself cannot render in
 //: jsdom — the label lookup is the part of its logic that can be verified in isolation.
 export const PHASE_LABEL: Record<string, string> = {
   'dang-lam': 'đang làm',
@@ -29,16 +29,19 @@ interface SpeechBubbleProps {
   // timer here either, this component just renders whatever the reducer currently
   // holds.
   consultWith?: string | null
+  // v15: desk belongs to a PIC of at least one running task (AgentDeskState.picTasks).
+  isPic?: boolean
 }
 
 export function SpeechBubble({
-  position, taskTitle, stepTitle, phase, consultWith,
+  position, taskTitle, stepTitle, phase, consultWith, isPic,
 }: SpeechBubbleProps) {
   if (!taskTitle && !consultWith) return null
   const phaseLabel = phase ? PHASE_LABEL[phase] : undefined
   return (
     <Html position={position} center distanceFactor={8} occlude={false}>
       <div className="office-3d-bubble">
+        {isPic && <span className="office-3d-bubble-pic">PIC</span>}
         {taskTitle && <strong title={taskTitle}>{taskTitle}</strong>}
         {stepTitle && (
           <span className="office-3d-bubble-step" title={stepTitle}>

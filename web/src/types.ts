@@ -212,6 +212,22 @@ export interface CompanyPayload {
   name: string
   coordinator_id: string | null
   team_task_cap_usd: number
+  // v15: present on reads; optional so older cached payload shapes still typecheck.
+  team_task_concurrency?: number
+  team_task_auto_confirm?: boolean
+}
+
+// v15 office composer (/api/office/assign/*)
+export interface AssignStaffPayload {
+  staff: { id: string; domain: string }[]
+}
+
+export interface AssignPreviewPayload {
+  preview_text: string
+  task_id: string
+  plan_hash: string
+  pic_id: string
+  auto_confirmed: boolean
 }
 
 export interface StaffTemplate {
@@ -355,6 +371,11 @@ export interface OfficeEventBody {
   // room (see office_event_projection.py's `review` allowlist branch).
   verdict?: 'passed' | 'needs_rework'
   failure_count?: number
+  // `assignment` only (v15 PIC): `pic` = agent id responsible for the whole task;
+  // `task_id` (also on `milestone`) is the key the desk-state reducer uses to badge
+  // the PIC's desk on assignment and clear it on that task's `milestone: done`.
+  pic?: string
+  task_id?: string
 }
 
 export interface OfficeMessage {

@@ -1,8 +1,11 @@
 # DEMO registry — bản dùng cho "demo mode" (scripts/demo-mode.sh on).
 # Đội hình chuẩn: điều phối + 5 nhân sự văn phòng. KHÔNG chứa secrets.
 agents:
+  # `default` stays registered (profiles/default là baseline commit) nhưng TẮT trong
+  # demo: không có vai trò thật, không được lên sàn văn phòng hay bị LLM chọn làm PIC
+  # (E2E v15 từng bắt đúng ca này).
   - id: default
-    enabled: true
+    enabled: false
   - id: admin
     enabled: true
   - id: truong-phong

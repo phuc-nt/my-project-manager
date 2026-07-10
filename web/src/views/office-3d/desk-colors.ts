@@ -1,5 +1,5 @@
 // Wireframe colors for the 3D office. The scene renders on a LIGHT (near-white) canvas
-// background (see office-scene.tsx) regardless of the app's light/dark token — three.js
+// background (see office-canvas.tsx) regardless of the app's light/dark token — three.js
 // materials can't resolve CSS custom properties, so one fixed palette is tuned for that
 // background instead of swapping with the theme.
 import type { AgentState } from './agent-office-state'

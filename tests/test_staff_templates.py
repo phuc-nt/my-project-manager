@@ -34,7 +34,8 @@ def test_get_company_default_when_missing(client):
     r = client.get("/api/company")
     assert r.status_code == 200
     body = r.json()
-    assert body == {"name": "", "coordinator_id": None, "team_task_cap_usd": 2.0}
+    assert body == {"name": "", "coordinator_id": None, "team_task_cap_usd": 2.0,
+                    "team_task_concurrency": 2, "team_task_auto_confirm": False}
 
 
 # --- POST /api/company ---
@@ -43,7 +44,8 @@ def test_get_company_default_when_missing(client):
 def test_post_company_writes_name_and_no_coordinator(client, tmp_company):
     r = client.post("/api/company", json={"name": "Acme", "coordinator_id": None})
     assert r.status_code == 200
-    assert r.json() == {"name": "Acme", "coordinator_id": None, "team_task_cap_usd": 2.0}
+    assert r.json() == {"name": "Acme", "coordinator_id": None, "team_task_cap_usd": 2.0,
+                        "team_task_concurrency": 2, "team_task_auto_confirm": False}
     assert tmp_company.exists()
     assert client.get("/api/company").json()["name"] == "Acme"
 

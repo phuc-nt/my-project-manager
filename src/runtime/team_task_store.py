@@ -80,6 +80,9 @@ class TeamTask:
     decompose_cost_usd: float
     aggregate_cost_usd: float
     escalated_at: str | None
+    # v15 PIC: staffer responsible for the whole task ("" = pre-v15 task, no PIC).
+    # Metadata OUTSIDE the plan hash — see task_decomposition.decomposition_content_hash.
+    pic_id: str = ""
     steps: tuple[TeamStep, ...] = field(default_factory=tuple)
 
 
@@ -117,6 +120,12 @@ class TeamTaskStore:
             "  escalated_at TEXT"
             ")"
         )
+        # Additive column for a store created before v15 — same migrate-free ALTER
+        # pattern `team_task_steps.create_schema` uses for its own later columns.
+        try:
+            self._conn.execute("ALTER TABLE team_tasks ADD COLUMN pic_id TEXT NOT NULL DEFAULT ''")
+        except sqlite3.OperationalError:
+            pass  # column already exists
         _steps.create_schema(self._conn)
         _amend.create_schema(self._conn)
         self._conn.commit()
@@ -128,14 +137,15 @@ class TeamTaskStore:
 
     def create_task(
         self, *, task_id: str, title: str, original_request: str = "", assigned_by: str = "",
+        pic_id: str = "",
     ) -> str:
         """Create a task row in `planning` status. `task_id` is caller-supplied
         (the coordinator mints it) so it can be referenced before `set_plan`."""
         self._conn.execute(
             "INSERT INTO team_tasks "
-            "(id, title, original_request, status, created_at, assigned_by) "
-            "VALUES (?, ?, ?, 'planning', ?, ?)",
-            (task_id, title, original_request, self._now(), assigned_by),
+            "(id, title, original_request, status, created_at, assigned_by, pic_id) "
+            "VALUES (?, ?, ?, 'planning', ?, ?, ?)",
+            (task_id, title, original_request, self._now(), assigned_by, pic_id),
         )
         self._conn.commit()
         return task_id
@@ -212,7 +222,8 @@ class TeamTaskStore:
             cost_usd_total=float(data["cost_usd_total"]), plan_hash=data["plan_hash"],
             decompose_cost_usd=float(data["decompose_cost_usd"]),
             aggregate_cost_usd=float(data["aggregate_cost_usd"]),
-            escalated_at=data["escalated_at"], steps=steps,
+            escalated_at=data["escalated_at"], pic_id=str(data.get("pic_id") or ""),
+            steps=steps,
         )
 
     def list_open(self) -> list[TeamTask]:

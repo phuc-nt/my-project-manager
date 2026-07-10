@@ -41,9 +41,9 @@ const ADVANCED_NAV = [
   { to: 'guardrail', label: 'Guardrail' },
   { to: 'config', label: 'Cấu hình' },
   { to: 'trigger', label: 'Chạy tay' },
-  // v12 M30: 3D wireframe view of the office stream — lazy-loaded, so it lives in the advanced
-  // row (not the primary CEO nav) to avoid implying it should load on every visit.
-  { to: 'office/3d', label: 'Văn phòng 3D' },
+  // v15: the 3D view merged into the primary "Văn phòng" screen; this advanced entry is
+  // the full room-by-room timeline (complete history + room picker).
+  { to: 'office/timeline', label: 'Nhật ký văn phòng' },
 ]
 
 export function Layout() {

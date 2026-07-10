@@ -25,7 +25,9 @@ def test_assignment_kind_allowlist():
         "assignment",
         {"task_title": "Demo", "step_count": 3, "summary": "Phân công: a, b", "extra": "x"},
     )
-    assert out == {"task_title": "Demo", "step_count": 3, "summary": "Phân công: a, b"}
+    # v15: `pic`/`task_id` joined the allowlist (empty when the writer omits them).
+    assert out == {"task_title": "Demo", "step_count": 3, "summary": "Phân công: a, b",
+                   "pic": "", "task_id": ""}
 
 
 def test_step_status_kind_allowlist():
@@ -92,7 +94,7 @@ def test_unknown_kind_drops_everything():
 def test_missing_fields_default_to_empty_not_keyerror():
     assert summarize_office_event("ceo", {}) == {"text": ""}
     assert summarize_office_event("assignment", {}) == {
-        "task_title": "", "step_count": 0, "summary": "",
+        "task_title": "", "step_count": 0, "summary": "", "pic": "", "task_id": "",
     }
     assert summarize_office_event("step_status", {}) == {
         "task_title": "", "step_title": "", "status": "", "assigned_to": "",

@@ -33,6 +33,7 @@ Flow (mirrors `ops_chat.py`'s existing collect → preview → confirm state mac
 from __future__ import annotations
 
 import logging
+import re
 
 from src.agent.task_decomposition import (
     DecompositionError,
@@ -123,8 +124,37 @@ def _staff_roster() -> list[tuple[str, str]]:
     return assignable_staff()
 
 
-def _decompose_with_retries(brief: str, staff: list[tuple[str, str]]) -> tuple:
+#: v15 PIC prefix: "@<id> <việc>" — the CEO names the responsible staffer directly.
+#: "@all <việc>" (or no @ at all) means "team decides": the decompose LLM proposes a
+#: PIC instead (validated in code either way). Id charset mirrors registry ids.
+_PIC_PREFIX_RE = re.compile(r"^@([A-Za-z0-9_.-]+)\s+(\S.*)$", re.S)
+
+
+def parse_pic_prefix(brief: str) -> tuple[str, str]:
+    """Split an optional leading @-mention off a CEO brief.
+
+    Returns `(pic_requested, clean_brief)`: `"@noi-dung viết bài" -> ("noi-dung",
+    "viết bài")`; `"@all ..."` and a brief with no leading @ both return `("", ...)`
+    (LLM proposes the PIC). Whether `pic_requested` is actually assignable is the
+    CALLER's check (roster in hand there) — this is pure text parsing."""
+    m = _PIC_PREFIX_RE.match(brief.strip())
+    if not m:
+        return "", brief.strip()
+    handle, rest = m.group(1), m.group(2).strip()
+    if handle.lower() == "all":
+        return "", rest
+    return handle, rest
+
+
+def _decompose_with_retries(
+    brief: str, staff: list[tuple[str, str]], pic_requested: str = "",
+) -> tuple:
     """Run the bounded decompose loop. Returns `(DecomposedTask, total_cost_usd)`.
+
+    `pic_requested` (v15): the CEO's @-named PIC — rides into the prompt as a hard
+    instruction AND into `validate_decomposition(pic_id=...)` as a code-side override
+    (red-team F4: the model's own `pic_id` can never swap a CEO-named one). Blank ⇒
+    the model proposes `pic_id` itself and validation runs against that proposal.
 
     Raises `DecompositionError` (CEO-facing message) if every attempt fails — either the
     model's output never validated, or there is no staff to assign to at all.
@@ -138,13 +168,27 @@ def _decompose_with_retries(brief: str, staff: list[tuple[str, str]]) -> tuple:
     total_cost = 0.0
     last_error = ""
     for _attempt in range(_MAX_DECOMPOSE_ATTEMPTS):
-        messages = build_team_decompose_messages(brief=brief, staff=staff, retry_error=last_error)
+        messages = build_team_decompose_messages(
+            brief=brief, staff=staff, retry_error=last_error, pic_requested=pic_requested,
+        )
         result = llm.complete(messages)
         if result.cost_usd:
             total_cost += result.cost_usd
         try:
             task = parse_decomposed_task(result.content)
-            task = validate_decomposition(task, staff_ids={a for a, _ in staff})
+            task = validate_decomposition(
+                task, staff_ids={a for a, _ in staff},
+                pic_id=pic_requested if pic_requested else None,
+            )
+            # v15 acceptance (review M1): every NEW task gets a PIC — when the CEO
+            # didn't @-name one, the model MUST propose it; an empty pic_id would
+            # silently skip every PIC rule. Enforced here (not inside
+            # validate_decomposition) because the amend path legitimately validates
+            # pre-v15 tasks whose pic_id is "".
+            if not task.pic_id:
+                raise DecompositionError(
+                    "thiếu pic_id — phải chọn MỘT nhân sự chịu trách nhiệm chính (PIC)"
+                )
             return task, total_cost
         except DecompositionError as exc:
             last_error = str(exc)
@@ -181,9 +225,16 @@ def preview_assign_team_task(slots: dict[str, str]) -> str:
             "mirror phòng làm việc chuyển tin. Thiết lập xong hãy giao việc lại."
         )
 
+    # v15: optional "@<id> " / "@all " PIC prefix on the brief.
+    pic_requested, clean_brief = parse_pic_prefix(brief)
     staff = _staff_roster()
+    if pic_requested and not any(a == pic_requested for a, _ in staff):
+        raise ValueError(
+            f"@{pic_requested} không có trong danh sách nhân sự có thể giao việc — "
+            "kiểm tra lại mã nhân sự (hoặc dùng @all để đội tự chọn người chịu trách nhiệm)"
+        )
     try:
-        task, decompose_cost = _decompose_with_retries(brief, staff)
+        task, decompose_cost = _decompose_with_retries(clean_brief, staff, pic_requested)
     except DecompositionError as exc:
         raise ValueError(str(exc)) from None
 
@@ -198,8 +249,8 @@ def preview_assign_team_task(slots: dict[str, str]) -> str:
 
     store = TeamTaskStore(team_tasks_db_path())
     try:
-        store.create_task(task_id=task_id, title=brief[:120], original_request=brief,
-                          assigned_by="ceo-chat")
+        store.create_task(task_id=task_id, title=clean_brief[:120], original_request=brief,
+                          assigned_by="ceo-chat", pic_id=task.pic_id)
         store.set_draft_plan(task_id, step_dicts, plan_hash)
         if decompose_cost:
             store.record_task_cost(task_id, decompose=decompose_cost)
@@ -209,6 +260,7 @@ def preview_assign_team_task(slots: dict[str, str]) -> str:
     # Bind the CEO's later confirm to THIS exact plan — see module docstring.
     slots["task_id"] = task_id
     slots["plan_hash"] = plan_hash
+    slots["pic_id"] = task.pic_id
 
     # Room event: the CEO's brief, appended to the (not-yet-dispatchable) task's own
     # room — try/degrade (a failed append must never block the preview/confirm flow).
@@ -216,7 +268,30 @@ def preview_assign_team_task(slots: dict[str, str]) -> str:
 
     append_office_event(task_id, author="ceo", kind="ceo", body={"text": brief})
 
-    return (f"{_render_plan(task)}\n\nMã việc: {task_id}\n"
+    pic_line = f"\nPIC (chịu trách nhiệm chính): {task.pic_id}" if task.pic_id else ""
+
+    # v15 auto-confirm (Decision Q1 + red-team F3/F9): when the company flag is on,
+    # confirm the JUST-previewed plan immediately with the SAME hash-bind path the CEO's
+    # manual "xác nhận" uses — nothing about the bind/audit/room-event trail changes,
+    # only who presses the button. `auto_confirmed` in slots tells the ops-chat state
+    # machine NOT to park an awaiting_confirm draft (no ghost "huỷ/xác nhận" turn).
+    from src.runtime.company import load_company
+
+    # getattr-default: pre-v15 Company doubles (tests) and any stale cached shape
+    # simply mean "flag off" — the safe branch.
+    if getattr(load_company(), "team_task_auto_confirm", False):
+        try:
+            run_text = run_assign_team_task(slots)
+        except Exception as exc:  # noqa: BLE001 — ANY auto-run failure (stale hash
+            # ValueError, sqlite OperationalError, ...) must terminalize the planning
+            # draft instead of orphaning it, then surface as a clean reply (F9).
+            cancel_assign_team_task(slots)
+            raise ValueError(f"tự xác nhận thất bại: {exc}") from None
+        slots["auto_confirmed"] = "1"
+        return (f"{_render_plan(task)}{pic_line}\n\nMã việc: {task_id}\n"
+                f"ĐÃ TỰ XÁC NHẬN (chế độ tự xác nhận đang bật) — {run_text}")
+
+    return (f"{_render_plan(task)}{pic_line}\n\nMã việc: {task_id}\n"
             "Xác nhận giao việc này cho đội? (trả lời: xác nhận / huỷ)")
 
 
@@ -246,10 +321,15 @@ def run_assign_team_task(slots: dict[str, str]) -> str:
 
     if task is not None:
         assignees = ", ".join(sorted({s.assigned_to for s in task.steps}))
+        summary = f"Phân công: {assignees}"
+        if task.pic_id:
+            summary = f"PIC: {task.pic_id} — {summary}"
+        # `pic`/`task_id` ride in the body (v15) so the FE can badge the PIC's desk and
+        # later clear it on this task's `milestone: done` event (red-team F6 contract).
         append_office_event(
             task_id, author="coordinator", kind="assignment",
             body={"task_title": task.title, "step_count": len(task.steps),
-                  "summary": f"Phân công: {assignees}"},
+                  "summary": summary, "pic": task.pic_id, "task_id": task_id},
             also_office=True,
         )
         append_office_event(

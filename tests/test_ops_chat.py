@@ -405,3 +405,30 @@ def test_stale_draft_is_ignored(tmp_path, monkeypatch):
         assert reply == ""  # no live draft → question fallthrough, nothing created
     finally:
         store.close()
+
+
+def test_advance_or_confirm_skips_draft_after_auto_confirm(tmp_path, monkeypatch):
+    """v15 F3 pin: a preview that ALREADY auto-ran its own confirm (assign under
+    `team_task_auto_confirm`) must clear the conversation instead of parking an
+    awaiting_confirm draft — otherwise the CEO's next message hits a ghost
+    "Đã huỷ"/"kế hoạch đã thay đổi" turn for a task that is already running."""
+    import time
+
+    from src.agent.ops_catalog import OPS_COMMANDS
+    from src.agent.ops_chat import _advance_or_confirm
+
+    def _auto_preview(slots):
+        slots["auto_confirmed"] = "1"
+        return "ĐÃ TỰ XÁC NHẬN"
+
+    monkeypatch.setitem(
+        OPS_COMMANDS, "fake_auto_cmd",
+        {"slots": {}, "preview": _auto_preview, "run": lambda s: "done", "readonly": False},
+    )
+    store = OpsConversationStore(tmp_path / "ops.sqlite3")
+    reply, _cost = _advance_or_confirm(
+        command_id="fake_auto_cmd", slots={"brief": "x"}, conversation_key="ceo",
+        store=store, now=time.time(), cost=None,
+    )
+    assert reply == "ĐÃ TỰ XÁC NHẬN"
+    assert store.load("ceo", now=time.time()) is None  # no awaiting_confirm draft parked

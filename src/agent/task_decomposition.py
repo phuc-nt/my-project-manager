@@ -98,6 +98,18 @@ class DecomposedTask(BaseModel):
 
     steps: tuple[TeamStepPlan, ...] = Field(min_length=1, max_length=MAX_STEPS)
     requires_approval: bool = True
+    # v15 PIC: the staffer responsible for the WHOLE task (chịu trách nhiệm chính).
+    # LLM-proposed when the CEO did not @-name one; ALWAYS code-overridden with the
+    # CEO's explicit @id when they did (see `validate_decomposition`'s `pic_id` param —
+    # the model's value can never silently swap a CEO-named PIC). "" = task has no PIC
+    # (every pre-v15 task) — all PIC rules are skipped, byte-compatible behavior.
+    # Metadata like `acceptance`: NOT part of `decomposition_content_hash`.
+    pic_id: str = ""
+
+    @field_validator("pic_id")
+    @classmethod
+    def _strip_pic(cls, v: str) -> str:
+        return v.strip()
 
     @field_validator("steps")
     @classmethod
@@ -179,16 +191,50 @@ def _acyclic(steps: tuple[TeamStepPlan, ...]) -> bool:
     return visited == len(steps)
 
 
+def validate_pic_terminal(steps: tuple[TeamStepPlan, ...], pic_id: str) -> None:
+    """v15 PIC hard rule (red-team F5), applied to a PENDING slice of steps: the slice
+    must have EXACTLY ONE terminal step (no step in the slice depends on it) and that
+    step must be assigned to the PIC — the PIC owns the final synthesis/sign-off of
+    whatever work remains. One terminal ⇒ every other step in the slice transitively
+    feeds it. A 1-step slice ⇒ that step belongs to the PIC.
+
+    "Slice" deliberately: at decompose time the slice is the WHOLE plan (everything is
+    pending); at amend time it is the NEW pending steps only — a completed (frozen)
+    step has no new dependents by construction (`_AMEND_SYSTEM` forbids referencing
+    frozen ids), so including frozen rows would make every amend fail with multiple
+    terminals. Blank `pic_id` never reaches here (caller skips — no-PIC task)."""
+    dep_targets = {d for s in steps for d in s.deps}
+    terminals = [s for s in steps if s.step_id not in dep_targets]
+    if len(terminals) != 1:
+        ids = ", ".join(s.step_id for s in terminals)
+        raise DecompositionError(
+            f"kế hoạch phải có ĐÚNG MỘT bước chốt cuối (tổng hợp) — hiện có "
+            f"{len(terminals)} bước không ai phụ thuộc: {ids}"
+        )
+    if terminals[0].assigned_to != pic_id:
+        raise DecompositionError(
+            f"bước chốt cuối [{terminals[0].step_id}] phải do PIC ({pic_id}) đảm nhận, "
+            f"đang giao cho {terminals[0].assigned_to}"
+        )
+
+
 def validate_decomposition(
-    task: DecomposedTask, *, staff_ids: Iterable[str],
+    task: DecomposedTask, *, staff_ids: Iterable[str], pic_id: str | None = None,
 ) -> DecomposedTask:
-    """Deterministic, code-side gate — bounds + acyclic DAG + role authz.
+    """Deterministic, code-side gate — bounds + acyclic DAG + role authz (+ PIC, v15).
 
     `staff_ids`: the set of valid `assigned_to` targets. The codebase has no separate
     "company staff roster" beyond the fleet registry (`company.yaml` carries identity +
     coordinator id + cost cap only, no staff list) — the caller passes
     `{e.id for e in load_registry()}` (optionally filtered to `enabled` entries) as the
     staff set. Documented interpretation, not silently assumed.
+
+    `pic_id` (v15): None → use the LLM's own `task.pic_id` proposal (may be "", i.e.
+    no PIC — every pre-v15 caller, byte-compatible). Non-None → the CEO explicitly
+    @-named this PIC: it OVERRIDES whatever the model proposed (red-team F4 — a model
+    completion can never swap a CEO-named PIC) and must itself be a valid staff id.
+    Whenever the effective PIC is non-blank, `validate_pic_terminal` enforces the
+    one-terminal-owned-by-PIC rule over the whole (all-pending) plan.
 
     Raises `DecompositionError` (never lets a bad step through) so the caller can turn
     it into a clean CEO-facing message.
@@ -206,6 +252,16 @@ def validate_decomposition(
         raise DecompositionError(
             f"các bước được giao cho agent không tồn tại/không hợp lệ: {', '.join(unauthorized)}"
         )
+
+    effective_pic = task.pic_id if pic_id is None else pic_id.strip()
+    if pic_id is not None and effective_pic != task.pic_id:
+        task = task.model_copy(update={"pic_id": effective_pic})
+    if effective_pic:
+        if effective_pic not in staff:
+            raise DecompositionError(
+                f"PIC {effective_pic!r} không có trong danh sách nhân sự có thể giao việc"
+            )
+        validate_pic_terminal(task.steps, effective_pic)
     return task
 
 

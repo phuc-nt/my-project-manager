@@ -1,6 +1,6 @@
 // Pure-math coverage for the v14 consult walk target (consultMeetPoint) + the ring
 // layout it composes with. Canvas/useFrame is not testable in jsdom (see
-// office-scene.test.tsx's header) — the tween TARGET is the testable seam.
+// office-unified.test.tsx's header) — the tween TARGET is the testable seam.
 import { expect, test } from 'vitest'
 import { consultMeetPoint, deskPosition } from './desk-layout'
 

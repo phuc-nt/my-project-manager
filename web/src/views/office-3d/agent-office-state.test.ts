@@ -35,6 +35,7 @@ describe('deriveAgentDesks', () => {
       phase: null,
       attemptId: null,
       consultWith: null,
+      picTasks: new Set(),
     })
     expect(desks.has('coordinator')).toBe(false)
   })
@@ -89,6 +90,7 @@ describe('deriveAgentDesks', () => {
       phase: null,
       attemptId: null,
       consultWith: null,
+      picTasks: new Set(),
     })
   })
 
@@ -294,5 +296,44 @@ describe('agentIdsInOrder', () => {
       msg({ kind: 'consult', author: 'agent-a', body: { from: 'agent-a', to: 'agent-b' } }),
     ])
     expect(ids).toEqual(['agent-a', 'agent-b'])
+  })
+})
+
+describe('PIC badge (v15)', () => {
+  test('an assignment with pic+task_id badges the PIC desk; milestone done clears it', () => {
+    const desks1 = deriveAgentDesks([
+      msg({ kind: 'assignment', author: 'coordinator', body: { pic: 'noi-dung', task_id: 't-1', summary: 'x' } }),
+    ])
+    expect(desks1.get('noi-dung')?.picTasks.has('t-1')).toBe(true)
+
+    const desks2 = deriveAgentDesks([
+      msg({ kind: 'assignment', author: 'coordinator', body: { pic: 'noi-dung', task_id: 't-1', summary: 'x' } }),
+      msg({ kind: 'milestone', author: 'coordinator', body: { milestone: 'done', task_id: 't-1' } }),
+    ])
+    expect(desks2.get('noi-dung')?.picTasks.size).toBe(0)
+  })
+
+  test('a non-done milestone (received/cost_warn) does NOT clear the badge', () => {
+    const desks = deriveAgentDesks([
+      msg({ kind: 'assignment', author: 'coordinator', body: { pic: 'noi-dung', task_id: 't-1', summary: 'x' } }),
+      msg({ kind: 'milestone', author: 'coordinator', body: { milestone: 'received', task_id: 't-1' } }),
+    ])
+    expect(desks.get('noi-dung')?.picTasks.has('t-1')).toBe(true)
+  })
+
+  test('two concurrent tasks: done of one keeps the badge for the other', () => {
+    const desks = deriveAgentDesks([
+      msg({ kind: 'assignment', author: 'coordinator', body: { pic: 'noi-dung', task_id: 't-1', summary: 'x' } }),
+      msg({ kind: 'assignment', author: 'coordinator', body: { pic: 'noi-dung', task_id: 't-2', summary: 'y' } }),
+      msg({ kind: 'milestone', author: 'coordinator', body: { milestone: 'done', task_id: 't-1' } }),
+    ])
+    expect(desks.get('noi-dung')?.picTasks.size).toBe(1)
+  })
+
+  test('agentIdsInOrder surfaces the PIC desk from the assignment alone (F8)', () => {
+    const ids = agentIdsInOrder([
+      msg({ kind: 'assignment', author: 'coordinator', body: { pic: 'noi-dung', task_id: 't-1' } }),
+    ])
+    expect(ids).toEqual(['noi-dung'])
   })
 })

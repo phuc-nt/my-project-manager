@@ -41,9 +41,30 @@ trong `.env`. Case có 📱 cần Telegram bot đã nối; case có 📧 cần S
 - [ ] **B6 — Song song có kiểm soát**: Giao việc có các bước độc lập → tối đa 2 bước chạy
   cùng lúc (mặc định `team_task_concurrency=2`), bước thứ 3 chờ.
 
-## C. Văn phòng 3D "sống" (v14 — mới)
+## B2. Giao việc @PIC + màn Văn phòng hợp nhất (v15 — mới)
 
-Mở **Văn phòng → Văn phòng 3D** (cần chế độ nâng cao nếu menu chưa hiện).
+Mở tab **Văn phòng** (màn hợp nhất: 3D + hoạt động trực tiếp + ô giao việc).
+
+- [ ] **B2.1 — Màn hợp nhất**: 3D và cột "Hoạt động trực tiếp" cùng hiện, cùng cập nhật
+  realtime (giao 1 việc → cả feed lẫn 3D thay đổi, không lệch nhau). `/office/3d` cũ tự
+  chuyển về màn này; "Nhật ký văn phòng" (nâng cao) vẫn xem được dòng thời gian đầy đủ.
+- [ ] **B2.2 — @ chỉ định PIC**: gõ `@` trong ô giao việc → danh sách nhân sự hiện ra;
+  chọn `@noi-dung` + mô tả việc → bấm Giao việc → kế hoạch hiện **"PIC (chịu trách nhiệm
+  chính): noi-dung"** và bước CUỐI (tổng hợp) thuộc noi-dung → Xác nhận → việc chạy;
+  bàn noi-dung trên 3D có ⭐ + nhãn PIC.
+- [ ] **B2.3 — @all / không @**: gõ việc không @ ai → kế hoạch hiện "X nhận làm PIC" với
+  X là nhân sự có vai trò khớp (không bịa tên ngoài đội). Bấm Huỷ → việc không chạy.
+- [ ] **B2.4 — @ sai tên**: gõ `@khong-ton-tai làm gì đó` → báo lỗi rõ ràng ngay, không
+  tốn gọi LLM, không tạo việc rác.
+- [ ] **B2.5 — Tự xác nhận**: Cài đặt → bật "Tự xác nhận kế hoạch khi giao việc" → giao
+  `@phan-tich <việc>` → card **"ĐÃ TỰ XÁC NHẬN"** hiện, việc chạy ngay không cần bấm;
+  tắt setting → quay lại hỏi xác nhận như cũ. Việc gửi RA NGOÀI vẫn chờ duyệt riêng (E1).
+- [ ] **B2.6 — Chỉnh kế hoạch giữ PIC**: với việc có PIC đang chạy, "chỉnh kế hoạch <id>"
+  → kế hoạch mới vẫn có đúng MỘT bước chốt cuối thuộc PIC (không mất người chịu trách nhiệm).
+
+## C. Văn phòng 3D "sống" (v14)
+
+Không gian 3D nằm ngay trong tab **Văn phòng** (v15 — không còn menu riêng).
 
 - [ ] **C1 — Toàn cảnh sống**: Thấy bàn trưởng phòng giữa, mỗi nhân sự một bàn; nội thất:
   2 chậu cây, bảng viết có nét chữ, ghế sofa, đèn cây. Avatar có tay chân, đội nón/đeo

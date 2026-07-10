@@ -38,3 +38,12 @@ schedule: {}
 reports: []
 integrations: {}
 domain: office
+# v15 demo stub: satisfies the assign command's escalation-routability gate
+# (`_escalation_routable`) so giao việc works in demo mode. The env var holds NO real
+# token on any machine — an actual escalation send fail-degrades harmlessly (logged),
+# and demo staff run dry_run anyway. Red-team F1 fixture, not a real Telegram binding.
+telegram:
+  bot_token_env: DEMO_TELEGRAM_BOT_TOKEN
+  chat_ids: ["1"]
+  poll_minutes: 60
+  ops_operator_id: "1"

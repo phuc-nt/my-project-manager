@@ -1,0 +1,52 @@
+// Shared office-event → one-line Vietnamese text rendering (v15): extracted from
+// OfficeRoom.tsx so the unified office screen's activity feed and the timeline tab
+// render an event IDENTICALLY (one vocabulary, one place to extend). Pure functions —
+// no hooks, no r3f — unit-testable in plain vitest. PHASE_LABEL is re-used from the 3D
+// bubble (same closed-set backend vocabulary, one source of truth).
+import type { OfficeEventKind, OfficeMessage } from '../../types'
+import { PHASE_LABEL } from '../office-3d/speech-bubble'
+
+export const KIND_LABEL: Record<OfficeEventKind, string> = {
+  ceo: 'CEO giao việc',
+  assignment: 'Phân công',
+  step_status: 'Tiến độ bước',
+  handoff: 'Bàn giao',
+  milestone: 'Cột mốc',
+  consult: 'Tham vấn',
+  review: 'Soát chéo',
+}
+
+export function messageLine(m: OfficeMessage): string {
+  const b = m.body
+  switch (m.kind) {
+    case 'ceo':
+      return b.text ?? ''
+    case 'assignment': {
+      // v15: `pic` names the staffer responsible for the whole task. The backend's
+      // `summary` may already lead with "PIC: x" — only prefix here when it doesn't
+      // (older events / other writers), so the line never reads "PIC: x — PIC: x — …".
+      const base = `${b.task_title ?? ''} — ${b.summary ?? ''} (${b.step_count ?? 0} bước)`
+      const pic = b.pic ?? ''
+      return pic && !(b.summary ?? '').includes(`PIC: ${pic}`)
+        ? `${base} — PIC: ${pic}`
+        : base
+    }
+    case 'step_status': {
+      const phaseLabel = b.phase ? PHASE_LABEL[b.phase] : undefined
+      const suffix = phaseLabel ? ` (${phaseLabel})` : ''
+      return `${b.task_title ?? ''} / ${b.step_title ?? ''}: ${b.status ?? ''}${suffix}`
+    }
+    case 'handoff':
+      return `${b.task_title ?? ''} / ${b.step_title ?? ''}: ${b.message ?? ''}`
+    case 'milestone':
+      return `${b.task_title ?? ''}: ${b.message ?? ''}`
+    case 'consult':
+      return `${b.from ?? ''} hỏi ${b.to ?? ''}: ${b.question_summary ?? ''} → ${b.answer_summary ?? ''}`
+    case 'review': {
+      const verdictLabel = b.verdict === 'passed' ? 'đạt' : `cần sửa (${b.failure_count ?? 0} lỗi)`
+      return `${b.task_title ?? ''} / ${b.step_title ?? ''}: ${verdictLabel}`
+    }
+    default:
+      return ''
+  }
+}

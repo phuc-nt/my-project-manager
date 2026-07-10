@@ -19,7 +19,7 @@ import { Guardrail } from './views/Guardrail'
 import { Login } from './views/Login'
 import { MemoryAutomation } from './views/MemoryAuto'
 import { OfficeRoom } from './views/OfficeRoom'
-import { OfficeSceneLazy } from './routes/office-scene-lazy'
+import { OfficeUnifiedLazy } from './routes/office-unified-lazy'
 import { Overview } from './views/Overview'
 import { Settings } from './views/Settings'
 import { Setup } from './views/Setup'
@@ -89,12 +89,13 @@ function App() {
             <Route path="agents/:id" element={<AgentPage />} />
             <Route path="create" element={<CreateAgent />} />
             <Route path="company-docs" element={<CompanyDocs />} />
-            {/* v12 M29: office group-chat room — not agent-specific, so a top-level route
-                like company-docs rather than under AdvancedAgentView's agent-picker wrap. */}
-            <Route path="office" element={<OfficeRoom />} />
-            {/* v12 M30: 3D wireframe view of the same office stream — lazy-loaded so
-                three/@react-three/fiber never land in the main bundle. */}
-            <Route path="office/3d" element={<OfficeSceneLazy />} />
+            {/* v15: the unified office — 3D + live feed + composer, one SSE stream.
+                Lazy so three/@react-three/fiber never land in the main bundle. */}
+            <Route path="office" element={<OfficeUnifiedLazy />} />
+            {/* The full timeline (room picker + complete history) stays as its own tab. */}
+            <Route path="office/timeline" element={<OfficeRoom />} />
+            {/* Pre-v15 bookmark compatibility: the 3D view merged into /office. */}
+            <Route path="office/3d" element={<Navigate to="/office" replace />} />
             {/* Per-agent technical views (Nâng cao) — wrapped with the agent picker they
                 need, since the global picker was removed from the top nav (M20). */}
             <Route element={<AdvancedAgentView />}>

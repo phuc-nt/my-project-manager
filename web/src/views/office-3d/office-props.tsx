@@ -1,7 +1,7 @@
 // Static office furniture (v14 "living office"): potted plants, a whiteboard, a sofa and
 // a floor lamp — pure decoration in the same low-poly wireframe language as the desks
 // (translucent fill + Edges outline). No state, no animation: props never react to the
-// SSE stream, so they live in their own module and office-scene.tsx just drops
+// SSE stream, so they live in their own module and office-canvas.tsx just drops
 // <OfficeProps /> into the Canvas. Positions sit OUTSIDE the desk ring (RING_RADIUS=4,
 // floor 16×12 — see desk-layout.ts / office-floor.tsx) so they never collide with a desk
 // however many agents appear.

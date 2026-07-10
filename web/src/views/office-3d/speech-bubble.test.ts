@@ -1,5 +1,5 @@
 // SpeechBubble itself cannot render in jsdom (drei's <Html> requires a live Fiber/Canvas
-// context — see office-scene.test.tsx's note on the same constraint), so this covers the
+// context — see office-unified.test.tsx's note on the same constraint), so this covers the
 // piece of its logic that can be verified without a Canvas: the phase-tag vocabulary the
 // 3D bubble is supposed to render must exactly match the backend's phase constants
 // (team_task_graph.py's PHASE_WORK/PHASE_SELF_CHECK/PHASE_REWORK/PHASE_RECOVER). A regression here — the

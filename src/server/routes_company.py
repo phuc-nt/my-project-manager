@@ -42,6 +42,8 @@ def get_company() -> dict:
         "name": c.name,
         "coordinator_id": c.coordinator_id,
         "team_task_cap_usd": c.team_task_cap_usd,
+        "team_task_concurrency": c.team_task_concurrency,
+        "team_task_auto_confirm": c.team_task_auto_confirm,
     }
 
 
@@ -49,12 +51,17 @@ def get_company() -> dict:
 def post_company(
     name: str = Body(..., embed=True),
     coordinator_id: str | None = Body(None, embed=True),
-    team_task_cap_usd: float = Body(2.0, embed=True),
+    team_task_cap_usd: float | None = Body(None, embed=True),
+    team_task_auto_confirm: bool | None = Body(None, embed=True),
 ) -> dict:
     """Set company name + coordinator (config-only write, mirrors registry mutation).
 
     `coordinator_id`, when set, MUST already exist in `registry.yaml` — the wizard must
     not let the CEO point the company at a nonexistent agent.
+
+    Load-modify-save (red-team F7): fields this request does NOT carry are re-written
+    from the CURRENT company.yaml, never silently reset to defaults — the old behavior
+    dropped `team_task_concurrency` back to 2 on every save.
     """
     if not isinstance(name, str):
         raise HTTPException(status_code=400, detail="name phải là chuỗi")
@@ -66,14 +73,28 @@ def post_company(
             raise HTTPException(
                 status_code=400, detail=f"coordinator_id {coord!r} không có trong registry"
             )
-    if team_task_cap_usd <= 0:
+    if team_task_cap_usd is not None and team_task_cap_usd <= 0:
         raise HTTPException(status_code=400, detail="team_task_cap_usd phải > 0")
 
-    save_company(name.strip(), coord, team_task_cap_usd)
+    current = load_company()
+    # Omitted fields preserve the current value (F7 + review M2 — a Setup-wizard save
+    # that carries no cap must not reset the CEO's configured cap back to 2.0).
+    cap = current.team_task_cap_usd if team_task_cap_usd is None else float(team_task_cap_usd)
+    auto_confirm = (
+        current.team_task_auto_confirm if team_task_auto_confirm is None
+        else bool(team_task_auto_confirm)
+    )
+    save_company(
+        name.strip(), coord, cap,
+        team_task_concurrency=current.team_task_concurrency,
+        team_task_auto_confirm=auto_confirm,
+    )
     return {
         "name": name.strip(),
         "coordinator_id": coord,
-        "team_task_cap_usd": team_task_cap_usd,
+        "team_task_cap_usd": cap,
+        "team_task_concurrency": current.team_task_concurrency,
+        "team_task_auto_confirm": auto_confirm,
     }
 
 

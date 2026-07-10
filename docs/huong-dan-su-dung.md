@@ -127,15 +127,30 @@ Nhân sự ảo có thể thuộc nhiều "chuyên môn" (pack): PM, HR… mỗi
 tự bộ lệnh làm trưởng phòng mặc định (`coordinator_id` trong `company.yaml`). Không cần biên tập gì,
 bấm nút xong xong.
 
-## B.3. Giao việc cho đội (mới)
+## B.3. Giao việc cho đội
 
-Vào **Trợ lý** → gõ **"giao việc ..."** (ví dụ: "Giao việc soạn kế hoạch marketing"). Trợ lý:
-1. Hỏi bạn tóm tắt việc + ai (tên trưởng phòng/nhân sự).
-2. Phân rã việc thành tối đa 7 bước, mỗi bước giao cho 1 người (theo vai trò: Trưởng phòng → Nghiên cứu → Nội dung → Phân tích → Kiểm định).
-3. Hiển thị kế hoạch + ước tính chi phí (mặc định $2/việc, tùy chỉnh ở **Cài đặt**).
-4. Bấm **"Xác nhận"** → kế hoạch khóa (hash, không thay đổi). Trợ lý tự chạy các bước tuần tự.
+Cách nhanh nhất (v15): vào **Văn phòng** → ô **giao việc** ngay dưới màn hình, gõ theo 3 kiểu:
 
-Tiến trình hiển thị ở phòng chat chung (**Văn phòng** tab), nếu muốn xem chi tiết bấm **"Xem kế hoạch"** + tuân dõi từng bước. Telegram cũng nhận cột mốc (nhận việc / xong bước / hoàn thành / cần duyệt).
+- **`@tên-nhân-sự <việc>`** — chỉ định người **chịu trách nhiệm chính (PIC)**. Ví dụ:
+  `@noi-dung viết bài giới thiệu sản phẩm mới`. Gõ `@` sẽ hiện danh sách nhân sự để chọn.
+- **`@all <việc>`** hoặc **không @ ai** — đội tự chọn PIC: hệ thống đề xuất người có vai trò
+  khớp nhất và hiện trong kế hoạch để bạn thấy trước.
+- PIC luôn đảm nhận **bước chốt/tổng hợp cuối cùng** của việc; các bước chuyên môn khác vẫn
+  chia cho đúng người (kết hợp thật). Trên màn 3D, bàn của PIC có dấu **⭐** + nhãn **PIC**.
+
+Sau khi gõ: hệ thống phân rã thành tối đa 7 bước → hiện **kế hoạch + PIC** → bạn bấm
+**"Xác nhận giao việc"** (hoặc **Huỷ**). Kế hoạch xác nhận xong bị khóa (hash), đội tự chạy.
+
+![Giao việc @PIC — xem kế hoạch trước khi xác nhận](images/van-phong-giao-viec-pic-preview.png)
+
+Muốn bỏ luôn bước bấm xác nhận? Bật **Cài đặt → "Tự xác nhận kế hoạch khi giao việc"** —
+giao là chạy ngay (mọi việc gửi RA NGOÀI công ty vẫn chờ duyệt riêng như cũ):
+
+![Tự xác nhận đang bật — giao là chạy](images/van-phong-giao-viec-tu-xac-nhan.png)
+
+Vẫn giao được qua **Trợ lý** (gõ "giao việc …", hỏi-đáp từng bước) — cùng một đường xử lý.
+Tiến trình hiển thị ngay cột phải màn Văn phòng; Telegram cũng nhận cột mốc (nhận việc /
+xong bước / hoàn thành / cần duyệt).
 
 ### B.3a. Duyệt việc (quan trọng nhất)
 
@@ -196,19 +211,24 @@ Vào **Trợ lý** (hoặc nhắn qua Telegram). Gõ câu hỏi/lệnh vào ô "
 - Báo cáo định kỳ (hằng ngày / tuần / OKR / nhân sự-chi phí) tự chạy theo lịch và đăng lên Slack /
   Confluence. Bạn cũng nhận tóm tắt qua Telegram.
 - **Đội** cho thấy nhanh: ai đang chạy, tốn bao nhiêu ngân sách, có việc gì kẹt.
-- **Văn phòng** (tab mới): xem dòng thời gian tất cả diễn biến đội — ai nhận việc / đang làm / xong bước / hoàn thành / cần duyệt / soát chéo / hỏi ý kiến.
-  - **Timeline**: mỗi sự kiện là 1 dòng (người, hành động, thời gian). V13 thêm sự kiện: "Nhân sự X soát bài của Y (cần sửa)", "Nhân sự X hỏi ý kiến Y", "Bước tự kiểm không đạt, sửa lần 1/2", v.v.
+- **Văn phòng** (v15 — màn hợp nhất): MỘT màn hình gồm **không gian 3D "sống"** (trái) +
+  **hoạt động trực tiếp bằng chữ** (phải) + **ô giao việc @** (dưới) — tất cả cập nhật
+  realtime từ cùng một dòng sự kiện.
 
-    ![Phòng Văn phòng — dòng thời gian công việc của cả đội](images/van-phong-timeline.png)
+    ![Văn phòng hợp nhất — 3D + hoạt động trực tiếp + ô giao việc](images/van-phong-hop-nhat-3d-feed-composer.png)
 
-  - **Văn phòng 3D** (menu nâng cao): không gian 3D "sống" của công ty — bàn trưởng phòng ở
-    giữa, mỗi nhân sự một bàn với màu và phụ kiện riêng (nón / kính / cà vạt), có tay chân và
-    nhịp thở nhẹ. V14 thêm: **camera tự xoay 360° chậm** để đổi góc nhìn liên tục (dừng khi
-    bạn kéo chuột, chạy tiếp sau đó), nội thất văn phòng (chậu cây, bảng viết, ghế sofa, đèn
-    cây), và khi hai nhân sự hỏi ý kiến nhau thì **hai avatar rời bàn đi lại gần nhau** rồi tự
-    về chỗ khi xong. Màu viền bàn = trạng thái: xám (chờ việc), xanh dương (nhận việc), cam
-    (đang làm), xanh lá (xong). Bong bóng thoại phía trên hiện việc + bước đang làm. Mọi
-    chuyển động đều từ sự kiện thật — không có hoạt cảnh giả.
+  - Không gian 3D: bàn trưởng phòng ở giữa, mỗi nhân sự một bàn với màu và phụ kiện riêng
+    (nón / kính / cà vạt), có tay chân và nhịp thở nhẹ. Camera **tự xoay 360° chậm** (dừng
+    khi bạn kéo chuột), nội thất văn phòng (chậu cây, bảng viết, ghế sofa, đèn cây); hai
+    nhân sự hỏi ý kiến nhau thì **hai avatar rời bàn đi lại gần nhau** rồi tự về chỗ. Bàn
+    của **PIC** có dấu ⭐ + nhãn PIC trên bong bóng (v15). Màu viền bàn = trạng thái: xám
+    (chờ việc), xanh dương (nhận việc), cam (đang làm), xanh lá (xong). Mọi chuyển động
+    đều từ sự kiện thật — không có hoạt cảnh giả.
+  - **Nhật ký văn phòng** (menu nâng cao, `Văn phòng → Nhật ký`): dòng thời gian ĐẦY ĐỦ
+    theo từng phòng việc — mỗi sự kiện 1 dòng (người, hành động, thời gian), có chọn
+    phòng theo việc.
+
+    ![Nhật ký văn phòng — dòng thời gian đầy đủ của cả đội](images/van-phong-timeline.png)
 
     Bong bóng còn hiện **giai đoạn của bước** theo thời gian thực: *đang làm* → *tự soát* →
     *đang sửa*, và V14 thêm *nhờ trợ giúp* (khi bước gặp lỗi, nhân sự tự hỏi đồng nghiệp và

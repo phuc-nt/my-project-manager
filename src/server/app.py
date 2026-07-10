@@ -27,6 +27,7 @@ from src.server import (
     routes_agents_admin,
     routes_company,
     routes_company_docs,
+    routes_office_assign,
     routes_office_stream,
     routes_ops_chat,
     routes_ops_json,
@@ -88,6 +89,9 @@ def create_app() -> FastAPI:
     app.include_router(routes_agents_admin.router)
     # Company identity (config-only) + staff-template picker read API.
     app.include_router(routes_company.router)
+    # v15: office composer assignment (thin wrappers over the assign command's own
+    # preview/confirm/cancel — hash-bind and @PIC parsing live there, not here).
+    app.include_router(routes_office_assign.router)
     # v6 M14b: CEO chat-ops web endpoint (same engine as the Telegram DM path).
     app.include_router(routes_ops_chat.router)
     # v7 M18: Agent Studio — telegram bind (M18a) + knowledge/skills form (M18b).

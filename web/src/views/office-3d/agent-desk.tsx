@@ -2,7 +2,7 @@
 // carries the agent's PERSONAL color + one accessory (nón / kính / cà vạt, picked
 // deterministically from the agent id) so mỗi nhân sự nhìn khác nhau. The avatar tweens toward
 // the desk when the agent transitions to `assigned`, and toward the MEETING POINT between the
-// two desks while `consultWith` is set (both SSE-driven — see office-scene.tsx's state map and
+// two desks while `consultWith` is set (both SSE-driven — see office-canvas.tsx's state map and
 // agent-office-state.ts's consult case); a thicker desk outline marks `done` (static cue, stays
 // until the next real event). All POSITION TARGETS are derived from AgentDeskState — no target
 // change without a backing transition. The one deliberate cosmetic exception (v14 "living
@@ -29,7 +29,7 @@ interface AgentDeskProps {
   position: [number, number, number]
   label: string
   desk: AgentDeskState
-  // Desk position of the colleague this agent is consulting with (from office-scene's
+  // Desk position of the colleague this agent is consulting with (from office-canvas's
   // id→position map), null when desk.consultWith is unset or the colleague has no desk
   // yet. When set, the avatar walks to consultMeetPoint(own, colleague) instead of its
   // own desk/rest spot — and walks back once the consult bubble clears.
@@ -164,7 +164,10 @@ export function AgentDesk({ position, label, desk, consultPos }: AgentDeskProps)
         </group>
       </group>
       <Html position={[position[0], position[1] + 1.1, position[2]]} center distanceFactor={10} occlude={false}>
-        <div className="office-3d-label" style={{ color: agentColor(label) }}>{label}</div>
+        <div className="office-3d-label" style={{ color: agentColor(label) }}>
+          {desk.picTasks.size > 0 ? '⭐ ' : ''}
+          {label}
+        </div>
       </Html>
       <SpeechBubble
         position={bubblePosition}
@@ -172,6 +175,7 @@ export function AgentDesk({ position, label, desk, consultPos }: AgentDeskProps)
         stepTitle={desk.stepTitle}
         phase={desk.phase}
         consultWith={desk.consultWith}
+        isPic={desk.picTasks.size > 0}
       />
     </group>
   )

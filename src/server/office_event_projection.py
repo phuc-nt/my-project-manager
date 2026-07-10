@@ -69,6 +69,12 @@ def summarize_office_event(kind: str, body: dict) -> dict:
             "task_title": _short(body.get("task_title")),
             "step_count": int(body.get("step_count") or 0),
             "summary": _short(body.get("summary")),
+            # v15 PIC: `pic` is an internal agent id (same non-PII category as
+            # `step_status.assigned_to`); `task_id` is the same opaque internal id
+            # `milestone` already carries — together they let the FE badge the PIC's
+            # desk and clear it on this task's `milestone: done` event.
+            "pic": _short(body.get("pic")),
+            "task_id": _short(body.get("task_id")),
         }
     if kind == "step_status":
         phase = _short(body.get("phase"))

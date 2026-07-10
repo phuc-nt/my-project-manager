@@ -42,12 +42,17 @@ _EDIT_LOCK = threading.Lock()
 @dataclass(frozen=True)
 class Company:
     """Company identity: display name, coordinator agent id, team-task cost cap +
-    concurrency cap."""
+    concurrency cap (+ v15 auto-confirm flag)."""
 
     name: str
     coordinator_id: str | None
     team_task_cap_usd: float
     team_task_concurrency: int = DEFAULT_TEAM_TASK_CONCURRENCY
+    # v15 (Decision Q1): True ⇒ a decomposed team-task plan is confirmed IMMEDIATELY
+    # after preview with the same hash-bind path the CEO's manual confirm uses — only
+    # who presses the button changes, never the bind/audit trail. Default False: the
+    # CEO reviews every plan, byte-compatible with pre-v15 behavior.
+    team_task_auto_confirm: bool = False
 
 
 def load_company(path: Path | None = None) -> Company:
@@ -96,9 +101,12 @@ def load_company(path: Path | None = None) -> Company:
     if team_task_concurrency < 1:
         team_task_concurrency = DEFAULT_TEAM_TASK_CONCURRENCY
 
+    team_task_auto_confirm = bool(doc.get("team_task_auto_confirm", False) is True)
+
     return Company(
         name=name, coordinator_id=coordinator_id, team_task_cap_usd=team_task_cap_usd,
         team_task_concurrency=team_task_concurrency,
+        team_task_auto_confirm=team_task_auto_confirm,
     )
 
 
@@ -114,6 +122,7 @@ def save_company(
     coordinator_id: str | None,
     team_task_cap_usd: float = DEFAULT_TEAM_TASK_CAP_USD,
     team_task_concurrency: int = DEFAULT_TEAM_TASK_CONCURRENCY,
+    team_task_auto_confirm: bool = False,
     *,
     path: Path | None = None,
 ) -> None:
@@ -129,6 +138,7 @@ def save_company(
         "coordinator_id": str(coordinator_id) if coordinator_id else None,
         "team_task_cap_usd": float(team_task_cap_usd),
         "team_task_concurrency": int(team_task_concurrency),
+        "team_task_auto_confirm": bool(team_task_auto_confirm),
     }
     text = yaml.safe_dump(doc, sort_keys=False, allow_unicode=True)
 
@@ -142,6 +152,7 @@ def save_company(
                 or loaded.coordinator_id != doc["coordinator_id"]
                 or loaded.team_task_cap_usd != doc["team_task_cap_usd"]
                 or loaded.team_task_concurrency != doc["team_task_concurrency"]
+                or loaded.team_task_auto_confirm != doc["team_task_auto_confirm"]
             ):
                 raise RuntimeError("company.yaml write did not round-trip the expected values")
         except Exception:

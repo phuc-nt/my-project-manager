@@ -61,6 +61,34 @@
 - **Consult targeting theo vai trò**: `team_task_roster.roster_with_role_hints` — dòng đầu SOUL.md đồng nghiệp (RO ≤80 chars, fail-degrade) vào roster propose; roster block bọc `format_internal_content` (SOUL = agent-authored, chống second-order injection).
 - **3D văn phòng sống** (`web/src/views/office-3d/`): OrbitControls autoRotate 0.5 (drei tự pause khi drag; reduced-motion vẫn 2D fallback); `office-props.tsx` NEW (chậu cây/bảng viết/sofa/đèn — tĩnh, không state); avatar tay+chân + breathing bob (cosmetic có chủ đích, inner group tách khỏi lerp); consult → 2 avatar đi tới `consultMeetPoint` (40% về phía nhau, pure helper `desk-layout.ts`) rồi tự về; reducer `endConsult` clear consultWith ĐỐI XỨNG (event của 1 bên thả cả 2 — tránh avatar kẹt giữa phòng).
 
+### v15: @PIC assignment + unified office + demo v2 (2026-07-10)
+- **@PIC giao việc**: `ops_assign_team_task.parse_pic_prefix` (`@id`/`@all`/không-@);
+  decompose JSON thêm `pic_id` (LLM đề xuất khi không @; CODE override khi CEO @-chỉ định
+  — red-team F4); `validate_pic_terminal` = DAG có ĐÚNG MỘT bước terminal ∧ thuộc PIC (F5;
+  decompose áp toàn DAG, amend áp SLICE bước mới — frozen rows luôn "trông terminal");
+  empty pic_id bị ép retry (review M1 — mọi task MỚI có PIC; amend task cũ pic="" skip).
+  `team_tasks.pic_id` col (ALTER-except); **pic NGOÀI canonical hash** (pattern Decision A,
+  pin test hash-neutrality); amend PIC-aware (`team_task_amend_prompt`, F2). Assignment
+  event body +`pic`+`task_id` (projection allowlist mở đúng 2 field).
+- **Auto-confirm** (`company.team_task_auto_confirm`, default off): preview tự chạy
+  `run_assign_team_task` CÙNG đường hash-bind, slots `auto_confirmed` → ops_chat KHÔNG
+  park draft ma (F3); fail → cancel draft (F9, except Exception); `routes_company` POST
+  load-modify-save (F7 — fix luôn bug clobber `team_task_concurrency`/cap sẵn có).
+- **Routes composer** `routes_office_assign.py`: /api/office/assign/{staff,preview,confirm,
+  cancel} — thin wrapper trên CHÍNH hàm command (hash-bind/authz ở đó); protected mặc định;
+  brief cap 4000 chars.
+- **FE màn office hợp nhất** (`views/office-unified/`): MỘT `useOfficeStream` nuôi cả
+  OfficeCanvas (extract từ office-scene, ĐÃ XÓA file cũ) + ActivityFeed (tail 40, dùng
+  chung `office-shared/office-message-line` với OfficeRoom) + AssignComposer (@ dropdown,
+  preview/confirm/cancel inline, card ĐÃ TỰ XÁC NHẬN). Reducer `picTasks` Set per desk —
+  set bởi assignment.pic+task_id, clear bởi `milestone === 'done'` field CỨNG (F6, không
+  match chuỗi); ⭐ label + bubble PIC tag. Routes: `office`→unified (lazy chunk riêng),
+  `office/timeline`→OfficeRoom (nav "Nhật ký văn phòng"), `office/3d`→redirect. Settings
+  toggle auto-confirm.
+- **Demo v2**: registry demo TẮT `default` (E2E bắt LLM chọn nó làm PIC); truong-phong
+  telegram stub qua escalation-gate (F1); seed assignment pic+task_id. E2E Playwright
+  13/13 trên demo + LLM thật: @/không-@/auto-confirm, soi DB pic_id, redirect.
+
 **Entry points**: Legacy `python -m src.entrypoints.cli`/`cron` (single-agent). Multi-agent: `python -m src.entrypoints.mpm agent {list,register,run,resume,replay,automate,approvals,approve,reject,audit}`. Runtime: `python -m src.runtime.worker`, `python -m src.runtime.service`.
 
 ## Cây thư mục (v3 M5 state with domain-packs)

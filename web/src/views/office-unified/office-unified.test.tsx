@@ -1,15 +1,16 @@
-// office-scene.tsx integration test: verifies the fallback-trigger wiring (prefers-reduced-motion
-// → 2D table instead of Canvas) and that the office SSE stream (mocked, matching
-// OfficeRoom.test.tsx's convention — never a real EventSource in tests) is correctly reduced into
-// the agent-status-table rows. Canvas itself is NOT exercised here: react-three-fiber's Canvas
-// needs a ResizeObserver + WebGL context jsdom doesn't provide, so the 3D-render path is only
-// reachable manually / in a browser; the reducer it depends on is covered by
-// agent-office-state.test.ts.
+// office-unified.tsx integration test (moved from office-scene.test.tsx in v15 — same
+// coverage, new owner): verifies the fallback-trigger wiring (prefers-reduced-motion →
+// 2D table instead of Canvas) and that the office SSE stream (mocked, matching
+// OfficeRoom.test.tsx's convention — never a real EventSource in tests) is correctly
+// reduced into the agent-status-table rows. Canvas itself is NOT exercised here:
+// react-three-fiber's Canvas needs a ResizeObserver + WebGL context jsdom doesn't
+// provide, so the 3D-render path is only reachable in a browser (E2E); the reducer it
+// depends on is covered by agent-office-state.test.ts.
 import { render, screen } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import * as officeStreamHook from '../../hooks/use-office-stream'
 import type { OfficeMessage } from '../../types'
-import { OfficeScene } from './office-scene'
+import { OfficeUnified } from './office-unified'
 
 function mockStream(messages: OfficeMessage[]) {
   vi.spyOn(officeStreamHook, 'useOfficeStream').mockReturnValue({
@@ -45,11 +46,11 @@ test('renders the 2D fallback table (not Canvas) when prefers-reduced-motion is 
       body: { task_title: 'Demo', step_title: 'draft', status: 'started', assigned_to: 'agent-a' },
     },
   ])
-  render(<OfficeScene />)
-  expect(screen.getByText('agent-a')).toBeInTheDocument()
+  render(<OfficeUnified />)
+  expect(screen.getAllByText('agent-a').length).toBeGreaterThan(0)
   expect(screen.getByText('Đang làm')).toBeInTheDocument()
-  expect(screen.getByText('Demo')).toBeInTheDocument()
-  expect(screen.getByText('draft')).toBeInTheDocument()
+  expect(screen.getAllByText('Demo').length).toBeGreaterThan(0)
+  expect(screen.getAllByText('draft').length).toBeGreaterThan(0)
 })
 
 test('the fallback table reflects a done state from a handoff event', () => {
@@ -60,16 +61,16 @@ test('the fallback table reflects a done state from a handoff event', () => {
       body: { task_title: 'Demo', step_title: 'review', message: 'xong', assigned_to: 'agent-b' },
     },
   ])
-  render(<OfficeScene />)
-  expect(screen.getByText('agent-b')).toBeInTheDocument()
+  render(<OfficeUnified />)
+  expect(screen.getAllByText('agent-b').length).toBeGreaterThan(0)
   expect(screen.getByText('Vừa hoàn thành')).toBeInTheDocument()
 })
 
 test('shows an empty-state hint when no agents have appeared in the stream yet', () => {
   stubReducedMotion(true)
   mockStream([])
-  render(<OfficeScene />)
-  expect(screen.getByText('Chưa có nhân sự nào xuất hiện trong dòng sự kiện.')).toBeInTheDocument()
+  render(<OfficeUnified />)
+  expect(screen.getAllByText('Chưa có nhân sự nào xuất hiện trong dòng sự kiện.').length).toBeGreaterThan(0)
 })
 
 test('milestone/ceo events alone do not create a desk row in the fallback table', () => {
@@ -78,6 +79,6 @@ test('milestone/ceo events alone do not create a desk row in the fallback table'
     { seq: 1, ts: 't', author: 'ceo', kind: 'ceo', body: { text: 'bắt đầu' } },
     { seq: 2, ts: 't', author: 'coordinator', kind: 'milestone', body: { task_title: 'Demo', milestone: 'kickoff' } },
   ])
-  render(<OfficeScene />)
-  expect(screen.getByText('Chưa có nhân sự nào xuất hiện trong dòng sự kiện.')).toBeInTheDocument()
+  render(<OfficeUnified />)
+  expect(screen.getAllByText('Chưa có nhân sự nào xuất hiện trong dòng sự kiện.').length).toBeGreaterThan(0)
 })

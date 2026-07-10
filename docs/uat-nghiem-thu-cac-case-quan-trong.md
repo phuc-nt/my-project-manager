@@ -62,6 +62,17 @@ Mở tab **Văn phòng** (màn hợp nhất: 3D + hoạt động trực tiếp +
 - [ ] **B2.6 — Chỉnh kế hoạch giữ PIC**: với việc có PIC đang chạy, "chỉnh kế hoạch <id>"
   → kế hoạch mới vẫn có đúng MỘT bước chốt cuối thuộc PIC (không mất người chịu trách nhiệm).
 
+## B3. Phòng việc + bộ điều phối (v16 — mới)
+
+- [ ] **B3.1 — Banner bộ điều phối**: tắt service → màn Văn phòng hiện banner đỏ trong
+  ≤3 phút; bật `uv run python -m src.runtime.service` → banner tự ẩn, việc pending chạy.
+- [ ] **B3.2 — Phòng việc**: giao việc mới → tự vào phòng của việc; danh sách phòng trái
+  hiện ●/⚠/✓; quay lại phòng cũ đủ lịch sử; "Toàn cảnh" xem cả đội.
+- [ ] **B3.3 — Chat trong phòng**: hỏi "tiến độ thế nào?" → trả lời tại chỗ (không tạo
+  việc); "giao @x …" → việc con cùng phòng; "chỉnh [mã việc]: …" → DIFF → xác nhận sửa.
+- [ ] **B3.4 — Desk sạch**: nhân sự không còn trong registry không hiện bàn 3D (sự kiện
+  cũ vẫn còn trong nhật ký chữ).
+
 ## C. Văn phòng 3D "sống" (v14)
 
 Không gian 3D nằm ngay trong tab **Văn phòng** (v15 — không còn menu riêng).

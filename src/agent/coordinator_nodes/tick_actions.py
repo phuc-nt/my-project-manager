@@ -18,7 +18,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from src.agent.task_decomposition import MAX_STEPS
-from src.runtime.office_room_append import append_office_event
+from src.runtime.office_room_append import append_office_event, room_for_task
 from src.runtime.team_task_cost import spawn_headroom_usd, step_cost_estimate_usd
 from src.runtime.team_task_store import TeamStep, TeamTask
 
@@ -115,7 +115,7 @@ def reserve_and_spawn(deps: CoordinatorDeps, task: TeamTask, step: TeamStep) -> 
     # the assignee doing any work yet) but the office-room reducer needs to know WHICH
     # agent's desk should animate — carried via `assigned_to` in the body, not authorship.
     append_office_event(
-        task.id, author="coordinator", kind="step_status",
+        room_for_task(task.id), author="coordinator", kind="step_status",
         body={"task_title": task.title, "step_title": step.title, "status": "started",
               "assigned_to": step.assigned_to},
         also_office=True,

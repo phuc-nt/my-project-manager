@@ -151,13 +151,14 @@ def _append_step_event(
     and the ticker's `started` event) agrees on one field name regardless of who the
     authoring identity is.
     """
-    from src.runtime.office_room_append import append_office_event
+    from src.runtime.office_room_append import append_office_event, room_for_task
 
     body: dict[str, str] = {"task_title": task_title, "step_title": step_title, "status": status,
                             "assigned_to": author}
     if kind == "handoff":
         body["message"] = message
-    append_office_event(task_id, author=author, kind=kind, body=body, also_office=True)
+    append_office_event(room_for_task(task_id), author=author, kind=kind, body=body,
+                        also_office=True)
 
 
 def _append_review_event(
@@ -177,14 +178,15 @@ def _append_review_event(
     """
     if passed is None:
         return
-    from src.runtime.office_room_append import append_office_event
+    from src.runtime.office_room_append import append_office_event, room_for_task
 
     body: dict[str, object] = {
         "task_title": task_title, "step_title": step_title,
         "verdict": "passed" if passed else "needs_rework",
         "failure_count": len(failures), "assigned_to": author,
     }
-    append_office_event(task_id, author=author, kind="review", body=body, also_office=True)
+    append_office_event(room_for_task(task_id), author=author, kind="review", body=body,
+                        also_office=True)
 
 
 def _run_review(loaded: Any, settings: Any, *, task_id: str, step, store: Any) -> dict:
@@ -304,13 +306,14 @@ def _append_step_phase_event(
     and the FE keys the CURRENT phase display off `attempt_id`, not off "last event
     wins" — a stale attempt's phase event is simply dropped client-side.
     """
-    from src.runtime.office_room_append import append_office_event
+    from src.runtime.office_room_append import append_office_event, room_for_task
 
     body: dict[str, str] = {
         "task_title": task_title, "step_title": step_title, "status": "started",
         "assigned_to": author, "phase": phase, "attempt_id": attempt_id,
     }
-    append_office_event(task_id, author=author, kind="step_status", body=body, also_office=True)
+    append_office_event(room_for_task(task_id), author=author, kind="step_status",
+                        body=body, also_office=True)
 
 
 def _resolve_search_hook(loaded: Any, settings: Any) -> Callable[[str], str] | None:

@@ -91,11 +91,11 @@ def make_deliver_room():
     is not a reason to leave a 100%-done task undelivered/un-marked-done)."""
 
     def _deliver(task: TeamTask, summary: str) -> None:
-        from src.runtime.office_room_append import append_office_event
+        from src.runtime.office_room_append import append_office_event, room_for_task
 
         logger.info("team-tick: task %s aggregate ready: %s", task.id, summary[:200])
         append_office_event(
-            task.id, author="coordinator", kind="milestone",
+            room_for_task(task.id), author="coordinator", kind="milestone",
             body={"task_id": task.id, "task_title": task.title, "milestone": "done",
                   "message": summary},
             also_office=True,
@@ -119,10 +119,10 @@ def make_escalate(loaded: Any, settings: Any):
         # Telegram even when the coordinator has no bot binding of its own. The direct
         # coordinator-Telegram send below is only the low-latency fast path.
         try:
-            from src.runtime.office_room_append import append_office_event
+            from src.runtime.office_room_append import append_office_event, room_for_task
 
             append_office_event(
-                task.id, author="coordinator", kind="milestone",
+                room_for_task(task.id), author="coordinator", kind="milestone",
                 body={"task_id": task.id, "task_title": task.title, "milestone": event_kind,
                       "message": message},
                 also_office=True,

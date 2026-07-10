@@ -177,7 +177,7 @@ h4 { font-size: var(--fs-h4); }
   border-radius: var(--radius); max-height: 60vh; overflow-y: auto; background: var(--color-bg-faint); }
 .office-room-entry { padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--color-border); }
 .office-room-entry:last-child { border-bottom: none; }
-.office-room-kind { display: inline-block; font-size: 0.75rem; font-weight: 600; color: var(--color-subtle);
+.office-room-kind { display: inline-block; font-size: var(--fs-xs); font-weight: 600; color: var(--color-subtle);
   margin-right: var(--space-2); }
 .office-room-author { font-size: 0.75rem; color: var(--color-muted); }
 .office-room-text { margin: 0.2rem 0 0; white-space: pre-wrap; }
@@ -238,7 +238,34 @@ h4 { font-size: var(--fs-h4); }
   border-radius: 8px; padding: var(--space-2); }
 .office-composer-preview pre { white-space: pre-wrap; margin: 0; font-size: 0.86rem; }
 .office-composer-actions { display: flex; gap: var(--space-2); margin-top: var(--space-2); }
-.office-composer-done { border-color: #2e7d32; }
+.office-composer-done { border-color: var(--color-ok); }
+.office-composer-reply { border-color: var(--color-accent-border); background: var(--color-accent-bg); }
+
+/* v16 workrooms */
+.office-health-banner { padding: var(--space-2) var(--space-3); border-radius: var(--radius);
+  margin-bottom: var(--space-3); font-size: var(--fs-sm); }
+.office-health-dead { background: var(--color-danger-bg); color: var(--color-danger);
+  border: 1px solid var(--color-danger-strong); }
+.office-health-warn { background: var(--color-warn-bg); color: var(--color-warn);
+  border: 1px solid var(--color-warn); }
+.office-3d-toggle { margin-bottom: var(--space-2); }
+.workroom-list { display: flex; flex-direction: column; gap: var(--space-2);
+  min-width: 200px; max-width: 260px; align-items: stretch; }
+.workroom-item { text-align: left; font-size: var(--fs-sm); }
+.workroom-status { font-weight: 700; }
+.workroom-dang-chay { color: var(--color-warn); }
+.workroom-ket { color: var(--color-danger); }
+.workroom-xong { color: var(--color-ok); }
+.workroom-count { color: var(--color-muted); font-size: var(--fs-xs); }
+.office-feed-icon { margin-right: 0.35rem; }
+.office-feed-agent { font-weight: 700; font-size: var(--fs-xs); margin-left: 0.4rem; }
+.office-feed-ok .office-room-text { color: var(--color-ok); }
+.office-feed-danger .office-room-text { color: var(--color-danger); }
+.office-feed-warn .office-room-text { color: var(--color-warn); }
+.office-feed-pending .office-room-text { color: var(--color-pending); }
+@media (max-width: 900px) {
+  .workroom-list { flex-direction: row; flex-wrap: wrap; max-width: none; }
+}
 .office-3d-label-coordinator { color: #2b2b2b; }
 .office-3d-fallback-table { margin-top: var(--space-3); }
 .office-3d-state { font-weight: 600; }

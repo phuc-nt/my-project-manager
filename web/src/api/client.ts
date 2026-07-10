@@ -4,6 +4,9 @@
 import type {
   AssignPreviewPayload,
   AssignStaffPayload,
+  CoordinatorHealthPayload,
+  RoomChatPayload,
+  WorkroomsPayload,
   AgentStatus,
   AgentSummary,
   ApprovalsPayload,
@@ -159,8 +162,17 @@ export const api = {
     }),
   // v15 office composer — thin wrappers over the assign command's preview/confirm/cancel.
   getAssignableStaff: () => request<AssignStaffPayload>('/api/office/assign/staff'),
-  assignPreview: (brief: string) =>
-    post<AssignPreviewPayload>('/api/office/assign/preview', { brief }),
+  assignPreview: (brief: string, roomId = '') =>
+    post<AssignPreviewPayload>('/api/office/assign/preview', { brief, room_id: roomId }),
+  // v16 workrooms
+  getWorkrooms: () => request<WorkroomsPayload>('/api/office/workrooms'),
+  roomChat: (roomId: string, message: string) =>
+    post<RoomChatPayload>(`/api/office/rooms/${roomId}/chat`, { message }),
+  roomConfirmAdjust: (roomId: string, taskId: string, amendmentId: string) =>
+    post<{ text: string }>(`/api/office/rooms/${roomId}/chat/confirm-adjust`, {
+      task_id: taskId, amendment_id: amendmentId,
+    }),
+  getCoordinatorHealth: () => request<CoordinatorHealthPayload>('/api/health/coordinator'),
   assignConfirm: (taskId: string, planHash: string) =>
     post<{ text: string }>('/api/office/assign/confirm', { task_id: taskId, plan_hash: planHash }),
   assignCancel: (taskId: string) =>

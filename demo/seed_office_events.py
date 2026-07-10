@@ -92,7 +92,43 @@ def main() -> None:
          "answer_summary": "Dùng báo cáo Q2 ngành + trang pricing công khai của từng bên.",
          "attempt_id": "demo-pt-1"})
 
+    _seed_task_rows()
     print(f"Seeded demo office timeline (room {TASK_ID} + office).")
+
+
+def _seed_task_rows() -> None:
+    """v16: rooms-list data — task rows in TERMINAL states ONLY (red-team C2: the demo
+    service runs a REAL ticker; a seeded `open` task would get dispatched into the
+    staged scene within a minute, and a seeded `running` step has no process behind its
+    lease). Live "đang chạy" demo material is created by actually assigning tasks while
+    the demo service runs. Two done tasks share one room to showcase multi-task rooms."""
+    from src.runtime.team_task_paths import team_tasks_db_path
+    from src.runtime.team_task_store import TeamTaskStore
+
+    store = TeamTaskStore(team_tasks_db_path())
+    try:
+        store.create_task(task_id=TASK_ID, title=TASK, assigned_by="ceo-chat",
+                          pic_id="noi-dung")
+        store.set_plan(TASK_ID, [
+            {"step_id": "s1", "title": "Nghiên cứu thị trường", "assigned_to": "nghien-cuu",
+             "deps": []},
+            {"step_id": "s2", "title": "Tổng hợp tài liệu", "assigned_to": "noi-dung",
+             "deps": ["s1"]},
+        ], "demo-hash-1")
+        conn = store._conn  # seed-only: force terminal states without running anything
+        conn.execute("UPDATE team_steps SET status='done' WHERE task_id=?", (TASK_ID,))
+        conn.execute("UPDATE team_tasks SET status='done' WHERE id=?", (TASK_ID,))
+        store.create_task(task_id="demo-brief-phu", title="Tóm tắt phản hồi khách mời",
+                          assigned_by="ceo-chat", pic_id="phan-tich", room_id=TASK_ID)
+        store.set_plan("demo-brief-phu", [
+            {"step_id": "p1", "title": "Tổng hợp phản hồi", "assigned_to": "phan-tich",
+             "deps": []},
+        ], "demo-hash-2")
+        conn.execute("UPDATE team_steps SET status='done' WHERE task_id='demo-brief-phu'")
+        conn.execute("UPDATE team_tasks SET status='done' WHERE id='demo-brief-phu'")
+        conn.commit()
+    finally:
+        store.close()
 
 
 if __name__ == "__main__":

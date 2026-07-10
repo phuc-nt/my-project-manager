@@ -89,6 +89,25 @@
   telegram stub qua escalation-gate (F1); seed assignment pic+task_id. E2E Playwright
   13/13 trên demo + LLM thật: @/không-@/auto-confirm, soi DB pic_id, redirect.
 
+### v16: office workrooms + room chat + coordinator health (2026-07-11)
+- **Workroom** (`team_tasks.room_id`, ALTER-except, NGOÀI hash): room chứa ≥1 task;
+  `room_for_task()` (office_room_append) = MỘT chỗ route mọi writer event (9 module);
+  `list_workrooms`/`tasks_in_room` (loại planning/cancelled; cấm room_id='office').
+- **Chat-in-room** `routes_office_room_chat.py`: 3 intent — tier-1 REGEX (`chỉnh [id]:` /
+  `giao|@`) được hưởng auto-confirm; tier-2 LLM classify LUÔN preview (M3); default
+  question = `office_room_qa.answer_room_question` (read-only, artifact bọc internal,
+  reply ephemeral). Adjust đi `preview/run_adjust_team_task` (single-draft/TOCTOU giữ).
+- **Coordinator health**: heartbeat từ VÒNG LẶP `service.py` (không phải worker tick) →
+  `GET /api/health/coordinator` {alive, reason: no_coordinator|no_heartbeat|stale} →
+  FE banner đỏ — fix gốc "task giao xong kẹt im lặng".
+- **FE workrooms** (`office-unified/`): ≤2 EventSource (3D luôn room 'office'; feed theo
+  room chọn, ?room= URL); `workroom-list` + refetch guard theo seq; feed icon+màu token;
+  composer 2 chế độ (toàn cảnh giao việc / in-room 3 intent + confirm-adjust); canvas
+  `visibleDesks` lọc roster thật (hết desk ma) + dimmed ngoài room; banner poll 30s.
+- **Demo v3**: chạy KÈM service thật (pid-file, refuse nếu service khác đang chạy, off
+  kill + xoá heartbeat); seed task rows TERMINAL-only (C2 — ticker thật sẽ ăn task open).
+  E2E 13/13: ticker thật dispatch, question no-write, task con cùng room, adjust, banner.
+
 **Entry points**: Legacy `python -m src.entrypoints.cli`/`cron` (single-agent). Multi-agent: `python -m src.entrypoints.mpm agent {list,register,run,resume,replay,automate,approvals,approve,reject,audit}`. Runtime: `python -m src.runtime.worker`, `python -m src.runtime.service`.
 
 ## Cây thư mục (v3 M5 state with domain-packs)

@@ -83,6 +83,10 @@ class TeamTask:
     # v15 PIC: staffer responsible for the whole task ("" = pre-v15 task, no PIC).
     # Metadata OUTSIDE the plan hash — see task_decomposition.decomposition_content_hash.
     pic_id: str = ""
+    # v16 workroom: the room this task's events live in. "" = the task's own id (every
+    # pre-v16 task and every task assigned outside a room) — resolve via
+    # `office_room_append.room_for_task`, never read this raw for routing.
+    room_id: str = ""
     steps: tuple[TeamStep, ...] = field(default_factory=tuple)
 
 
@@ -126,6 +130,10 @@ class TeamTaskStore:
             self._conn.execute("ALTER TABLE team_tasks ADD COLUMN pic_id TEXT NOT NULL DEFAULT ''")
         except sqlite3.OperationalError:
             pass  # column already exists
+        try:
+            self._conn.execute("ALTER TABLE team_tasks ADD COLUMN room_id TEXT NOT NULL DEFAULT ''")
+        except sqlite3.OperationalError:
+            pass  # column already exists
         _steps.create_schema(self._conn)
         _amend.create_schema(self._conn)
         self._conn.commit()
@@ -137,15 +145,21 @@ class TeamTaskStore:
 
     def create_task(
         self, *, task_id: str, title: str, original_request: str = "", assigned_by: str = "",
-        pic_id: str = "",
+        pic_id: str = "", room_id: str = "",
     ) -> str:
         """Create a task row in `planning` status. `task_id` is caller-supplied
-        (the coordinator mints it) so it can be referenced before `set_plan`."""
+        (the coordinator mints it) so it can be referenced before `set_plan`.
+
+        `room_id` (v16): the existing workroom this task joins ("" = its own room).
+        'office' is the GLOBAL log room every event mirrors into — a task claiming it
+        as its workroom would collapse the two concepts, hence the hard reject."""
+        if room_id == "office":
+            raise ValueError("room_id 'office' là phòng nhật ký tổng — không thể làm workroom")
         self._conn.execute(
             "INSERT INTO team_tasks "
-            "(id, title, original_request, status, created_at, assigned_by, pic_id) "
-            "VALUES (?, ?, ?, 'planning', ?, ?, ?)",
-            (task_id, title, original_request, self._now(), assigned_by, pic_id),
+            "(id, title, original_request, status, created_at, assigned_by, pic_id, room_id) "
+            "VALUES (?, ?, ?, 'planning', ?, ?, ?, ?)",
+            (task_id, title, original_request, self._now(), assigned_by, pic_id, room_id),
         )
         self._conn.commit()
         return task_id
@@ -223,6 +237,7 @@ class TeamTaskStore:
             decompose_cost_usd=float(data["decompose_cost_usd"]),
             aggregate_cost_usd=float(data["aggregate_cost_usd"]),
             escalated_at=data["escalated_at"], pic_id=str(data.get("pic_id") or ""),
+            room_id=str(data.get("room_id") or ""),
             steps=steps,
         )
 
@@ -237,6 +252,51 @@ class TeamTaskStore:
         ).fetchall()
         tasks = [self.get(r[0]) for r in rows]
         return [t for t in tasks if t is not None]
+
+    def list_workrooms(self) -> list[dict]:
+        """v16 rooms-list surface: tasks grouped by EFFECTIVE workroom (`room_id or id`),
+        newest first. Excludes `planning` (an unconfirmed preview draft is not a room
+        yet) and `cancelled` (an abandoned draft never becomes one). Rollup: any
+        stalled -> 'ket'; else any non-done -> 'dang-chay'; else 'xong'."""
+        rows = self._conn.execute(
+            "SELECT id, title, status, created_at, COALESCE(room_id, '') AS room_id "
+            "FROM team_tasks WHERE status NOT IN ('planning', 'cancelled') "
+            "ORDER BY created_at"
+        ).fetchall()
+        rooms: dict[str, dict] = {}
+        for task_id, title, status, created_at, room_id in rows:
+            key = room_id or task_id
+            room = rooms.setdefault(key, {
+                "room_id": key, "title": title, "task_count": 0,
+                "statuses": [], "updated_at": created_at,
+            })
+            room["task_count"] += 1
+            room["statuses"].append(status)
+            room["updated_at"] = max(room["updated_at"], created_at)
+        out = []
+        for room in rooms.values():
+            statuses = room.pop("statuses")
+            if any(s == "stalled" for s in statuses):
+                room["status"] = "ket"
+            elif any(s != "done" for s in statuses):
+                room["status"] = "dang-chay"
+            else:
+                room["status"] = "xong"
+            out.append(room)
+        out.sort(key=lambda r: r["updated_at"], reverse=True)
+        return out
+
+    def tasks_in_room(self, room_id: str) -> list[TeamTask]:
+        """Every non-draft task whose EFFECTIVE workroom is `room_id` (v16 QA/chat
+        surface) — includes done/stalled tasks `list_open` hides, excludes
+        planning/cancelled drafts like `list_workrooms`."""
+        rows = self._conn.execute(
+            "SELECT id FROM team_tasks WHERE status NOT IN ('planning', 'cancelled') "
+            "AND (room_id = ? OR (COALESCE(room_id, '') = '' AND id = ?)) "
+            "ORDER BY created_at",
+            (room_id, room_id),
+        ).fetchall()
+        return [t for (task_id,) in rows if (t := self.get(task_id)) is not None]
 
     def list_dispatchable(self) -> list[TeamTask]:
         """DISPATCH list — the ONLY task set the coordinator ticker may act on.

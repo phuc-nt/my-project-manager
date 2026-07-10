@@ -29,6 +29,9 @@ interface AgentDeskProps {
   position: [number, number, number]
   label: string
   desk: AgentDeskState
+  // v16: staff outside the selected workroom render translucent — visual de-emphasis
+  // only, the state machine/tweens run exactly the same.
+  dimmed?: boolean
   // Desk position of the colleague this agent is consulting with (from office-canvas's
   // id→position map), null when desk.consultWith is unset or the colleague has no desk
   // yet. When set, the avatar walks to consultMeetPoint(own, colleague) instead of its
@@ -96,7 +99,7 @@ function AgentAvatar({ id }: { id: string }) {
   )
 }
 
-export function AgentDesk({ position, label, desk, consultPos }: AgentDeskProps) {
+export function AgentDesk({ position, label, desk, consultPos, dimmed }: AgentDeskProps) {
   const avatarRef = useRef<THREE.Group>(null)
   const bobRef = useRef<THREE.Group>(null) // inner group: bob rides here, NOT inside the lerp
   const bobPhase = agentHash(label) % 7 // de-sync the bobs so the room doesn't pulse in unison
@@ -143,7 +146,7 @@ export function AgentDesk({ position, label, desk, consultPos }: AgentDeskProps)
   const bubblePosition: [number, number, number] = [position[0], position[1] + 1.6, position[2]]
 
   return (
-    <group>
+    <group scale={dimmed ? 0.65 : 1}>
       <group position={position}>
         <mesh position={[0, 0.25, 0]}>
           <boxGeometry args={DESK_SIZE} />

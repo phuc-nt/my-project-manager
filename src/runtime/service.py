@@ -196,8 +196,25 @@ class Service:
         """
         logger.info("service started; tick interval %ds", interval)
         while True:
+            _write_coordinator_heartbeat()
             self.run_tick(datetime.now())  # noqa: DTZ005 — local time, matches cron intent
             time.sleep(interval)
+
+
+def _write_coordinator_heartbeat() -> None:
+    """v16: touch `DATA_DIR/coordinator.heartbeat` each SERVICE loop pass — the signal
+    `/api/health/coordinator` reads to tell the CEO whether the dispatch engine is
+    alive at all (the "task giao xong kẹt im lặng" root cause). Written from the LOOP,
+    not from a worker's team-tick body: a long sequential worker run must not make the
+    service look dead. try/degrade — a heartbeat write failure never stops the loop."""
+    try:
+        from src.config.settings import DATA_DIR
+
+        path = DATA_DIR / "coordinator.heartbeat"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch()
+    except Exception:  # noqa: BLE001
+        logger.warning("coordinator heartbeat write failed", exc_info=True)
 
 
 def main(argv: list[str] | None = None) -> int:

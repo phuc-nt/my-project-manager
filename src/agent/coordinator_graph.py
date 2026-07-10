@@ -67,7 +67,7 @@ from src.agent.coordinator_nodes.tick_actions import (
     ready_pending_steps,
 )
 from src.runtime.company import DEFAULT_TEAM_TASK_CONCURRENCY
-from src.runtime.office_room_append import append_office_event
+from src.runtime.office_room_append import append_office_event, room_for_task
 from src.runtime.team_task_cost import CostCapResult, check_cost_cap, cost_warn_ratio
 from src.runtime.team_task_store import TeamStep, TeamTask, TeamTaskStore
 
@@ -312,7 +312,7 @@ def _maybe_warn_cost_cap(deps: CoordinatorDeps, task: TeamTask, cap: CostCapResu
     if not cost_warn_ratio(cap, warn_ratio=COST_WARN_RATIO):
         return
     append_office_event(
-        task.id, author="coordinator", kind="milestone",
+        room_for_task(task.id), author="coordinator", kind="milestone",
         body={"task_id": task.id, "task_title": task.title, "milestone": "cost_warn",
               "message": f"Việc '{task.title}' đã dùng ${cap.spent_usd:.4f} / "
                          f"${cap.cap_usd:.2f} — gần chạm trần chi phí."},

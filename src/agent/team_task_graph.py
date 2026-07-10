@@ -353,10 +353,11 @@ def default_team_task_deps(
 
         def _ask_colleague(agent_id: str, question: str) -> tuple[str, float]:
             from src.agent.team_task_consult import ask_colleague
+            from src.runtime.office_room_append import room_for_task
 
             return ask_colleague(
                 agent_id, question, settings=settings, self_id=self_id,
-                room_id=task_id, attempt_id=attempt_box["attempt_id"],
+                room_id=room_for_task(task_id), attempt_id=attempt_box["attempt_id"],
             )
 
         def _propose_consults(title: str, handoff: str) -> list[tuple[str, str]]:

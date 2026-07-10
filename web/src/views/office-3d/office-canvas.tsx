@@ -15,9 +15,23 @@ import { OfficeProps } from './office-props'
 interface OfficeCanvasProps {
   agentIds: string[]
   desks: Map<string, AgentDeskState>
+  // v16: desks render ONLY for CURRENT registry staff (ghost desks from old events are
+  // gone); null/undefined = no filtering (callers without a roster yet).
+  rosterIds?: string[] | null
+  // v16: when a workroom is selected, everyone NOT in it dims (opacity) — visual only.
+  dimmedIds?: Set<string>
 }
 
-export function OfficeCanvas({ agentIds, desks }: OfficeCanvasProps) {
+// Roster filter runs BEFORE ring-index math (red-team m-visibleDesks): positions are
+// computed over the VISIBLE list so a filtered-out ghost never leaves a hole in the ring.
+export function visibleDesks(agentIds: string[], rosterIds?: string[] | null): string[] {
+  if (!rosterIds) return agentIds
+  const allowed = new Set(rosterIds)
+  return agentIds.filter((id) => allowed.has(id))
+}
+
+export function OfficeCanvas({ agentIds, desks, rosterIds, dimmedIds }: OfficeCanvasProps) {
+  const visible = visibleDesks(agentIds, rosterIds)
   return (
     <div className="office-3d-canvas-wrap">
       <Canvas camera={{ position: [0, 6, 10], fov: 50 }}>
@@ -27,21 +41,22 @@ export function OfficeCanvas({ agentIds, desks }: OfficeCanvasProps) {
         <OfficeFloor />
         <OfficeProps />
         <CoordinatorDesk />
-        {agentIds.map((id, i) => {
+        {visible.map((id, i) => {
           const desk = desks.get(id)
           if (!desk) return null
-          // Colleague desk position while this desk is consulting — drives the
-          // walk-toward-each-other tween in AgentDesk. The ring index of the
-          // colleague comes from the same first-seen order this map iterates in.
-          const colleagueIdx = desk.consultWith ? agentIds.indexOf(desk.consultWith) : -1
-          const consultPos = colleagueIdx >= 0 ? deskPosition(colleagueIdx, agentIds.length) : null
+          // Colleague desk position while this desk is consulting — ring indexes are
+          // computed over the VISIBLE list (a consult partner outside the roster has no
+          // desk to walk to, so the walk simply doesn't trigger).
+          const colleagueIdx = desk.consultWith ? visible.indexOf(desk.consultWith) : -1
+          const consultPos = colleagueIdx >= 0 ? deskPosition(colleagueIdx, visible.length) : null
           return (
             <AgentDesk
               key={id}
-              position={deskPosition(i, agentIds.length)}
+              position={deskPosition(i, visible.length)}
               label={id}
               desk={desk}
               consultPos={consultPos}
+              dimmed={dimmedIds?.has(id) ?? false}
             />
           )
         })}

@@ -18,6 +18,7 @@ cd "$(dirname "$0")/.."
 
 BACKUP=.demo-backup
 MARKER=$BACKUP/DEMO_ON
+SERVICE_PID_FILE=$BACKUP/service.pid
 PORT="${PORT:-8765}"
 DEMO_AGENTS=(truong-phong nghien-cuu noi-dung phan-tich kiem-dinh thiet-ke)
 SWAP_STORES=(office_room.sqlite3 team_tasks.sqlite3)
@@ -71,6 +72,7 @@ demo_on() {
 
   date > "$MARKER"
   restart_app
+  start_demo_service
   echo "✅ DEMO MODE: BẬT — công ty demo + đội 6 nhân sự + văn phòng đang hoạt động."
   echo "   Mở Văn phòng → Văn phòng 3D để xem cảnh sống. Tắt: scripts/demo-mode.sh off"
 }
@@ -102,15 +104,56 @@ demo_off() {
     done
   done
 
+  stop_demo_service
+  rm -f .data/coordinator.heartbeat
   rm -f "$MARKER"
   rmdir "$BACKUP/profiles" "$BACKUP/data" 2>/dev/null || true
   restart_app
   echo "✅ DEMO MODE: TẮT — data thật đã trả lại nguyên vẹn."
 }
 
+# v16: demo chạy KÈM bộ điều phối thật (src.runtime.service) — không thì việc giao trong
+# demo kẹt ở "đã nhận việc" y như bug thật. PID FILE: off giết đúng process của demo,
+# không bao giờ pkill theo tên (tránh giết service thật của user).
+start_demo_service() {
+  if pgrep -f "src.runtime.service" >/dev/null 2>&1; then
+    echo "LỖI: đang có bộ điều phối khác chạy (src.runtime.service) — tắt nó trước khi bật demo" >&2
+    echo "     (2 ticker cùng lúc sẽ tranh nhau store)." >&2
+    echo "     Đang hoàn tác demo swap (demo off)..." >&2
+    demo_off
+    exit 1
+  fi
+  # macOS không có setsid; nohup + PID trực tiếp là đủ (worker con là process ngắn hạn
+  # tự thoát — kill service PID không để mồ côi gì lâu dài).
+  nohup .venv/bin/python -m src.runtime.service > "$BACKUP/service.log" 2>&1 &
+  echo $! > "$SERVICE_PID_FILE"
+  sleep 1
+  if kill -0 "$(cat "$SERVICE_PID_FILE" 2>/dev/null)" 2>/dev/null; then
+    echo "→ Bộ điều phối demo: PID $(cat "$SERVICE_PID_FILE")"
+  else
+    echo "CẢNH BÁO: bộ điều phối demo chưa lên — xem $BACKUP/service.log" >&2
+  fi
+}
+
+stop_demo_service() {
+  if [ -f "$SERVICE_PID_FILE" ]; then
+    pid=$(cat "$SERVICE_PID_FILE")
+    kill "$pid" 2>/dev/null || true
+    rm -f "$SERVICE_PID_FILE"
+  fi
+}
+
 demo_status() {
   if [ -f "$MARKER" ]; then
     echo "DEMO MODE: BẬT (từ $(cat "$MARKER"))"
+    if [ -f "$SERVICE_PID_FILE" ] && kill -0 "$(cat "$SERVICE_PID_FILE")" 2>/dev/null; then
+      echo "Bộ điều phối demo: ĐANG CHẠY (PID $(cat "$SERVICE_PID_FILE"))"
+    else
+      echo "Bộ điều phối demo: KHÔNG chạy"
+    fi
+    if [ -f .data/coordinator.heartbeat ]; then
+      echo "Heartbeat: $(date -r .data/coordinator.heartbeat)"
+    fi
   else
     echo "DEMO MODE: TẮT"
   fi

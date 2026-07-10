@@ -108,9 +108,9 @@ def preview_adjust_team_task(slots: dict[str, str]) -> str:
 
     slots["amendment_id"] = amendment_id
 
-    from src.runtime.office_room_append import append_office_event
+    from src.runtime.office_room_append import append_office_event, room_for_task
 
-    append_office_event(task_id, author="ceo", kind="ceo", body={"text": request})
+    append_office_event(room_for_task(task_id), author="ceo", kind="ceo", body={"text": request})
 
     return (f"{_render_diff(task, new_pending)}\n\nMã việc: {task_id}\n"
             "Xác nhận chỉnh kế hoạch này? (trả lời: xác nhận / huỷ)")
@@ -136,13 +136,13 @@ def run_adjust_team_task(slots: dict[str, str]) -> str:
     if not result.ok:
         raise ValueError(_REASON_MESSAGES.get(result.reason, "không áp dụng được bản chỉnh"))
 
-    from src.runtime.office_room_append import append_office_event
+    from src.runtime.office_room_append import append_office_event, room_for_task
 
     if task is not None:
         pending = [s.step_id for s in task.steps if s.status == "pending"]
         pending_txt = ", ".join(pending) or "(không)"
         append_office_event(
-            task_id, author="coordinator", kind="milestone",
+            room_for_task(task_id), author="coordinator", kind="milestone",
             body={"task_id": task_id, "task_title": task.title, "milestone": "plan_adjusted",
                   "message": f"Kế hoạch đã chỉnh — bước chờ mới: {pending_txt}"},
             also_office=True,

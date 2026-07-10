@@ -222,6 +222,36 @@ export interface AssignStaffPayload {
   staff: { id: string; domain: string }[]
 }
 
+// v16 workrooms
+export interface Workroom {
+  room_id: string
+  title: string
+  task_count: number
+  status: 'dang-chay' | 'ket' | 'xong'
+  updated_at: string
+}
+
+export interface WorkroomsPayload {
+  rooms: Workroom[]
+}
+
+export interface RoomChatPayload {
+  intent: 'question' | 'adjust' | 'new_task'
+  reply?: string
+  preview_text?: string
+  task_id?: string
+  plan_hash?: string
+  pic_id?: string
+  amendment_id?: string
+  auto_confirmed?: boolean
+}
+
+export interface CoordinatorHealthPayload {
+  alive: boolean
+  last_beat_ago_s: number | null
+  reason: '' | 'no_coordinator' | 'no_heartbeat' | 'stale'
+}
+
 export interface AssignPreviewPayload {
   preview_text: string
   task_id: string

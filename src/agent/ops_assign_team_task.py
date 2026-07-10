@@ -250,7 +250,8 @@ def preview_assign_team_task(slots: dict[str, str]) -> str:
     store = TeamTaskStore(team_tasks_db_path())
     try:
         store.create_task(task_id=task_id, title=clean_brief[:120], original_request=brief,
-                          assigned_by="ceo-chat", pic_id=task.pic_id)
+                          assigned_by="ceo-chat", pic_id=task.pic_id,
+                          room_id=slots.get("room_id", "").strip())
         store.set_draft_plan(task_id, step_dicts, plan_hash)
         if decompose_cost:
             store.record_task_cost(task_id, decompose=decompose_cost)
@@ -264,9 +265,9 @@ def preview_assign_team_task(slots: dict[str, str]) -> str:
 
     # Room event: the CEO's brief, appended to the (not-yet-dispatchable) task's own
     # room — try/degrade (a failed append must never block the preview/confirm flow).
-    from src.runtime.office_room_append import append_office_event
+    from src.runtime.office_room_append import append_office_event, room_for_task
 
-    append_office_event(task_id, author="ceo", kind="ceo", body={"text": brief})
+    append_office_event(room_for_task(task_id), author="ceo", kind="ceo", body={"text": brief})
 
     pic_line = f"\nPIC (chịu trách nhiệm chính): {task.pic_id}" if task.pic_id else ""
 
@@ -279,7 +280,12 @@ def preview_assign_team_task(slots: dict[str, str]) -> str:
 
     # getattr-default: pre-v15 Company doubles (tests) and any stale cached shape
     # simply mean "flag off" — the safe branch.
-    if getattr(load_company(), "team_task_auto_confirm", False):
+    if getattr(load_company(), "team_task_auto_confirm", False) \
+            and not slots.get("no_auto_confirm"):
+        # `no_auto_confirm` (v16 red-team M3): an LLM-classified chat intent may reuse
+        # this preview but must NEVER inherit the auto-confirm privilege — only the
+        # CEO's explicit hard-prefix commands (@/giao/chỉnh, or the composer button
+        # flow) are allowed to skip the manual confirm.
         try:
             run_text = run_assign_team_task(slots)
         except Exception as exc:  # noqa: BLE001 — ANY auto-run failure (stale hash
@@ -317,7 +323,7 @@ def run_assign_team_task(slots: dict[str, str]) -> str:
     # Room events: the confirmed DAG (assignment) + a milestone ("task received") — both
     # try/degrade, appended AFTER the store confirm so a failed append never undoes the
     # actual dispatch decision.
-    from src.runtime.office_room_append import append_office_event
+    from src.runtime.office_room_append import append_office_event, room_for_task
 
     if task is not None:
         assignees = ", ".join(sorted({s.assigned_to for s in task.steps}))
@@ -327,13 +333,13 @@ def run_assign_team_task(slots: dict[str, str]) -> str:
         # `pic`/`task_id` ride in the body (v15) so the FE can badge the PIC's desk and
         # later clear it on this task's `milestone: done` event (red-team F6 contract).
         append_office_event(
-            task_id, author="coordinator", kind="assignment",
+            room_for_task(task_id), author="coordinator", kind="assignment",
             body={"task_title": task.title, "step_count": len(task.steps),
                   "summary": summary, "pic": task.pic_id, "task_id": task_id},
             also_office=True,
         )
         append_office_event(
-            task_id, author="coordinator", kind="milestone",
+            room_for_task(task_id), author="coordinator", kind="milestone",
             body={"task_id": task_id, "task_title": task.title, "milestone": "received",
                   "message": f"Đội đã nhận việc '{task.title}' ({len(task.steps)} bước)."},
             also_office=True,

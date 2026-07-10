@@ -38,7 +38,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from src.runtime.office_room_append import append_office_event
+from src.runtime.office_room_append import append_office_event, room_for_task
 from src.runtime.team_task_store import TeamStep, TeamTask
 
 if TYPE_CHECKING:
@@ -83,7 +83,7 @@ def maybe_insert_review(deps: CoordinatorDeps, task: TeamTask, done_step: TeamSt
     reviewer = pick_reviewer(done_step.assigned_to, assignable_staff())
     if reviewer is None:
         append_office_event(
-            task.id, author="coordinator", kind="milestone",
+            room_for_task(task.id), author="coordinator", kind="milestone",
             body={"task_id": task.id, "task_title": task.title, "milestone": "review_skipped",
                   "message": f"Bỏ qua kiểm định cho bước '{done_step.title}' — không có "
                              "đồng nghiệp phù hợp để soát chéo."},
@@ -174,7 +174,7 @@ def maybe_insert_review_after_rework(
     reviewer = pick_reviewer(content_step.assigned_to, assignable_staff())
     if reviewer is None:
         append_office_event(
-            task.id, author="coordinator", kind="milestone",
+            room_for_task(task.id), author="coordinator", kind="milestone",
             body={"task_id": task.id, "task_title": task.title, "milestone": "review_skipped",
                   "message": f"Bỏ qua kiểm định vòng {next_round} cho bước "
                              f"'{content_step.title}' — không có đồng nghiệp phù hợp."},

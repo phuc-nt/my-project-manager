@@ -36,7 +36,9 @@ def get_assignable_staff() -> dict:
 
 
 @router.post("/preview")
-def post_preview(brief: str = Body(..., embed=True)) -> dict:
+def post_preview(
+    brief: str = Body(..., embed=True), room_id: str = Body("", embed=True),
+) -> dict:
     """Decompose the brief (with optional @PIC prefix) and persist the draft plan.
 
     Returns the preview text + the `task_id`/`plan_hash` pair the confirm call must
@@ -52,6 +54,9 @@ def post_preview(brief: str = Body(..., embed=True)) -> dict:
     from src.agent.ops_assign_team_task import preview_assign_team_task
 
     slots: dict[str, str] = {"brief": brief.strip()}
+    if isinstance(room_id, str) and room_id.strip():
+        # v16: assigning from inside a workroom — the new task joins that room.
+        slots["room_id"] = room_id.strip()
     try:
         preview_text = preview_assign_team_task(slots)
     except ValueError as exc:

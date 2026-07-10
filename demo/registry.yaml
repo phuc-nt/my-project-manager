@@ -1,0 +1,19 @@
+# DEMO registry — bản dùng cho "demo mode" (scripts/demo-mode.sh on).
+# Đội hình chuẩn: điều phối + 5 nhân sự văn phòng. KHÔNG chứa secrets.
+agents:
+  - id: default
+    enabled: true
+  - id: admin
+    enabled: true
+  - id: truong-phong
+    enabled: true
+  - id: nghien-cuu
+    enabled: true
+  - id: noi-dung
+    enabled: true
+  - id: phan-tich
+    enabled: true
+  - id: kiem-dinh
+    enabled: true
+  - id: thiet-ke
+    enabled: true

@@ -1,0 +1,40 @@
+name: Phân tích
+enabled: true
+model: minimax/minimax-m2.7
+budget:
+  monthly_usd: 50
+  warn_ratio: 0.8
+safety:
+  dry_run: true
+  write_disabled: false
+runtime:
+  checkpointer: sqlite
+  store: memory
+  postgres_dsn: ''
+thresholds:
+  pr_stale_days: 7
+  blocker_label_substring: block
+  okr_behind_threshold: 0.5
+  resource_overload_ratio: 1.5
+  labor_cost_per_issue: 0
+bindings:
+  jira:
+    project_key: ''
+    token_env: ATLASSIAN_API_TOKEN
+  confluence:
+    space_key: ''
+    space_id: ''
+    okr_page_id: ''
+    token_env: ATLASSIAN_API_TOKEN
+  github:
+    repo: ''
+  slack:
+    report_channel: ''
+    stakeholder_channel: ''
+    external_channels: []
+    token_env_xoxc: SLACK_XOXC_TOKEN
+    token_env_xoxd: SLACK_XOXD_TOKEN
+schedule: {}
+reports: []
+integrations: {}
+domain: office

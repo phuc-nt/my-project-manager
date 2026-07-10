@@ -57,3 +57,5 @@ web/dist/
 .DS_Store
 .setup-complete
 .env.bak
+# demo-mode swap backup (chứa data THẬT khi demo đang bật — tuyệt đối không commit)
+.demo-backup/

@@ -246,6 +246,28 @@ thuật (tất cả tiếng Việt):
 
 Tắt lại để về giao diện gọn 4 mục. Chế độ này chỉ đổi *độ chi tiết hiển thị*, không đổi quyền hạn.
 
+## B.8. Chế độ demo (công ty mẫu, sẵn sàng cho khách xem)
+
+Cần cho khách/đồng nghiệp xem sản phẩm mà không lộ dữ liệu thật? Bật **demo mode**:
+
+```bash
+scripts/demo-mode.sh on      # bật: công ty demo + đội 6 nhân sự chuẩn + văn phòng đang hoạt động
+scripts/demo-mode.sh off     # tắt: trả lại nguyên vẹn dữ liệu thật (đã kiểm chứng byte-identical)
+scripts/demo-mode.sh status  # đang ở chế độ nào
+```
+
+Khi bật, bạn có ngay: công ty "Công ty Demo — Một Người Vận Hành" với trưởng phòng +
+5 nhân sự (nghiên cứu / nội dung / phân tích / kiểm định / thiết kế), và Văn phòng 3D
+đang sống giữa chừng một việc thật: nghiên cứu đã bàn giao, phân tích đang làm và đang
+tham vấn nghiên cứu (hai avatar đứng cạnh nhau 💬), nội dung đang sửa theo soát chéo,
+thiết kế chờ tới lượt. Có thể giao thêm việc thật ngay trong demo (cần LLM key trong
+`.env` — demo mode không đụng `.env`).
+
+An toàn: dữ liệu thật (registry, company, hồ sơ nhân sự trùng tên, timeline/việc) được
+**di chuyển** vào `.demo-backup/` (không copy-đè) và trả lại nguyên vẹn khi tắt; các
+nhân sự demo đặt `dry_run: true` nên không ghi gì ra kênh ngoài. Lưu ý: đang bật demo
+thì `registry.yaml` khác bản gốc — **tắt demo trước khi commit code**.
+
 ---
 
 ## Câu hỏi thường gặp

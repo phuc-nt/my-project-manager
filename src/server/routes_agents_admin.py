@@ -17,6 +17,7 @@ from fastapi import APIRouter, Body, HTTPException, Request
 
 from src.runtime.registry_edit import (
     UnknownRegistryAgentError,
+    append_registry,
     remove_registry_entry,
     set_registry_enabled,
 )
@@ -47,6 +48,62 @@ async def post_create_agent(request: Request) -> dict:
     except agent_create.ConflictError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from None
     return {"created": created}
+
+
+@router.get("/agents/unregistered")
+def get_unregistered_profiles() -> dict:
+    """v18: profile dirs present on disk but absent from the registry — the "profiles
+    exist yet the office has nobody" trap (a registry wipe/revert, or a scaffold that
+    never registered). Per-profile validation degrades (one broken profile.yaml must
+    not 500 the list); `templates/` is a prefill library, never a candidate."""
+    from src.profile.loader import _PROFILES_DIR, load_profile
+    from src.runtime.registry import load_registry
+
+    registered = {e.id for e in load_registry()}
+    out = []
+    for d in sorted(_PROFILES_DIR.iterdir() if _PROFILES_DIR.is_dir() else []):
+        if not d.is_dir() or d.name == "templates" or d.name in registered:
+            continue
+        if not (d / "profile.yaml").exists():
+            continue  # scaffolding leftovers without a profile are not agents
+        try:
+            loaded = load_profile(d.name)
+            out.append({"id": d.name, "name": loaded.name or d.name,
+                        "domain": getattr(loaded, "domain", ""), "valid": True})
+        except Exception as exc:  # noqa: BLE001 — red-team M2: yaml/Validation/anything
+            out.append({"id": d.name, "name": d.name, "domain": "",
+                        "valid": False, "error": str(exc)[:160]})
+    return {"profiles": out}
+
+
+@router.post("/agents/{agent_id}/register", status_code=201)
+def post_register_existing(agent_id: str) -> dict:
+    """v18: register-ONLY — append an EXISTING profile dir to the registry (the create
+    wizard 409s on an existing dir; this is the recovery path). Profile must load
+    cleanly first (never register an agent the service cannot start)."""
+    from src.profile.loader import _PROFILES_DIR, load_profile
+    from src.runtime.agent_paths import _validate_agent_id
+    from src.runtime.registry import _REGISTRY_PATH, load_registry
+
+    try:
+        agent_id = _validate_agent_id(agent_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+    if not (_PROFILES_DIR / agent_id / "profile.yaml").exists():
+        raise HTTPException(status_code=404, detail=f"profiles/{agent_id}/ không tồn tại")
+    if any(e.id == agent_id for e in load_registry()):
+        raise HTTPException(status_code=409, detail=f"{agent_id} đã có trong đội")
+    try:
+        load_profile(agent_id)
+    except Exception as exc:  # noqa: BLE001 — broken profile must not be registered
+        raise HTTPException(status_code=400,
+                            detail=f"hồ sơ lỗi, chưa thể thêm: {str(exc)[:160]}") from None
+    try:
+        append_registry(_REGISTRY_PATH, agent_id)
+    except Exception as exc:  # noqa: BLE001 — red-team M3: a lost race (duplicate) or
+        # validate-before-replace failure surfaces as a clean conflict, never a 500.
+        raise HTTPException(status_code=409, detail=str(exc)[:160]) from None
+    return {"id": agent_id, "registered": True}
 
 
 @router.patch("/agents/{agent_id}/enabled")

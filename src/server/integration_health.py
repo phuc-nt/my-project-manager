@@ -91,6 +91,7 @@ def _run_checks() -> list[dict]:
         )
 
     checks.append(_gh_check())
+    checks.append(_websearch_flag_check())
 
     gws = shutil.which("gws")
     checks.append(
@@ -101,6 +102,39 @@ def _run_checks() -> list[dict]:
         )
     )
     return checks
+
+
+def _websearch_flag_check() -> dict:
+    """v18 (UAT finding #5): agents with `web_search: true` but NO provider key on the
+    machine silently degrade to "xin phép tra cứu web…" — surface it. ok=True when no
+    agent opts in (the keys are then simply unused); a broken profile is skipped, never
+    fails the check itself."""
+    import os as _os
+
+    from src.profile.loader import load_profile
+    from src.runtime.registry import load_registry
+
+    has_key = bool(_os.getenv("TAVILY_API_KEY") or _os.getenv("BRAVE_API_KEY"))
+    flagged: list[str] = []
+    try:
+        for entry in load_registry():
+            if not entry.enabled:
+                continue
+            try:
+                if getattr(load_profile(entry.id), "web_search", False):
+                    flagged.append(entry.id)
+            except Exception:  # noqa: BLE001 — one broken profile must not fail health
+                continue
+    except Exception:  # noqa: BLE001 — registry unreadable: other checks cover that
+        flagged = []
+    ok = has_key or not flagged
+    detail = ("no agent opts in" if not flagged else
+              f"agents bật web_search: {', '.join(flagged)}" + ("" if has_key else " — THIẾU key"))
+    return _check(
+        "websearch_key", "Web search key (agent bật web_search)", ok, detail,
+        "Thêm TAVILY_API_KEY hoặc BRAVE_API_KEY ở Setup wizard, hoặc tắt web_search "
+        "trong profile các agent trên",
+    )
 
 
 def _slack_spec():

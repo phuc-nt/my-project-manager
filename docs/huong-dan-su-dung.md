@@ -114,6 +114,12 @@ Thanh điều hướng có 4 mục (giao diện gọn, CEO-first):
 
 ## B.2. Tạo một nhân sự ảo mới
 
+> **Lưu ý (v18):** danh sách đội (`registry.yaml`) là dữ liệu CỦA BẠN — không nằm trong
+> git, không bao giờ bị lệnh git làm mất. Lần chạy đầu hệ thống tự tạo từ mẫu
+> `registry.example.yaml`. Nếu có hồ sơ nhân sự tồn tại trên máy mà chưa vào đội,
+> trang **Đội** sẽ hiện mục "Hồ sơ chưa trong đội" — bấm "Thêm vào đội" là xong
+> (nhân sự nhận việc được ngay, lịch báo cáo cũng tự kích hoạt).
+
 Vào **Đội** → bấm **"+ Tạo nhân sự ảo"**. Có 2 đường:
 
 - **Qua hội thoại** (khuyến nghị): nút dẫn vào **Trợ lý**, trợ lý hỏi bạn từng bước (loại nhân sự,

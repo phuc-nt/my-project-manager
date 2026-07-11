@@ -27,10 +27,13 @@ def test_enabled_false_preserved(tmp_path):
     assert load_registry(p) == (RegistryEntry(id="beta", enabled=False),)
 
 
-def test_committed_registry_loads():
-    # The real committed registry.yaml parses to the default agent plus the admin ops agent
-    # (registering admin is what turns the CEO chat-ops box on — see registry.yaml comment).
-    assert load_registry() == (
+def test_example_registry_template_loads():
+    # v18: registry.yaml is user data; the COMMITTED artifact is the example template a
+    # fresh checkout bootstraps from — it must parse to default + admin (registering
+    # admin is what turns the CEO chat-ops box on).
+    from src.runtime.registry import _EXAMPLE_PATH
+
+    assert load_registry(_EXAMPLE_PATH) == (
         RegistryEntry(id="default", enabled=True),
         RegistryEntry(id="admin", enabled=True),
     )
@@ -90,3 +93,30 @@ def test_path_unsafe_id_rejected(tmp_path, bad_id):
     p = _write(tmp_path, f'agents:\n  - id: "{bad_id}"\n')
     with pytest.raises(RuntimeError, match="Invalid agent id"):
         load_registry(p)
+
+
+def test_bootstrap_from_example_default_path_only(tmp_path, monkeypatch):
+    """v18: a missing DEFAULT registry bootstraps from the example (atomic copy) —
+    but an explicit `path` keeps the strict FileNotFoundError contract (tests,
+    registry_edit tmp-validation, --registry callers)."""
+    import src.runtime.registry as reg
+
+    example = tmp_path / "registry.example.yaml"
+    example.write_text("agents:\n  - id: a1\n    enabled: true\n")
+    target = tmp_path / "registry.yaml"
+    monkeypatch.setattr(reg, "_REGISTRY_PATH", target)
+    monkeypatch.setattr(reg, "_EXAMPLE_PATH", example)
+
+    entries = reg.load_registry()  # default path → bootstrap
+    assert [e.id for e in entries] == ["a1"]
+    assert target.exists()  # real file minted for subsequent edits
+
+    # bootstrap never overwrites an existing registry
+    target.write_text("agents:\n  - id: real-team\n")
+    assert [e.id for e in reg.load_registry()] == ["real-team"]
+
+    # explicit path: no bootstrap, strict error
+    import pytest
+
+    with pytest.raises(FileNotFoundError):
+        reg.load_registry(tmp_path / "khong-ton-tai.yaml")

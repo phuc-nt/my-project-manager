@@ -85,6 +85,18 @@ Mở tab **Văn phòng** (màn hợp nhất: 3D + hoạt động trực tiếp +
 - [ ] **B4.4 — Duyệt**: tab Duyệt đủ 2 phần: "Cần bạn duyệt" (badge số) + "Việc đã giao
   cho từng nhân sự" (board cũ nguyên vẹn).
 
+## B5. Đội & registry (v18 — mới)
+
+- [ ] **B5.1 — Hồ sơ mồ côi**: có thư mục profiles/<id> hợp lệ chưa trong đội → trang
+  Đội hiện "Hồ sơ chưa trong đội" → bấm Thêm → agent vào bảng đội + giao việc thấy ngay
+  (không cần khởi động lại); lịch báo cáo của agent mới tự kích hoạt ở tick kế.
+- [ ] **B5.2 — Registry là dữ liệu của bạn**: chỉnh đội (thêm/tắt agent) → chạy các lệnh
+  git bất kỳ → đội KHÔNG bị hoàn tác (registry.yaml không còn trong git).
+- [ ] **B5.3 — Cảnh báo web_search**: agent bật web_search mà máy thiếu TAVILY/BRAVE key
+  → Sức khỏe hệ thống hiện cảnh báo kèm tên agent; thêm key hoặc tắt flag → hết cảnh báo.
+- [ ] **B5.4 — 3D theo giao diện**: bật chế độ Tối → nền không gian 3D tối theo, nhãn
+  vẫn đọc rõ; đổi lại Sáng không cần tải lại trang.
+
 ## C. Văn phòng 3D "sống" (v14)
 
 Không gian 3D nằm ngay trong tab **Văn phòng** (v15 — không còn menu riêng).

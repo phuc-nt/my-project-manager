@@ -11,7 +11,7 @@
 # .data/office_room.sqlite3, .data/team_tasks.sqlite3 (timeline/việc sạch cho demo).
 # KHÔNG đụng: .env, approvals/budget/audit của agent thật, mọi thứ khác trong .data.
 #
-# Lưu ý: đang bật demo thì repo sẽ "dirty" ở registry.yaml — TẮT demo trước khi commit.
+# Lưu ý: registry.yaml là user data (gitignored từ v18) — demo swap không làm repo dirty.
 # Lưu ý 2: task giao THẬT trong lúc demo (id uuid) nằm trong store demo bị bỏ khi off;
 # thư mục artifact hex của chúng còn lại trên đĩa nhưng không API nào với tới (rác vô
 # hại, xoá tay nếu muốn: .data/artifacts/team-tasks/<12-hex>).

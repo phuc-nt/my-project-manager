@@ -59,3 +59,5 @@ web/dist/
 .env.bak
 # demo-mode swap backup (chứa data THẬT khi demo đang bật — tuyệt đối không commit)
 .demo-backup/
+# v18: registry is user data (the CEO's real team) — template is registry.example.yaml
+/registry.yaml

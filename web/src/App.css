@@ -294,7 +294,10 @@ h4 { font-size: var(--fs-h4); }
   .office-artifacts { max-height: 40vh; }
 }
 @media (max-width: 900px) {
-  .workroom-list { flex-direction: row; flex-wrap: wrap; max-width: none; }
+  /* v18: horizontal scroll strip — wrapping pushed the layout apart on phones. */
+  .workroom-list { flex-direction: row; flex-wrap: nowrap; overflow-x: auto;
+    max-width: none; padding-bottom: var(--space-1); }
+  .workroom-list .chip { flex: 0 0 auto; }
 }
 .office-3d-label-coordinator { color: #2b2b2b; }
 .office-3d-fallback-table { margin-top: var(--space-3); }
@@ -534,3 +537,10 @@ button:disabled { cursor: default; opacity: 0.6; }
   /* Neutralize the inline transitions declared on .app-nav a, .chip, .btn, .agent-tabs button. */
   * { transition: none !important; animation: none !important; }
 }
+
+[data-theme='dark'] .office-3d-label { text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9); }
+
+.team-orphans { margin-top: var(--space-4); border: 1px solid var(--color-warn);
+  border-radius: var(--radius); padding: var(--space-3); background: var(--color-warn-bg); }
+.team-orphans ul { list-style: none; margin: var(--space-2) 0 0; padding: 0; }
+.team-orphans li { padding: var(--space-1) 0; }

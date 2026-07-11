@@ -9,7 +9,7 @@ import { ApiError, api } from '../api/client'
 import { IntegrationHealthPanel } from '../components/IntegrationHealthPanel'
 import { KIND_LABEL, RUN_STATUS_LABEL, labelFor } from '../labels'
 import { useUiMode } from '../ui-mode-context'
-import type { AgentStatus, AgentSummary, TeamAlert } from '../types'
+import type { AgentStatus, AgentSummary, TeamAlert, UnregisteredProfile } from '../types'
 
 // 1-click coordinator bootstrap ("Tạo trưởng phòng"): scaffolds an agent from the
 // `truong-phong` staff template (role_id) and points `company.yaml::coordinator_id` at
@@ -21,6 +21,9 @@ const COORDINATOR_AGENT_ID = 'truong-phong'
 
 export function Team() {
   const [agents, setAgents] = useState<AgentSummary[]>([])
+  // v18: profiles on disk that fell out of the registry (recovery list)
+  const [orphans, setOrphans] = useState<UnregisteredProfile[]>([])
+  const [registering, setRegistering] = useState<string | null>(null)
   const [statuses, setStatuses] = useState<Record<string, AgentStatus>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -163,6 +166,19 @@ export function Team() {
     }
   }
 
+  useEffect(() => {
+    api.getUnregisteredProfiles().then((p) => setOrphans(p.profiles)).catch(() => setOrphans([]))
+  }, [agents.length])
+
+  const registerOrphan = (id: string) => {
+    setRegistering(id)
+    api.registerExistingProfile(id)
+      .then(() => api.getUnregisteredProfiles().then((p) => setOrphans(p.profiles)))
+      .then(() => window.location.reload()) // đơn giản: bảng đội + roster nạp lại đủ
+      .catch((e: unknown) => setOpError(e instanceof Error ? e.message : 'thêm thất bại'))
+      .finally(() => setRegistering(null))
+  }
+
   return (
     <section>
       <IntegrationHealthPanel />
@@ -286,6 +302,34 @@ export function Team() {
         </table>
       )}
 
+      {orphans.length > 0 && (
+        <section className="team-orphans">
+          <h3>Hồ sơ chưa trong đội ({orphans.length})</h3>
+          <p className="muted">
+            Các hồ sơ này tồn tại trong thư mục profiles/ nhưng chưa được đăng ký vào đội —
+            thêm lại để giao việc được cho họ.
+          </p>
+          <ul>
+            {orphans.map((o) => (
+              <li key={o.id}>
+                <strong>{o.id}</strong> {o.name !== o.id && `(${o.name})`}{' '}
+                {o.domain && <span className="muted">— {o.domain}</span>}{' '}
+                {o.valid ? (
+                  <button
+                    type="button" className="btn-link"
+                    disabled={registering === o.id}
+                    onClick={() => registerOrphan(o.id)}
+                  >
+                    {registering === o.id ? 'Đang thêm…' : 'Thêm vào đội'}
+                  </button>
+                ) : (
+                  <span className="error">hồ sơ lỗi: {o.error}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {confirmingDelete && (
         <div className="confirm-dialog" role="dialog" aria-modal="true" aria-label="Xác nhận xoá">
           <h3>Xoá agent {confirmingDelete}?</h3>

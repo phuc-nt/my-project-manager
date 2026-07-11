@@ -171,6 +171,13 @@ class Service:
             if not loaded.enabled:
                 continue
             schedule, reports = _effective_schedule(loaded)
+            # v18 (red-team C1): seed-at-discovery — an agent REGISTERED AFTER daemon
+            # start (the web register button / append_registry) gets its schedule
+            # baseline the first tick that sees it, instead of never firing until a
+            # restart. Same "seed to now, no back-fire" semantics `_seed` gives a
+            # fresh daemon; an already-seeded pair is untouched.
+            for kind in schedule:
+                self._last_fire.setdefault((entry.id, kind), now)
             per_kind = {k: self._last_fire[(entry.id, k)]
                         for k in schedule if (entry.id, k) in self._last_fire}
             for kind, audience in due_reports(schedule, reports, now, per_kind):

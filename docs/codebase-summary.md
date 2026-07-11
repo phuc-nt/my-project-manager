@@ -124,6 +124,23 @@
   M3); demo off dọn `artifacts/team-tasks/demo-*`. E2E 16/16 (markdown render thật,
   download, Q4, task thật bàn giao → xem full).
 
+### v18: registry = user-data + team recovery UX (2026-07-11)
+- **registry.yaml RỜI GIT** (gitignored `/registry.yaml`): user data như company.yaml/
+  profiles — đội thật của CEO không bao giờ bị git revert (root-cause của "profiles tồn
+  tại mà registry trống"). `registry.example.yaml` committed; `load_registry()` bootstrap
+  atomic từ example khi vắng (CHỈ đường path-mặc-định — caller truyền path giữ
+  FileNotFoundError); installer copy idempotent.
+- **Recovery UI**: `GET /api/agents/unregistered` (per-profile degrade — 1 hồ sơ hỏng
+  không 500 danh sách) + `POST /api/agents/{id}/register` (register-ONLY, validate id,
+  409 race); trang Đội section "Hồ sơ chưa trong đội".
+- **C1 scheduler seed-at-discovery**: `run_tick` setdefault last_fire cho (agent,kind)
+  mới — agent đăng ký runtime có lịch nổ ngay tick kế (trước: chết im lặng tới restart).
+- **Polish**: 3D canvas/floor theme-aware (MutationObserver data-theme, 2 palette cứng —
+  r3f không đọc CSS var); rooms-list mobile cuộn ngang; health check `websearch_key`
+  (agent bật web_search mà máy thiếu TAVILY/BRAVE key — ok khi không ai bật).
+- Fleet thật đổi: `default` DISABLED (quyết định CEO — đội office = mọi agent enabled,
+  default là pm không thuộc văn phòng).
+
 **Entry points**: Legacy `python -m src.entrypoints.cli`/`cron` (single-agent). Multi-agent: `python -m src.entrypoints.mpm agent {list,register,run,resume,replay,automate,approvals,approve,reject,audit}`. Runtime: `python -m src.runtime.worker`, `python -m src.runtime.service`.
 
 ## Cây thư mục (v3 M5 state with domain-packs)

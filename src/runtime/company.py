@@ -1,7 +1,8 @@
 """Company identity — greenfield `company.yaml` at repo root.
 
 Mirrors `registry.py`'s load shape (dataclass + yaml.safe_load) but is DEGRADE-NOT-RAISE:
-`registry.yaml` must exist for the service to know which agents to run, but a missing
+`registry.yaml` must exist (bootstrapped from its example since v18) for the service
+to know which agents to run, but a missing
 `company.yaml` is not a run-blocking condition — a fresh install has no company set up
 yet, and every reader (Setup wizard, dashboard header) must render a safe default instead
 of 500ing. Writes go through `save_company`, which mirrors `registry_edit`'s

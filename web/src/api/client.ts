@@ -5,6 +5,7 @@ import type {
   AssignPreviewPayload,
   AssignStaffPayload,
   CoordinatorHealthPayload,
+  UnregisteredProfilesPayload,
   RoomArtifactsPayload,
   StepArtifactPayload,
   RoomChatPayload,
@@ -147,6 +148,11 @@ export const api = {
   setAgentEnabled: (id: string, enabled: boolean) =>
     mutate<EnabledResult>(`/api/agents/${id}/enabled`, 'PATCH', { enabled }),
   deleteAgent: (id: string) => mutate<DeleteAgentResult>(`/api/agents/${id}`, 'DELETE'),
+  // v18: recovery for profiles that exist on disk but fell out of the registry
+  getUnregisteredProfiles: () =>
+    request<UnregisteredProfilesPayload>('/api/agents/unregistered'),
+  registerExistingProfile: (id: string) =>
+    post<{ id: string; registered: boolean }>(`/api/agents/${id}/register`, {}),
   getIntegrationHealth: () => request<IntegrationHealthPayload>('/api/health/integrations'),
   getTeamAlerts: () => request<TeamAlertsPayload>('/api/team/alerts'),
   // Company identity (config-only) + staff-template picker.

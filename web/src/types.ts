@@ -304,6 +304,19 @@ export interface StaffTemplatesPayload {
   templates: StaffTemplate[]
 }
 
+// v18: profiles on disk missing from the registry (recovery listing)
+export interface UnregisteredProfile {
+  id: string
+  name: string
+  domain: string
+  valid: boolean
+  error?: string
+}
+
+export interface UnregisteredProfilesPayload {
+  profiles: UnregisteredProfile[]
+}
+
 export interface EnabledResult {
   agent_id: string
   enabled: boolean

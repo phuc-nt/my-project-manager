@@ -1,9 +1,13 @@
 """Agent registry — the list of agents the coordinating service runs (v2 M1-P3).
 
-`registry.yaml` (repo root, committed) holds only agent ids + an enabled flag — no
-secrets — so the service knows which `profiles/<id>/` to load. An agent runs only when
-BOTH its registry `enabled` AND its profile's `enabled` are true (registry is the
-master switch; the profile is the secondary gate).
+`registry.yaml` (repo root) holds only agent ids + an enabled flag — no secrets — so
+the service knows which `profiles/<id>/` to load. An agent runs only when BOTH its
+registry `enabled` AND its profile's `enabled` are true (registry is the master
+switch; the profile is the secondary gate).
+
+v18: the file is USER DATA (gitignored, like company.yaml/profiles) — the CEO's real
+team must never be reverted by a git operation. `registry.example.yaml` is the
+committed template; `load_registry` bootstraps the real file from it on first run.
 """
 
 from __future__ import annotations
@@ -17,6 +21,10 @@ from src.config.settings import REPO_ROOT
 from src.runtime.agent_paths import _validate_agent_id
 
 _REGISTRY_PATH = REPO_ROOT / "registry.yaml"
+
+#: Committed template a fresh checkout bootstraps `registry.yaml` from (v18 — the real
+#: registry is user data and no longer lives in git).
+_EXAMPLE_PATH = REPO_ROOT / "registry.example.yaml"
 
 
 @dataclass(frozen=True)
@@ -35,6 +43,20 @@ def load_registry(path: Path | None = None) -> tuple[RegistryEntry, ...]:
     defaults to True when omitted.
     """
     registry_path = path if path is not None else _REGISTRY_PATH
+    # v18 bootstrap — DEFAULT path only: a fresh checkout has no registry.yaml (user
+    # data), so mint one from the committed example. Callers passing an explicit
+    # `path` (tests, registry_edit's validate-on-tmp, --registry) keep the strict
+    # FileNotFoundError contract.
+    if path is None and not registry_path.exists() and _EXAMPLE_PATH.exists():
+        import os
+        import shutil
+
+        tmp = registry_path.with_suffix(f".bootstrap.{os.getpid()}.tmp")
+        shutil.copyfile(_EXAMPLE_PATH, tmp)
+        os.replace(tmp, registry_path)  # atomic — two racing boots both end up whole
+        import logging
+
+        logging.getLogger(__name__).info("registry.yaml bootstrapped from example")
     if not registry_path.exists():
         raise FileNotFoundError(f"Registry not found: {registry_path} is missing.")
 

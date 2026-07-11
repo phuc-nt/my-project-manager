@@ -26,6 +26,13 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_DIR"
 
+# v18: registry.yaml là user data (gitignored) — lần cài đầu tạo từ template.
+# Idempotent: KHÔNG bao giờ đè registry đang có (đội thật của CEO).
+if [ ! -f registry.yaml ] && [ -f registry.example.yaml ]; then
+  cp registry.example.yaml registry.yaml
+  echo "→ registry.yaml tạo từ registry.example.yaml (lần đầu)"
+fi
+
 # --mcp-dev opts into the clone+build MCP install path instead of npm. bash 3.2 (macOS
 # system bash) has no getopts long-flag support worth the complexity here — a plain loop
 # is simplest (KISS) for a single boolean flag.

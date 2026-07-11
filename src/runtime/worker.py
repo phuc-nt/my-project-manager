@@ -67,7 +67,20 @@ def build_graph_for(loaded: LoadedProfile, settings: Any, kind: str, audience: s
     from src.company_docs.pool import load_company_docs
     from src.packs.registry import PackRegistry
     from src.runtime.registry import load_registry
+    from src.runtime_backends.protocol import runtime_kind_for
     from src.skills.skill_pool import build_skill_context
+
+    # v20 seam guard (fail-loud, not silent-native): the report fleet funnels through this one
+    # function from 4 call-sites (worker/recurring_task/graph_runner/replay). A non-native
+    # agent has NO report runtime yet (Phase 2/3), so rather than silently run the native graph
+    # for it (which would make behavior depend on entry path), refuse loudly here.
+    kind_backend = runtime_kind_for(loaded)
+    if kind_backend != "native":
+        _pid = getattr(loaded, "profile_id", "?")
+        raise RuntimeError(
+            f"agent_runtime {kind_backend!r} chưa hỗ trợ cho báo cáo (report) — mới có team-step. "
+            f"Đặt agent_runtime: native hoặc bỏ block cho agent {_pid!r}."
+        )
 
     cp = get_checkpointer(settings)
     st = get_store(settings)  # cross-thread memory Store (InMemoryStore default)

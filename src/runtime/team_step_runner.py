@@ -252,7 +252,6 @@ def _run_graph(
     on `updates` chunks (once per node), never once per `custom` chunk, so a node that
     writes multiple custom events in one run does not multiply heartbeat writes.
     """
-    from src.agent.team_task_graph import build_team_task_graph
     from src.company_docs.pool import load_company_docs
     from src.memory.provider import resolve_memory_text
     from src.profile.capability_block import build_capability_block
@@ -273,11 +272,25 @@ def _run_graph(
     else:
         context = EMPTY
 
-    graph = build_team_task_graph(
+    # v20: route the team-step build through the AgentRuntime seam. `loaded` may be None
+    # (a step whose profile failed to load still runs with EMPTY context) — resolve_runtime
+    # degrades that to native. NativeGraphRuntime.build_task delegates to build_team_task_graph
+    # unchanged, so native output is byte-identical.
+    from src.runtime_backends import resolve_runtime
+
+    # `reporting_config` is consumed only by a tool-calling runtime (read toolset); the native
+    # runtime ignores it. NativeGraphRuntime.build_task passes **kwargs straight to
+    # build_team_task_graph, which does not accept reporting_config — so pop-or-ignore lives in
+    # the ToolCallingRuntime; native must not receive it. Only pass it for non-native.
+    _extra = {}
+    if loaded is not None and getattr(loaded, "agent_runtime", None) is not None \
+            and loaded.agent_runtime.kind != "native":
+        _extra["reporting_config"] = loaded.config
+    graph = resolve_runtime(loaded).build_task(
         settings=settings, context=context, step_title=step.title,
         data_dir=team_tasks_root(), task_id=task_id, step_seq=step.seq,
         step_deps=step.deps, search_hook=_resolve_search_hook(loaded, settings),
-        self_id=step.assigned_to,
+        self_id=step.assigned_to, **_extra,
     )
     initial_state: dict[str, Any] = {
         "step_title": step.title, "acceptance": step.acceptance,

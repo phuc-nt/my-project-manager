@@ -63,7 +63,10 @@ def discover_domains() -> tuple[str, ...]:
     found = sorted(
         p.name[: -len("-pack")]
         for p in _PACKS_DIR.iterdir()
-        if p.is_dir() and p.name.endswith("-pack") and (p / _PACK_MARKER).exists()
+        # A leading `_` marks a NON-domain folder (e.g. `_template-pack`, the authoring
+        # skeleton) so it is never mistaken for an installed domain.
+        if p.is_dir() and p.name.endswith("-pack") and not p.name.startswith("_")
+        and (p / _PACK_MARKER).exists()
     )
     return tuple(found)
 

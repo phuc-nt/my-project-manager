@@ -1,0 +1,13 @@
+# _template-pack — the pack authoring skeleton (v20). NOT an installed domain.
+#
+# Copy this folder to `domain-packs/<your-domain>-pack/`, rename `id`, and fill in your
+# graphs / tools / write_handlers. The leading `_` keeps this template out of discovery
+# (see docs/PACK-AUTHORING.md). Everything here is the MINIMUM a pack needs to load + run.
+id: _template
+name: Template Domain
+# The report kinds this pack serves — each must be built in graphs.py::REPORT_KINDS.
+report_kinds:
+  - example
+# Write targets this pack contributes to the gateway allowlist (empty = read-only pack).
+# MUST match the servers in write_handlers.py::ALLOWLIST.
+servers: []

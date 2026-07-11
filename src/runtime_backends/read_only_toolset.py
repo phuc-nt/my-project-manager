@@ -1,0 +1,126 @@
+"""Read-only toolset + policy shim for tool-calling runtimes (v20 Phase 2).
+
+THE INVARIANT this file enforces (red-team C1/C2/H4):
+
+- **Positive allowlist, never a denylist.** The loop is given an EXPLICIT list of read-only
+  callables (mirrors `mpm_automate_cmd._build_read_tools`), not "every MCP tool minus the write
+  allowlist" — the write allowlist is a positive permit-list of ~11 named writes, so its
+  complement still contains destructive tools like `deletePage`/`deleteIssue`. Those must NEVER
+  enter the toolset; here they simply are not listed.
+- **Policy shim on every tool.** Each callable is wrapped so it runs `hard_block.classify`
+  before doing anything. Even though the toolset is read-only by construction, the shim keeps
+  the gateway's classify as the single policy chokepoint — a defense-in-depth so a future tool
+  that slips in still cannot reach a side effect without being classified.
+- **Audience-aware.** For an `external` audience run, internal-data read tools are withheld
+  entirely, so a summarize step cannot fold internal content into an external deliverable.
+
+The runtime that consumes this (`ToolCallingRuntime`) never binds raw MCP tools to the model;
+it binds only what `build_read_toolset` returns.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from src.config.reporting_config import ReportingConfig
+
+
+class ToolPolicyError(RuntimeError):
+    """A tool was refused by the policy shim (not a read tool, or classify blocked it)."""
+
+
+#: Read tools whose output is INTERNAL-only (per-person workload, headcount, issue detail).
+#: Withheld from external-audience runs so summarize/compose cannot leak them outward.
+_INTERNAL_ONLY_READS = frozenset({"jira.issues", "linear.issues", "confluence.page"})
+
+
+def _classify_ok(tool_name: str, args: dict) -> None:
+    """Run the gateway's Lớp A/allowlist classify on a read call; raise if blocked.
+
+    A read tool should never be a data-loss/credential/security action, so a block here means
+    something is wrong (a mislabeled tool, a hostile arg) — fail loud rather than proceed.
+    """
+    from src.actions.hard_block import classify
+
+    verdict = classify({"type": "mcp_tool", "tool": tool_name, "args": args})
+    # NOT_ALLOWLISTED is expected for read tools (they are not in the WRITE allowlist); only a
+    # real Lớp A category (data-loss / credential / security) is a hard refusal here.
+    cat = verdict.category.value if verdict.category is not None else None
+    if verdict.blocked and cat is not None and cat != "not_allowlisted":
+        raise ToolPolicyError(
+            f"tool {tool_name!r} refused by policy: {cat} ({verdict.reason})"
+        )
+
+
+def _shim(tool_name: str, fn: Callable[[dict], Any]) -> Callable[[dict], Any]:
+    """Wrap a read callable so every invocation passes through classify first."""
+
+    def _guarded(args: dict) -> Any:
+        _classify_ok(tool_name, args or {})
+        return fn(args or {})
+
+    _guarded.__name__ = tool_name.replace(".", "_")
+    return _guarded
+
+
+def build_read_toolset(
+    config: ReportingConfig, audience: str = "internal"
+) -> dict[str, Callable[[dict], Any]]:
+    """The positive read-allowlist for a tool-calling runtime, policy-shimmed + audience-aware.
+
+    Returns a name→callable map. External audience drops internal-only reads. Every callable is
+    shimmed through `classify`. There is no path here to a write/destructive tool — they are
+    not listed.
+    """
+    if config is None:
+        # No ReportingConfig available (e.g. a step with no loaded profile) → no read tools;
+        # the loop still runs and can produce text from the brief alone.
+        return {}
+    from src.tools import confluence_read, github_read, jira_read, linear_read
+
+    raw: dict[str, Callable[[dict], Any]] = {
+        "jira.issues": lambda args: jira_read.get_open_issues(config=config),
+        "github.prs": lambda args: github_read.get_open_prs(config=config),
+        "linear.issues": lambda args: linear_read.get_issues(config, args),
+        "confluence.page": lambda args: confluence_read.get_page_content(
+            args.get("page_id"), config=config
+        ),
+    }
+    if audience != "internal":
+        raw = {name: fn for name, fn in raw.items() if name not in _INTERNAL_ONLY_READS}
+    return {name: _shim(name, fn) for name, fn in raw.items()}
+
+
+def assert_read_only(tool_names: list[str]) -> None:
+    """Raise if any name is a known write/destructive tool (adversarial-config guard).
+
+    Used by tests + at runtime-build to prove the toolset never contains a mutation tool. Keys
+    off the pack WRITE allowlists (the positive write permit-lists) PLUS an explicit destructive
+    denylist so tools absent from the write allowlist (deletePage/deleteIssue) are also caught.
+    """
+    from src.actions import hard_block
+
+    destructive = {
+        "deletepage", "deleteissue", "deleteboard", "deletebranch", "deletecomment",
+    }
+    write_markers: set[str] = set()
+    # The pack allowlist is keyed by SERVER (slack/confluence/...) with the permitted WRITE tool
+    # NAMES in the values — collect those names; any of them = a mutation, reject.
+    for domain in ("pm", "hr", "admin", "office"):
+        try:
+            from src.packs.registry import PackRegistry
+
+            pack = PackRegistry().load(domain)
+            for tools in (pack.allowlist or {}).values():
+                write_markers.update(t.lower() for t in tools)
+        except Exception:  # noqa: BLE001 — a missing pack must not weaken the guard
+            continue
+    for name in tool_names:
+        low = name.lower().replace("_", "").replace(".", "")
+        marker = name.lower().replace(".", "_")
+        is_write = marker in write_markers or name.lower() in write_markers
+        if any(d in low for d in destructive) or is_write:
+            raise ToolPolicyError(f"tool {name!r} is a write/destructive tool — not read-only.")
+    _ = hard_block  # keep the classify module import-coupled for clarity

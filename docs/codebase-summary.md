@@ -1,10 +1,10 @@
 # Codebase Summary — my-project-manager
 
 > Bản đồ codebase, cập nhật khi code hình thành. Đọc để biết "cái gì ở đâu" nhanh.
-> Status: **2026-07-11 — v19 COMPLETE.** ~1730 backend + 177 FE tests, ruff/tsc clean.
-> Product usable single-user tới v19 (agent office, team-task, màn 3D command-center,
-> registry user-data, memory seam + workspace protocol). Bản đồ code + quyết định kiến trúc
-> theo mốc bên dưới. Đọc cùng
+> Status: **2026-07-11 — v20 COMPLETE.** ~1768 backend + 177 FE tests, ruff/tsc clean.
+> Product usable single-user tới v20 (agent office, team-task, màn 3D command-center, registry
+> user-data, memory seam, **AgentRuntime multi-runtime + community sockets**). Bản đồ code +
+> quyết định kiến trúc theo mốc bên dưới. Đọc cùng
 > [system-architecture](system-architecture.md), [project-overview-pdr](project-overview-pdr.md),
 > [project-roadmap](project-roadmap.md).
 
@@ -169,6 +169,33 @@
   thiếu busy_timeout...). v19.5 làm sau khi giải 7 điều kiện (xem plan v19 "Giữ cho v19.5").
 - **Known-limitation**: memory_node (Store P8, report runs) tách khỏi seam — facts học ở
   report run KHÔNG vào vault (khi kioku về); ghi để v19.5 không "phát hiện lại".
+
+### v20: AgentRuntime multi-runtime + community sockets (2026-07-11)
+- **AgentRuntime seam** (`src/runtime_backends/`): tách agent-loop khỏi điều phối. Protocol
+  2-method (`build_report`/`build_task`); `resolve_runtime(loaded|None)` chọn backend theo
+  `agent_runtime:` (TOP-LEVEL profile key RIÊNG, KHÔNG đụng `runtime:` infra M2-P8 — red-team H1).
+  `NativeGraphRuntime` bọc graph hiện tại **byte-identical**. `RUNTIME_FORCE_NATIVE` env =
+  kill-switch fleet-wide; `None`→native (team-step loaded=None degrade). **Report guard** trong
+  `build_graph_for` fail-loud non-native (đóng "âm thầm native" cho 4 caller — red-team C4).
+- **ToolCallingRuntime** (`tool_calling_runtime.py` + `react_loop.py` + `read_only_toolset.py`):
+  tool-calling loop qua `langgraph.prebuilt.create_react_agent` (KHÔNG `langchain` full — dùng
+  `langchain-openai` pin, red-team C3). **Swaps CHỈ `run_work`** qua `build_team_task_graph(
+  work_override=)` → perceive/self_check/rework/deliver→gateway giữ native = **invariant #1
+  bằng cấu trúc**. Toolset = **positive read-allowlist** (red-team C2: `deletePage` không lọt) +
+  **policy shim classify mọi tool** (red-team C1 — E2E LLM thật chứng minh classify thấy tool
+  call) + audience-aware (external loại internal-data read) + per-loop recursion cap (H2).
+- **DeepAgentRuntime** (`deep_agent_runtime.py`): EXPERIMENTAL, dep `deepagents` OPTIONAL
+  (extra `[deep]`). Lazy import → app khởi động không cần dep (isolate, red-team C5). Thiếu dep →
+  fail-loud SỚM với hướng dẫn cài (không exit-1 âm thầm mỗi tick — FM5). Wrapper an toàn (tắt
+  shell/tracing) chưa vendor-review → refuse chạy thay vì chạy nguy hiểm.
+- **Ổ cắm community**: (1) skill agentskills.io — `_discover_skill_files` nhận flat `*.md` +
+  folder `<slug>/SKILL.md`; trust theo PROVENANCE không frontmatter-name (red-team SEC#8). (2)
+  pack-MCP **spawn gate** (`pack_mcp_gate.py`, red-team SEC#4): default-DENY, chỉ absolute path
+  trong allowlist operator `PACK_MCP_ALLOWED_DIST` + env scrub token. (3) `_template-pack/`
+  skeleton (tiền tố `_` loại khỏi discovery) + `docs/PACK-AUTHORING.md`.
+- **THE INVARIANT giữ**: mọi runtime egress qua gateway (loop tool qua classify shim); native
+  byte-identical; audience red-line. Researcher-pack → template skeleton (team-step+web_search
+  đã phục vụ researcher — red-team Y2).
 
 **Entry points**: Legacy `python -m src.entrypoints.cli`/`cron` (single-agent). Multi-agent: `python -m src.entrypoints.mpm agent {list,register,run,resume,replay,automate,approvals,approve,reject,audit}`. Runtime: `python -m src.runtime.worker`, `python -m src.runtime.service`.
 

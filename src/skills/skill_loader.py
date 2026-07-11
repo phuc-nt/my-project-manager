@@ -31,12 +31,28 @@ logger = logging.getLogger(__name__)
 _AGENT_SKILL_NAME_RE = re.compile(r"^[0-9A-Za-zÀ-ỹà-ỹ _-]{1,64}$")
 
 
+def _discover_skill_files(base: Path) -> list[Path]:
+    """All skill `.md` files under `base`, in both supported layouts (v20).
+
+    - flat:   `base/<name>.md`               (the v19 layout)
+    - folder: `base/<slug>/SKILL.md`         (the agentskills.io / Hermes / community layout)
+
+    Folder-form lets a community skill be copied in as its own directory. Returned sorted for
+    deterministic ordering (flat files first by name, then folder SKILL.md by slug).
+    """
+    if not base.exists():
+        return []
+    flat = sorted(base.glob("*.md"))
+    folder = sorted(base.glob("*/SKILL.md"))
+    return flat + folder
+
+
 def load_skills(skills_dir: Path | None = None, *, domain: str = "pm") -> list[Skill]:
-    """Scan a domain pack's skills dir → the Skills it holds.
+    """Scan a domain pack's skills dir → the Skills it holds (flat + folder-form).
 
     `skills_dir` overrides the location (tests pass a tmp dir); otherwise the active
     `domain`'s pack skills dir is used. Returns sorted by name (deterministic), with
-    names UNIQUE: if two files declare the same `name`, the first by filename order wins
+    names UNIQUE: if two files declare the same `name`, the first by discovery order wins
     and later duplicates are warned + dropped. Malformed files are skipped, never raised.
     """
     if skills_dir is not None:
@@ -45,10 +61,8 @@ def load_skills(skills_dir: Path | None = None, *, domain: str = "pm") -> list[S
         from src.packs.registry import pack_skills_dir
 
         base = pack_skills_dir(domain)
-    if not base.exists():
-        return []
     by_name: dict[str, Skill] = {}
-    for path in sorted(base.glob("*.md")):
+    for path in _discover_skill_files(base):
         skill = _load_one(path)
         if skill is None:
             continue
@@ -71,12 +85,10 @@ def load_agent_skills(skills_dir: Path) -> list[Skill]:
 
     Missing dir ⇒ []. Malformed/again-duplicate files are skipped, never raised.
     """
-    if not skills_dir.exists():
-        return []
     from src.tools.search_result_formatter import format_internal_content
 
     by_name: dict[str, Skill] = {}
-    for path in sorted(skills_dir.glob("*.md")):
+    for path in _discover_skill_files(skills_dir):  # flat + agentskills.io folder-form (v20)
         skill = _load_one(path)
         if skill is None:
             continue

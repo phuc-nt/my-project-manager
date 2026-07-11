@@ -222,6 +222,7 @@ def default_team_task_deps(
     step_deps: tuple[str, ...] = (),
     search_hook: SearchHook | None = None,
     self_id: str = "",
+    work_override: Callable[[str, str, SearchHook | None], tuple[str, float | None]] | None = None,
 ) -> TeamTaskDeps:
     """Wire the real collaborators. Lazy imports keep graph-build network-free.
 
@@ -379,8 +380,12 @@ def default_team_task_deps(
         propose_consults_hook = _propose_consults
         set_attempt_id_hook = _set_attempt_id
 
+    # v20: a tool-calling runtime swaps ONLY the work loop (`run_work`); perceive, self_check,
+    # rework, and deliver→gateway stay native, so the mutation-only-via-gateway invariant holds
+    # regardless of how `work` produces its text.
+    run_work_fn = work_override if work_override is not None else _run_work
     return TeamTaskDeps(
-        read_handoff=_read_handoff, run_work=_run_work, run_self_check=_run_self_check,
+        read_handoff=_read_handoff, run_work=run_work_fn, run_self_check=_run_self_check,
         run_rework=_run_rework, deliver_step=_deliver, search_hook=search_hook,
         ask_colleague=ask_colleague_hook, propose_consults=propose_consults_hook,
         set_attempt_id=set_attempt_id_hook,
@@ -669,6 +674,7 @@ def build_team_task_graph(
     step_deps: tuple[str, ...] = (),
     search_hook: SearchHook | None = None,
     self_id: str = "",
+    work_override: Callable[[str, str, SearchHook | None], tuple[str, float | None]] | None = None,
 ) -> CompiledStateGraph:
     """Build + compile the team-task step graph. `deps` defaults to real wiring.
 
@@ -698,7 +704,7 @@ def build_team_task_graph(
         deps = default_team_task_deps(
             settings=settings, context=context, step_title=step_title, data_dir=data_dir,
             task_id=task_id, step_seq=step_seq, step_deps=step_deps, search_hook=search_hook,
-            self_id=self_id,
+            self_id=self_id, work_override=work_override,
         )
     perceive, work, self_check, rework, recover, deliver = _make_team_task_nodes(deps)
 

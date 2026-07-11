@@ -92,7 +92,18 @@ chọn nay raise rõ). Memory tiếp tục vào INTERNAL user-msg qua `build_con
 + `skills/` (per-agent, body wrap `format_internal_content`, không shadow pack skill).
 Capability block auto-gen (`capability_block.py`) cũng INTERNAL-only cùng path.
 
-### 3.9 Frontend (`web/src/`)
+### 3.9 AgentRuntime backends (`src/runtime_backends/`, v20)
+Tách agent-LOOP khỏi điều phối + an toàn. `resolve_runtime(loaded)` chọn backend theo
+`agent_runtime:` (native|create_agent|deep_agent; default native, kill-switch
+`RUNTIME_FORCE_NATIVE`). `NativeGraphRuntime` = graph hiện tại byte-identical.
+`ToolCallingRuntime` = tool-calling loop (`create_react_agent`) NHƯNG swaps chỉ `run_work` nên
+deliver→gateway giữ; toolset positive read-allowlist + classify shim mọi tool + audience-aware.
+`DeepAgentRuntime` optional/experimental (isolate, thiếu dep app không crash). **THE INVARIANT**:
+mọi runtime egress qua Action Gateway — tool-calling loop KHÔNG tạo egress path 2 (classify
+chokepoint áp cho cả read). 3 ổ cắm community: skill agentskills.io folder-form · pack-MCP
+spawn gate (default-deny) · pack template + PACK-AUTHORING.
+
+### 3.10 Frontend (`web/src/`)
 React 19 + Vite. Màn chính **Văn phòng** (`views/office-unified/`): 3 cột phòng-việc /
 hoạt-động / kết-quả + panel 3D (`views/office-3d/`, react-three-fiber). Reducer sự kiện
 (`agent-office-state.ts`) biến SSE stream → trạng thái bàn. Build dist commit vào

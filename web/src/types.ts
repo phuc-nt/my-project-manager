@@ -246,6 +246,36 @@ export interface RoomChatPayload {
   auto_confirmed?: boolean
 }
 
+// v17 artifact viewer
+export interface RoomArtifactStep {
+  step_id: string
+  title: string
+  assigned_to: string
+  status: string
+  seq: number
+  step_type: string
+}
+
+export interface RoomArtifactTask {
+  task_id: string
+  title: string
+  pic_id: string
+  status: string
+  steps: RoomArtifactStep[]
+}
+
+export interface RoomArtifactsPayload {
+  tasks: RoomArtifactTask[]
+}
+
+export interface StepArtifactPayload {
+  task_id: string
+  step_title: string
+  result_text: string
+  attempt: string
+  self_check_failed: boolean
+}
+
 export interface CoordinatorHealthPayload {
   alive: boolean
   last_beat_ago_s: number | null

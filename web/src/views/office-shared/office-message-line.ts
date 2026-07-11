@@ -37,7 +37,9 @@ export function messageLine(m: OfficeMessage): string {
       return `${b.task_title ?? ''} / ${b.step_title ?? ''}: ${b.status ?? ''}${suffix}`
     }
     case 'handoff':
-      return `${b.task_title ?? ''} / ${b.step_title ?? ''}: ${b.message ?? ''}`
+      // v17: the feed is an index, not a report viewer — the FULL result lives in the
+      // Kết quả column (artifact viewer), so the line stays a fixed short notice.
+      return `${b.task_title ?? ''} / ${b.step_title ?? ''}: đã bàn giao ✅ (xem cột Kết quả)`
     case 'milestone':
       return `${b.task_title ?? ''}: ${b.message ?? ''}`
     case 'consult':

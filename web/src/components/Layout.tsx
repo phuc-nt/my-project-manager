@@ -21,13 +21,14 @@ async function logout() {
   }
 }
 
+// v17 IA: Văn phòng leads (the home screen); "Việc" became "Duyệt" — that tab is the
+// approval queue (+ the per-agent assigned board below it); team-task history lives in
+// the office's workrooms.
 const NAV = [
-  { to: 'chat', label: 'Trợ lý' },
-  { to: 'team', label: 'Đội', badge: 'health' as const },
-  { to: 'work', label: 'Việc', badge: 'approvals' as const },
-  // v12 M29: office group-chat room — the team's live activity timeline (CEO-first,
-  // same tier as Đội/Việc since it is where a CEO watches work happen in real time).
   { to: 'office', label: 'Văn phòng' },
+  { to: 'team', label: 'Đội', badge: 'health' as const },
+  { to: 'work', label: 'Duyệt', badge: 'approvals' as const },
+  { to: 'chat', label: 'Trợ lý' },
   { to: 'settings', label: 'Cài đặt' },
 ]
 

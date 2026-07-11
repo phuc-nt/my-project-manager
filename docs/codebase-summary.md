@@ -108,6 +108,22 @@
   kill + xoá heartbeat); seed task rows TERMINAL-only (C2 — ticker thật sẽ ăn task open).
   E2E 13/13: ticker thật dispatch, question no-write, task con cùng room, adjust, banner.
 
+### v17: office command center — 3 cột + artifact viewer + IA (2026-07-11)
+- **Artifacts API** `routes_office_artifacts.py`: 2 GET read-only (room catalog từ
+  `tasks_in_room`; step artifact qua `read_step_artifact` — path do server ghép, task_id
+  gate store.get, seq int-coerce, mọi lỗi → 404). FE lọc `done ∧ step_type∈(work,rework)`
+  (review-step không có artifact file — M1).
+- **FE Kết quả**: `artifact-panel` (maxSeqOf refetch helper thuần) + `artifact-viewer`
+  (react-markdown+remark-gfm trong LAZY office chunk; M4: components.img → link, không
+  load remote; copy + tải .md Blob; Esc). Feed handoff line = notice ngắn cố định.
+- **Q4 bubble**: `shouldShowBubble(desk)` — chỉ assigned/working/consult; M2: ticker
+  timeout giờ append `step_status failed` (desk hết kẹt bubble vĩnh viễn).
+- **IA v17**: `/` → Văn phòng (màn chính); nav [Văn phòng, Đội, Duyệt(badge), Trợ lý,
+  Cài đặt]; Work.tsx = "Cần bạn duyệt" + "Việc đã giao cho từng nhân sự" (board giữ).
+- **Demo**: seed ghi artifact THẬT theo seq đọc từ store (seq GLOBAL autoincrement —
+  M3); demo off dọn `artifacts/team-tasks/demo-*`. E2E 16/16 (markdown render thật,
+  download, Q4, task thật bàn giao → xem full).
+
 **Entry points**: Legacy `python -m src.entrypoints.cli`/`cron` (single-agent). Multi-agent: `python -m src.entrypoints.mpm agent {list,register,run,resume,replay,automate,approvals,approve,reject,audit}`. Runtime: `python -m src.runtime.worker`, `python -m src.runtime.service`.
 
 ## Cây thư mục (v3 M5 state with domain-packs)

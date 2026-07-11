@@ -5,6 +5,8 @@ import type {
   AssignPreviewPayload,
   AssignStaffPayload,
   CoordinatorHealthPayload,
+  RoomArtifactsPayload,
+  StepArtifactPayload,
   RoomChatPayload,
   WorkroomsPayload,
   AgentStatus,
@@ -173,6 +175,11 @@ export const api = {
       task_id: taskId, amendment_id: amendmentId,
     }),
   getCoordinatorHealth: () => request<CoordinatorHealthPayload>('/api/health/coordinator'),
+  // v17 artifact viewer (read-only)
+  getRoomArtifacts: (roomId: string) =>
+    request<RoomArtifactsPayload>(`/api/office/rooms/${roomId}/artifacts`),
+  getStepArtifact: (taskId: string, seq: number) =>
+    request<StepArtifactPayload>(`/api/office/tasks/${taskId}/steps/${seq}/artifact`),
   assignConfirm: (taskId: string, planHash: string) =>
     post<{ text: string }>('/api/office/assign/confirm', { task_id: taskId, plan_hash: planHash }),
   assignCancel: (taskId: string) =>

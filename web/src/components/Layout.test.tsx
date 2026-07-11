@@ -1,4 +1,4 @@
-// v7 M20 Layout: 4 primary nav items + a pending-approval badge on "Việc". Mocked api.
+// v7 M20 Layout (v17 IA: 'Việc' renamed 'Duyệt', Văn phòng leads). Mocked api.
 import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { beforeEach, expect, test, vi } from 'vitest'
@@ -38,7 +38,7 @@ function renderLayout() {
 test('renders the 4 CEO-first nav items', async () => {
   vi.spyOn(api, 'getApprovals').mockResolvedValue({ agent_id: 'hr', pending: [] })
   renderLayout()
-  for (const label of ['Trợ lý', 'Đội', 'Việc', 'Cài đặt']) {
+  for (const label of ['Trợ lý', 'Đội', 'Duyệt', 'Văn phòng', 'Cài đặt']) {
     expect(screen.getByRole('link', { name: new RegExp(label) })).toBeInTheDocument()
   }
 })
@@ -50,7 +50,7 @@ test('shows a badge count when approvals are pending', async () => {
   })
   renderLayout()
   await waitFor(() =>
-    expect(screen.getByRole('link', { name: /Việc/ })).toHaveTextContent('1'),
+    expect(screen.getByRole('link', { name: /Duyệt/ })).toHaveTextContent('1'),
   )
 })
 

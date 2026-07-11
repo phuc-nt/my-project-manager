@@ -73,6 +73,18 @@ Mở tab **Văn phòng** (màn hợp nhất: 3D + hoạt động trực tiếp +
 - [ ] **B3.4 — Desk sạch**: nhân sự không còn trong registry không hiện bàn 3D (sự kiện
   cũ vẫn còn trong nhật ký chữ).
 
+## B4. Command center 3 cột + Kết quả (v17 — mới)
+
+- [ ] **B4.1 — Trang chủ**: mở app (`/`) → vào thẳng Văn phòng; nav: Văn phòng · Đội ·
+  Duyệt · Trợ lý · Cài đặt.
+- [ ] **B4.2 — Cột Kết quả**: chọn phòng có bước đã bàn giao → cột phải list bước ✅ →
+  bấm → xem FULL nội dung render markdown (tiêu đề/bảng/danh sách đẹp, không thô) →
+  Copy + Tải .md chạy; Esc đóng; vào lại phòng cũ vẫn xem được.
+- [ ] **B4.3 — Bóng thoại sạch**: nhân sự đã xong/rảnh KHÔNG còn treo thoại việc cũ;
+  chỉ người đang làm (hoặc đang tham vấn 💬) có thoại.
+- [ ] **B4.4 — Duyệt**: tab Duyệt đủ 2 phần: "Cần bạn duyệt" (badge số) + "Việc đã giao
+  cho từng nhân sự" (board cũ nguyên vẹn).
+
 ## C. Văn phòng 3D "sống" (v14)
 
 Không gian 3D nằm ngay trong tab **Văn phòng** (v15 — không còn menu riêng).

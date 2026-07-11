@@ -27,6 +27,7 @@ from src.server import (
     routes_agents_admin,
     routes_company,
     routes_company_docs,
+    routes_office_artifacts,
     routes_office_assign,
     routes_office_room_chat,
     routes_office_stream,
@@ -96,6 +97,8 @@ def create_app() -> FastAPI:
     # v16: workroom listing + chat-in-room (3 intent) + coordinator health.
     app.include_router(routes_office_room_chat.router)
     app.include_router(routes_office_room_chat.health_router)
+    # v17: read-only step-artifact viewer (the Kết quả column).
+    app.include_router(routes_office_artifacts.router)
     # v6 M14b: CEO chat-ops web endpoint (same engine as the Telegram DM path).
     app.include_router(routes_ops_chat.router)
     # v7 M18: Agent Studio — telegram bind (M18a) + knowledge/skills form (M18b).

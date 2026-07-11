@@ -127,6 +127,36 @@ def _seed_task_rows() -> None:
         conn.execute("UPDATE team_steps SET status='done' WHERE task_id='demo-brief-phu'")
         conn.execute("UPDATE team_tasks SET status='done' WHERE id='demo-brief-phu'")
         conn.commit()
+        # v17: write REAL handoff artifacts for the done steps so the Kết quả column
+        # has content to open. seq is read back from the store (GLOBAL AUTOINCREMENT —
+        # red-team M3: task 2's steps do NOT restart at 1), never hardcoded.
+        from src.agent.team_task_artifact import write_step_artifact
+        from src.runtime.team_task_paths import team_tasks_root
+
+        samples = {
+            ("demo-ra-mat-tro-ly-ai", "s1"): (
+                "## Nghiên cứu thị trường\n\n| Tiêu chí | Kết quả |\n|---|---|\n"
+                "| Tăng trưởng | ~40%/năm |\n| Đối thủ chính | 3 |\n\n"
+                "- Nhu cầu mạnh nhất: doanh nghiệp 1-20 người\n- Kênh hiệu quả: cộng đồng"
+            ),
+            ("demo-ra-mat-tro-ly-ai", "s2"): (
+                "## Bộ tài liệu ra mắt (bản chốt)\n\n1. Thông điệp chính\n2. Ba lợi ích"
+                "\n3. Lời kêu gọi hành động\n\n> Đã qua tự soát + soát chéo."
+            ),
+            ("demo-brief-phu", "p1"): (
+                "## Tổng hợp phản hồi khách mời\n\n- 12 phản hồi tích cực\n"
+                "- 2 góp ý về giá\n- Đề xuất: thêm gói dùng thử 14 ngày"
+            ),
+        }
+        for task_id in ("demo-ra-mat-tro-ly-ai", "demo-brief-phu"):
+            task = store.get(task_id)
+            for step in task.steps:
+                text = samples.get((task_id, step.step_id))
+                if text:
+                    write_step_artifact(team_tasks_root(), task_id, step.seq, {
+                        "status": "done", "result_text": text, "step_title": step.title,
+                        "attempt": "demo-seed", "self_check_failed": False,
+                    })
     finally:
         store.close()
 

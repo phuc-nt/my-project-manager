@@ -80,7 +80,8 @@ function App() {
             }
           >
             {/* v7 M20: 4 CEO-first destinations. Default is the assistant (chat). */}
-            <Route index element={<Navigate to="/chat" replace />} />
+            {/* v17: the office IS the product's home screen. */}
+            <Route index element={<Navigate to="/office" replace />} />
             <Route path="chat" element={<Chat />} />
             <Route path="team" element={<Team />} />
             <Route path="work" element={<Work />} />

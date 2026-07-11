@@ -12,6 +12,9 @@
 # KHÔNG đụng: .env, approvals/budget/audit của agent thật, mọi thứ khác trong .data.
 #
 # Lưu ý: đang bật demo thì repo sẽ "dirty" ở registry.yaml — TẮT demo trước khi commit.
+# Lưu ý 2: task giao THẬT trong lúc demo (id uuid) nằm trong store demo bị bỏ khi off;
+# thư mục artifact hex của chúng còn lại trên đĩa nhưng không API nào với tới (rác vô
+# hại, xoá tay nếu muốn: .data/artifacts/team-tasks/<12-hex>).
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -90,6 +93,9 @@ demo_off() {
   for db in "${SWAP_STORES[@]}"; do
     rm -f ".data/$db" ".data/$db-wal" ".data/$db-shm"
   done
+  # v17: dọn artifact task demo (id prefix demo- do seed đặt) — không để rác trong
+  # artifacts thật; chỉ xoá demo-* (không đoán uuid của task giao thật trong demo).
+  rm -rf .data/artifacts/team-tasks/demo-* 2>/dev/null || true
 
   # 2) trả data thật về đúng chỗ
   mv "$BACKUP/registry.yaml" registry.yaml

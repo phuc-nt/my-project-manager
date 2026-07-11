@@ -155,6 +155,11 @@ def poll_running_step(deps: CoordinatorDeps, task: TeamTask, step: TeamStep) -> 
         if step.child_pid is not None and step.attempt_id is not None:
             deps.kill_pid(step.child_pid, step.attempt_id)
         deps.store.mark_timeout(task.id, step.step_id, attempt_id=step.attempt_id)
+        # v17 (red-team M2): the timeout path previously emitted only the escalation
+        # milestone — the desk reducer never saw a step_status, so the 3D desk stayed
+        # "working" and its bubble hung forever. `failed` is existing vocabulary; the
+        # reducer frees the desk back to idle. try/degrade like every room append.
+        _append_timeout_step_event(task, step)
         deps.escalate(
             task, step, "step_timeout",
             f"Bước '{step.title}' của việc '{task.title}' quá thời hạn "
@@ -163,6 +168,19 @@ def poll_running_step(deps: CoordinatorDeps, task: TeamTask, step: TeamStep) -> 
         return TickResult(task_id=task.id, action="timeout_escalated", detail=step.step_id)
 
     return TickResult(task_id=task.id, action="none", detail=f"{step.step_id} still running")
+
+
+def _append_timeout_step_event(task: TeamTask, step: TeamStep) -> None:
+    """Room event for a timeout-kill (v17 M2): same `step_status failed` shape the
+    worker's own failure path emits (`team_step_runner._append_step_event`) so the FE
+    reducer needs no new vocabulary — the desk frees back to idle instead of hanging
+    "working" with a stale bubble. Best-effort like every office append."""
+    append_office_event(
+        room_for_task(task.id), author="coordinator", kind="step_status",
+        body={"task_title": task.title, "step_title": step.title, "status": "failed",
+              "assigned_to": step.assigned_to},
+        also_office=True,
+    )
 
 
 def poll_awaiting_approval_step(

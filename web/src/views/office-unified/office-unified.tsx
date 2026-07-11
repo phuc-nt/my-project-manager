@@ -19,6 +19,7 @@ import { OfficeCanvas } from '../office-3d/office-canvas'
 import { use3dFallback } from '../office-3d/use-3d-fallback'
 import type { Workroom } from '../../types'
 import { ActivityFeed } from './activity-feed'
+import { ArtifactPanel } from './artifact-panel'
 import { AssignComposer } from './assign-composer'
 import { CoordinatorHealthBanner } from './coordinator-health-banner'
 import { WorkroomList } from './workroom-list'
@@ -117,11 +118,12 @@ export function OfficeUnified() {
           )}
         </div>
       )}
-      <div className="office-unified-layout">
+      <div className="office-unified-layout office-columns">
         <WorkroomList rooms={rooms} activeRoom={activeRoom} onSelect={selectRoom} />
         <ActivityFeed
           messages={room.messages} connected={room.connected} errored={room.errored}
         />
+        <ArtifactPanel activeRoom={activeRoom} roomMessages={room.messages} />
       </div>
       <AssignComposer activeRoom={activeRoom} onTaskCreated={(taskId) => selectRoom(taskId)} />
     </section>

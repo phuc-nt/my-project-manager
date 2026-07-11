@@ -187,6 +187,13 @@ export function deriveAgentDesks(messages: OfficeMessage[]): Map<string, AgentDe
   return desks
 }
 
+// v17 Q4 (CEO decision): a desk speaks ONLY while actually working — a done/idle desk
+// keeps its label/⭐ but shows no bubble (stale task titles no longer linger after a
+// new task starts elsewhere). Consult is "happening now" and keeps the bubble alive.
+export function shouldShowBubble(desk: AgentDeskState): boolean {
+  return desk.state === 'assigned' || desk.state === 'working' || desk.consultWith !== null
+}
+
 // Distinct agent ids seen in the stream, in first-seen order — drives desk layout (grid
 // position assignment happens in office-canvas.tsx, not here). Uses the SAME `assigned_to`
 // keying as deriveAgentDesks (never `author`) so the id list and the desk map always agree.

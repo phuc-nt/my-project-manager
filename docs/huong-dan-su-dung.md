@@ -106,10 +106,11 @@ Thanh điều hướng có 4 mục (giao diện gọn, CEO-first):
 
 | Mục | Để làm gì |
 |---|---|
-| **Trợ lý** | Chat với trợ lý điều hành: hỏi tình hình, ra lệnh, tạo nhân sự ảo mới bằng hội thoại. |
-| **Đội** | Xem toàn bộ nhân sự ảo: trạng thái, lần chạy gần nhất, ngân sách, việc chờ duyệt. Tạm dừng / bật lại / xoá / tạo mới. |
-| **Việc** | Hàng đợi việc cần bạn **duyệt** (những hành động quan trọng trợ lý muốn làm) + việc đã giao. |
-| **Cài đặt** | Sức khỏe hệ thống, đổi giao diện, bật/tắt chế độ nâng cao. |
+| **Văn phòng** | MÀN CHÍNH (mở app vào thẳng đây): giao việc, theo dõi đội làm realtime, xem kết quả bàn giao — theo từng phòng việc. |
+| **Đội** | Nhân sự ảo: trạng thái, ngân sách, tạm dừng/bật/xoá/tạo mới. |
+| **Duyệt** | Hàng đợi việc cần bạn **phê duyệt** (badge số) + bảng việc lẻ đã giao cho từng nhân sự. |
+| **Trợ lý** | Chat quản trị: hỏi tình hình, tạo nhân sự bằng hội thoại, lệnh vận hành lẻ. |
+| **Cài đặt** | Sức khỏe hệ thống, giao diện, chế độ nâng cao, tự-xác-nhận giao việc. |
 
 ## B.2. Tạo một nhân sự ảo mới
 
@@ -225,9 +226,19 @@ Vào **Trợ lý** (hoặc nhắn qua Telegram). Gõ câu hỏi/lệnh vào ô "
 - Báo cáo định kỳ (hằng ngày / tuần / OKR / nhân sự-chi phí) tự chạy theo lịch và đăng lên Slack /
   Confluence. Bạn cũng nhận tóm tắt qua Telegram.
 - **Đội** cho thấy nhanh: ai đang chạy, tốn bao nhiêu ngân sách, có việc gì kẹt.
-- **Văn phòng** (v15 — màn hợp nhất): MỘT màn hình gồm **không gian 3D "sống"** (trái) +
-  **hoạt động trực tiếp bằng chữ** (phải) + **ô giao việc @** (dưới) — tất cả cập nhật
-  realtime từ cùng một dòng sự kiện.
+- **Văn phòng** (v17 — MÀN HÌNH CHÍNH, mở app vào thẳng đây): không gian 3D phía trên
+  (thu gọn được) + **3 cột**: Phòng việc | Hoạt động trực tiếp | **Kết quả** + ô giao
+  việc/chat dưới cùng — tất cả realtime.
+  - **Cột Kết quả**: mọi bước đã bàn giao của phòng đang chọn — bấm vào là xem FULL nội
+    dung **render markdown đẹp**, có nút **Copy** và **Tải .md**. Vào lại phòng cũ bất
+    kỳ lúc nào để xem lại kết quả (lịch sử giữ nguyên trên đĩa).
+  - Bóng thoại 3D chỉ hiện với nhân sự **đang làm việc** (hoặc đang tham vấn) — người đã
+    xong/rảnh không treo thoại việc cũ nữa.
+
+    ![Văn phòng 3 cột — Phòng việc | Hoạt động | Kết quả](images/van-phong-3-cot-command-center.png)
+
+    ![Xem full kết quả bàn giao — markdown render, copy, tải .md](images/van-phong-ket-qua-artifact-viewer.png)
+
 
     ![Văn phòng hợp nhất — 3D + hoạt động trực tiếp + ô giao việc](images/van-phong-hop-nhat-3d-feed-composer.png)
 

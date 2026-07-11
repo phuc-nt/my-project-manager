@@ -12,6 +12,7 @@ import { useFrame } from '@react-three/fiber'
 import { Edges, Html } from '@react-three/drei'
 import { useRef } from 'react'
 import * as THREE from 'three'
+import { shouldShowBubble } from './agent-office-state'
 import type { AgentDeskState } from './agent-office-state'
 import { DESK_EDGE_COLOR, agentColor, agentHash } from './desk-colors'
 import { consultMeetPoint } from './desk-layout'
@@ -172,14 +173,16 @@ export function AgentDesk({ position, label, desk, consultPos, dimmed }: AgentDe
           {label}
         </div>
       </Html>
-      <SpeechBubble
-        position={bubblePosition}
-        taskTitle={desk.taskTitle}
-        stepTitle={desk.stepTitle}
-        phase={desk.phase}
-        consultWith={desk.consultWith}
-        isPic={desk.picTasks.size > 0}
-      />
+      {shouldShowBubble(desk) && (
+        <SpeechBubble
+          position={bubblePosition}
+          taskTitle={desk.taskTitle}
+          stepTitle={desk.stepTitle}
+          phase={desk.phase}
+          consultWith={desk.consultWith}
+          isPic={desk.picTasks.size > 0}
+        />
+      )}
     </group>
   )
 }

@@ -112,7 +112,9 @@ test('renders a handoff event', async () => {
   ])
   wrap()
   expect(await screen.findByText('Bàn giao')).toBeInTheDocument()
-  expect(screen.getByText(/đã xong bản nháp/)).toBeInTheDocument()
+  // v17: the handoff line is a fixed short notice — full result lives in the office
+  // Kết quả column (artifact viewer), so the raw message no longer renders here.
+  expect(screen.getByText(/đã bàn giao ✅/)).toBeInTheDocument()
 })
 
 test('renders a milestone event', async () => {

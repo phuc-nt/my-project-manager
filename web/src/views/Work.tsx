@@ -78,7 +78,7 @@ export function Work() {
       </section>
 
       <section className="work-tasks">
-        <h3>Việc đã giao</h3>
+        <h3>Việc đã giao cho từng nhân sự</h3>
         <Tasks />
       </section>
 

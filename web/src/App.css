@@ -263,6 +263,36 @@ h4 { font-size: var(--fs-h4); }
 .office-feed-danger .office-room-text { color: var(--color-danger); }
 .office-feed-warn .office-room-text { color: var(--color-warn); }
 .office-feed-pending .office-room-text { color: var(--color-pending); }
+/* v17: 3-column command center — rooms | feed | results. */
+.office-columns { display: grid; grid-template-columns: minmax(200px, 240px) 1fr minmax(260px, 340px);
+  gap: var(--space-3); align-items: start; }
+.office-artifacts { border: 1px solid var(--color-border); border-radius: 8px;
+  padding: var(--space-2); max-height: 70vh; overflow-y: auto; }
+.office-artifacts h4 { margin: var(--space-2) 0 var(--space-1); font-size: var(--fs-sm); }
+.office-artifacts ul { list-style: none; margin: 0; padding: 0; }
+.artifact-pic { margin-left: 0.4rem; }
+.artifact-item { width: 100%; text-align: left; background: none; border: none;
+  padding: 0.3rem 0.4rem; border-radius: 6px; cursor: pointer; color: var(--color-text);
+  font-size: var(--fs-sm); }
+.artifact-item:hover { background: var(--color-surface-2); }
+.artifact-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.35);
+  display: flex; justify-content: flex-end; z-index: 50; }
+.artifact-drawer { background: var(--color-bg); width: min(720px, 92vw); height: 100%;
+  padding: var(--space-4); overflow-y: auto; box-shadow: -4px 0 16px rgba(0, 0, 0, 0.2); }
+.artifact-drawer-head { display: flex; justify-content: space-between; align-items: center;
+  gap: var(--space-3); margin-bottom: var(--space-3); }
+.artifact-drawer-head h3 { margin: 0; }
+.artifact-flag { padding: var(--space-2); border-radius: 6px; }
+.artifact-markdown { line-height: 1.55; font-size: var(--fs-body); }
+.artifact-markdown table { border-collapse: collapse; }
+.artifact-markdown th, .artifact-markdown td { border: 1px solid var(--color-border);
+  padding: 0.3rem 0.55rem; }
+.artifact-markdown pre { background: var(--color-surface-2); padding: var(--space-2);
+  border-radius: 6px; overflow-x: auto; }
+@media (max-width: 1100px) {
+  .office-columns { grid-template-columns: 1fr; }
+  .office-artifacts { max-height: 40vh; }
+}
 @media (max-width: 900px) {
   .workroom-list { flex-direction: row; flex-wrap: wrap; max-width: none; }
 }

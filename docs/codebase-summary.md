@@ -1,4 +1,4 @@
-# Codebase Summary — my-project-manager
+# Codebase Summary — my-crew
 
 > Bản đồ codebase, cập nhật khi code hình thành. Đọc để biết "cái gì ở đâu" nhanh.
 > Status: **2026-07-11 — v20 COMPLETE.** ~1768 backend + 177 FE tests, ruff/tsc clean.

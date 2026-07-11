@@ -1,4 +1,4 @@
-# System Architecture — my-project-manager
+# System Architecture — my-crew
 
 > Kiến trúc kỹ thuật (as-built, v18). Đọc cùng [project-overview-pdr](project-overview-pdr.md)
 > (vì sao) + [action-gateway-explainer](action-gateway-explainer.md) (mô hình an toàn) +

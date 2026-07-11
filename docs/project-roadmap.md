@@ -1,4 +1,4 @@
-# Project Roadmap — my-project-manager
+# Project Roadmap — my-crew
 
 > Lộ trình + trạng thái. Cập nhật khi mốc đổi. Chi tiết mỗi vòng: `docs/journals/`.
 > Cập nhật: 2026-07-11.

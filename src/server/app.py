@@ -48,7 +48,7 @@ def create_app() -> FastAPI:
     ⇒ its concurrency bookkeeping is race-free without a lock).
     """
     app = FastAPI(
-        title="my-project-manager — agent web service",
+        title="my-crew — agent web service",
         description="Localhost-only multi-agent dashboard backend (no auth).",
         version="0.0.0",
     )

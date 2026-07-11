@@ -1,7 +1,7 @@
 [project]
-name = "my-project-manager"
+name = "my-crew"
 version = "0.0.0"
-description = "Autonomous LangGraph agent that automates PM/SM/Team-Lead work across Slack, Jira, Confluence, GitHub."
+description = "my-crew — an autonomous AI crew (agent harness) for a one-person company: read real data, analyze, and act through a single safety gateway."
 requires-python = ">=3.12"
 dependencies = [
     # v6 M16: single-user session auth — bcrypt hashes the password, itsdangerous signs

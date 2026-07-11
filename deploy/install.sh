@@ -51,7 +51,7 @@ else
   MCP_SOURCE="clone"
 fi
 
-echo "== my-project-manager install =="
+echo "== my-crew install =="
 echo "repo: $REPO_DIR"
 
 # ---------------------------------------------------------------------------------------------

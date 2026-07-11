@@ -1,4 +1,4 @@
-# Design Guidelines — my-project-manager
+# Design Guidelines — my-crew
 
 **Status:** Updated 2026-07-07 (v9 + v10 complete; web UI design system documented).
 

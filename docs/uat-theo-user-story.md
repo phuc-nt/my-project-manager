@@ -1,4 +1,4 @@
-# UAT theo User Story — my-project-manager (v18, 2026-07-11)
+# UAT theo User Story — my-crew (v18, 2026-07-11)
 
 Tài liệu nghiệm thu **theo góc nhìn người dùng**: mỗi mục là một *user story* (CEO / người
 quản lý một-người muốn gì) + kịch bản kiểm thử để tự tay xác nhận sản phẩm làm đúng story.

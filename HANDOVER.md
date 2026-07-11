@@ -1,4 +1,4 @@
-# HANDOVER — my-project-manager
+# HANDOVER — my-crew
 
 Bạn là agent/đội mới nhận repo này để **refactor + phát triển tiếp**. File này là điểm
 vào DUY NHẤT: đọc xong bạn biết đọc gì tiếp. Không cần biết toàn bộ quá trình xây dựng —

@@ -78,8 +78,8 @@ def build_settings_from_dict(d: dict[str, Any]) -> Settings:
         openrouter_api_key=_d_str_or_none(d, "openrouter_api_key"),
         openrouter_model=d.get("openrouter_model") or DEFAULT_MODEL,
         openrouter_referer=d.get("openrouter_referer")
-        or "https://github.com/local/my-project-manager",
-        openrouter_title=d.get("openrouter_title") or "my-project-manager",
+        or "https://github.com/local/my-crew",
+        openrouter_title=d.get("openrouter_title") or "my-crew",
         model_chain=_d_model_chain(d.get("model_chain")),
         dry_run=_d_bool(d, "dry_run", True),
         write_disabled=_d_bool(d, "write_disabled", False),

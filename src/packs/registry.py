@@ -63,7 +63,10 @@ def discover_domains() -> tuple[str, ...]:
     found = sorted(
         p.name[: -len("-pack")]
         for p in _PACKS_DIR.iterdir()
-        if p.is_dir() and p.name.endswith("-pack") and (p / _PACK_MARKER).exists()
+        # A leading `_` marks a NON-domain folder (e.g. `_template-pack`, the authoring
+        # skeleton) so it is never mistaken for an installed domain.
+        if p.is_dir() and p.name.endswith("-pack") and not p.name.startswith("_")
+        and (p / _PACK_MARKER).exists()
     )
     return tuple(found)
 
@@ -92,6 +95,17 @@ def all_report_kinds() -> frozenset[str]:
 def pack_skills_dir(domain: str) -> Path:
     """Where a domain bundles its skill `.md` files (v3 M5 S5 pack asset)."""
     return pack_dir(domain) / "skills"
+
+
+def profile_skills_dir(profile_id: str, *, profiles_dir: Path | None = None) -> Path:
+    """Where an agent keeps its OWN skill `.md` files (v19 workspace protocol).
+
+    Per-agent skills live in `profiles/<id>/skills/` (user-data, gitignored). They are a
+    LOWER trust tier than pack skills (repo-vetted): their bodies are wrapped through the
+    internal-content guard before entering the prompt (see `load_agent_skills`).
+    """
+    base = profiles_dir if profiles_dir is not None else (REPO_ROOT / "profiles")
+    return base / profile_id / "skills"
 
 
 def pack_prompts_dir(domain: str) -> Path:

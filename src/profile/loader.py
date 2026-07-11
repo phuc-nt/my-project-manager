@@ -14,7 +14,7 @@ server spawn (`McpServerSpec.validate()`), matching v1.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
@@ -26,7 +26,9 @@ from src.config.config_builders import (
 )
 from src.config.reporting_config import ReportingConfig
 from src.config.settings import DATA_DIR, REPO_ROOT, Settings
+from src.memory.provider import MemoryConfig, parse_memory_config
 from src.profile.loader_mapping import build_reporting_dict, build_settings_dict
+from src.runtime_backends.config import AgentRuntimeConfig, parse_agent_runtime_config
 
 _PROFILES_DIR = REPO_ROOT / "profiles"
 
@@ -70,6 +72,12 @@ class LoadedProfile:
     # Opt-in web-search flag for team-task steps. Default False ⇒ `search_hook`
     # resolves to None regardless of provider keys (see `team_step_runner.py`).
     web_search: bool = False
+    # v19 memory seam: which provider serves the injectable memory text. Absent ⇒ static
+    # (MEMORY.md, byte-identical pre-v19). Consumed by `src/memory.resolve_memory_text`.
+    memory_config: MemoryConfig = field(default_factory=MemoryConfig)
+    # v20 agent-runtime seam: which loop backend runs this agent. Absent ⇒ native (existing
+    # graphs, byte-identical). TOP-LEVEL `agent_runtime:` key, NOT the infra `runtime:` block.
+    agent_runtime: AgentRuntimeConfig = field(default_factory=AgentRuntimeConfig)
 
 
 def _read_md(profile_dir: Path, name: str) -> str:
@@ -131,6 +139,8 @@ def load_profile(
     inbox = _parse_inbox(yaml_doc.get("inbox"), config)
     auto_approve = _parse_auto_approve(yaml_doc.get("auto_approve"))
     web_search = bool(yaml_doc.get("web_search", False))
+    memory_config = parse_memory_config(yaml_doc.get("memory"))
+    agent_runtime = parse_agent_runtime_config(yaml_doc.get("agent_runtime"))
     return LoadedProfile(
         profile_id=profile_id,
         name=str(yaml_doc.get("name") or profile_id),
@@ -149,6 +159,8 @@ def load_profile(
         inbox=inbox,
         auto_approve=auto_approve,
         web_search=web_search,
+        memory_config=memory_config,
+        agent_runtime=agent_runtime,
     )
 
 

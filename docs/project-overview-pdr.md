@@ -1,4 +1,4 @@
-# Project Overview & PDR — my-project-manager
+# Project Overview & PDR — my-crew
 
 > Product definition + requirements. Đọc file này TRƯỚC khi plan hay code.
 > Cập nhật: 2026-07-11 (v18). Trạng thái: **production-usable, single-user**.

@@ -1,4 +1,4 @@
-# Deployment & Setup Guide — my-project-manager
+# Deployment & Setup Guide — my-crew
 
 > Cách cài, chạy, cấu hình, backup. As-built v18, mọi lệnh chạy thật. Chi tiết vận hành
 > hằng ngày cho người dùng cuối: [huong-dan-su-dung.md](huong-dan-su-dung.md) (tiếng Việt).

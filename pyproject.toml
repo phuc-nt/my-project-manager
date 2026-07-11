@@ -1,7 +1,7 @@
 [project]
-name = "my-project-manager"
+name = "my-crew"
 version = "0.0.0"
-description = "Autonomous LangGraph agent that automates PM/SM/Team-Lead work across Slack, Jira, Confluence, GitHub."
+description = "my-crew — an autonomous AI crew (agent harness) for a one-person company: read real data, analyze, and act through a single safety gateway."
 requires-python = ">=3.12"
 dependencies = [
     # v6 M16: single-user session auth — bcrypt hashes the password, itsdangerous signs
@@ -13,6 +13,7 @@ dependencies = [
     "jinja2>=3.1",
     "langchain-core>=1.4.8",
     "langchain-mcp-adapters==0.3.0",
+    "langchain-openai>=0.3,<1.0",
     "langgraph>=1.2.6",
     "langgraph-checkpoint-postgres>=3.1.0",
     "langgraph-checkpoint-sqlite>=3.1.0",
@@ -29,6 +30,13 @@ dependencies = [
     "sse-starlette>=2.1",
     "uvicorn>=0.34",
 ]
+
+[project.optional-dependencies]
+# v20 Phase 3: the DeepAgentRuntime backend (agent_runtime: deep_agent). EXPERIMENTAL — Beta,
+# ships a shell middleware + network deps that run in-process with the gateway, so it is
+# optional and gated. Install only when the hardened wrapper (shell/tracing off) is enabled.
+# Pin a range once a reviewed version is chosen; kept unpinned-optional until then.
+deep = ["deepagents"]
 
 [build-system]
 requires = ["hatchling"]

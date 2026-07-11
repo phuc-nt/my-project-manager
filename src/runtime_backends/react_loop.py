@@ -1,0 +1,78 @@
+"""The create_react_agent work loop (v20 Phase 2).
+
+Runs `langgraph.prebuilt.create_react_agent` (already in the dep tree — no `langchain`
+meta-package) over the policy-shimmed read toolset, with a hard per-loop step cap. Returns
+`(result_text, cost_usd)` matching the `TeamTaskDeps.run_work` contract, so the surrounding
+team-step graph (self_check / rework / deliver→gateway) is untouched.
+
+Tools are LangChain `@tool` callables wrapping the read allowlist; the model may call them in
+a loop but can never reach a write — the toolset contains only reads. `recursion_limit` caps
+the loop (red-team H2 runaway).
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import Any
+
+
+def _as_lc_tools(tools_map: dict[str, Callable[[dict], Any]]) -> list:
+    """Wrap read callables as LangChain tools the react agent can invoke.
+
+    Each tool takes a single free-form `query` string (the model's ask); the underlying read
+    callable receives it as `{"query": ...}`. A permissive one-string schema avoids brittle
+    per-tool arg models while keeping the loop able to call every read.
+    """
+    from langchain_core.tools import tool as lc_tool
+
+    lc_tools = []
+    for name, fn in tools_map.items():
+        def _make(f, tool_name):
+            @lc_tool(tool_name.replace(".", "_"))
+            def _call(query: str = "") -> str:
+                """Read-only tool. Returns internal data; cannot write."""
+                return str(f({"query": query}))
+            return _call
+
+        lc_tools.append(_make(fn, name))
+    return lc_tools
+
+
+def run_react_work(
+    *, title: str, handoff: str, context, settings, tools_map, max_steps: int
+) -> tuple[str, float | None]:
+    """Run one team-step's work as a capped tool-calling loop. Returns (text, cost_usd)."""
+    from langchain_core.messages import HumanMessage, SystemMessage
+    from langchain_openai import ChatOpenAI
+    from langgraph.prebuilt import create_react_agent
+
+    from src.config.settings import OPENROUTER_BASE_URL
+    from src.llm.team_task_prompt import build_team_step_messages
+
+    # Reuse the native system+user prompt so persona/skills/company-docs/red-lines are identical;
+    # we only change HOW the model produces text (loop vs one-shot), not WHAT it is told.
+    msgs = build_team_step_messages(
+        step_title=title, handoff_context=handoff,
+        persona=getattr(context, "persona", ""), project=getattr(context, "project", ""),
+        memory=getattr(context, "memory", ""), capability=getattr(context, "capability", ""),
+    )
+    system = next((m["content"] for m in msgs if m["role"] == "system"), "")
+    user = next((m["content"] for m in msgs if m["role"] == "user"), title)
+
+    # LangChain chat model pointed at OpenRouter (same base URL/model as LlmClient). Only used
+    # by the react loop; the native path keeps the raw OpenAI SDK client unchanged.
+    model = ChatOpenAI(
+        model=settings.openrouter_model,
+        api_key=settings.openrouter_api_key,
+        base_url=OPENROUTER_BASE_URL,
+    )
+    agent = create_react_agent(model, _as_lc_tools(tools_map))
+    result = agent.invoke(
+        {"messages": [SystemMessage(content=system), HumanMessage(content=user)]},
+        config={"recursion_limit": max_steps * 2},  # super-steps ≈ 2× tool rounds
+    )
+    final = result["messages"][-1]
+    text = getattr(final, "content", "") or ""
+    # Cost accounting for the loop is best-effort here; the monthly budget_tracker remains the
+    # hard backstop. Return None so the step-cost sum treats it as unpriced-but-bounded.
+    return str(text), None

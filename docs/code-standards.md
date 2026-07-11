@@ -1,4 +1,4 @@
-# Code Standards — my-project-manager
+# Code Standards — my-crew
 
 > Quy ước code. Status: **Initial 2026-06-21**. Cập nhật khi convention thật hình thành.
 

@@ -1,4 +1,4 @@
-# my-project-manager
+# my-crew
 
 An **autonomous LangGraph (Python) agent** that does the repetitive **management** work (PM / Scrum Master / Team Lead) for an AI-native team — it reads project state across **Jira · GitHub · Confluence · Slack**, reasons about it, and *acts* (writes reports, flags risk, tracks OKRs) like a real PM would. Not a chatbot you ask questions — an agent that works on its own schedule.
 

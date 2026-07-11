@@ -56,7 +56,7 @@ export function Layout() {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <h1>my-project-manager</h1>
+        <h1>my-crew</h1>
         <div className="app-header-actions">
           <ThemeToggle />
           <button type="button" className="logout-btn" onClick={() => void logout()}>

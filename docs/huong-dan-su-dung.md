@@ -1,4 +1,4 @@
-# Hướng dẫn sử dụng — my-project-manager
+# Hướng dẫn sử dụng — my-crew
 
 Trợ lý ảo tự động làm công việc quản lý dự án (PM / Scrum Master): đọc Jira · GitHub · Confluence ·
 Slack, phân tích, rồi *tự hành động* (viết báo cáo, cảnh báo rủi ro, theo dõi OKR) như một PM thật.

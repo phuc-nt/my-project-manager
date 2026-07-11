@@ -1,11 +1,11 @@
-# Project Roadmap — my-project-manager
+# Project Roadmap — my-crew
 
 > Lộ trình + trạng thái. Cập nhật khi mốc đổi. Chi tiết mỗi vòng: `docs/journals/`.
 > Cập nhật: 2026-07-11.
 
 ## Trạng thái tổng
 
-**Production-usable, single-user. Đã ship tới v18.** ~1706 backend + 177 FE test, ruff/tsc
+**Production-usable, single-user. Đã ship tới v20.** ~1768 backend + 177 FE test, ruff/tsc
 sạch. Mọi vòng lớn E2E trên browser + LLM + ticker thật.
 
 ## Đã hoàn thành (gọn — chi tiết ở journals/plans)
@@ -21,12 +21,26 @@ sạch. Mọi vòng lớn E2E trên browser + LLM + ticker thật.
 | **Team self-op (v13-v14)** | Soát chéo tự chèn · consult đồng nghiệp · song song cap 2 · full replan · tự cứu bước kẹt · 3D "sống". |
 | **PIC & office UX (v15-v17)** | Giao việc @PIC/@all · auto-confirm · màn Văn phòng hợp nhất → workrooms → command-center 3 cột · artifact viewer · coordinator health banner. |
 | **Registry user-data (v18)** | registry.yaml thành user-data (hết mất đội) · recovery UI · scheduler seed-at-discovery · 3D theme-aware. |
+| **Agent-harness v1 (v19)** | Memory provider seam (static; kioku hoãn v19.5) · workspace protocol v2 (vault/ + skills/ per-agent) · per-agent skill có guard · capability block internal-only. |
+| **AgentRuntime + community (v20)** | AgentRuntime seam (Native/ToolCalling/DeepAgent) giữ deliver→gateway · positive read-allowlist + classify shim (E2E LLM thật) · 3 ổ cắm: skill agentskills.io, pack-MCP spawn gate, pack template + PACK-AUTHORING. |
 
 ## Việc nên làm tiếp (từ UAT + nợ kỹ thuật)
 
 Ưu tiên giảm dần. Nguồn: `plans/260711-0711-.../reports/uat-*findings*.md` + HANDOVER §8.
 
-### Tài liệu (đang làm — vòng này)
+### Agent-harness (chương trình 3 vòng — brainstorm 260711)
+- [x] **v19**: memory seam + static + workspace protocol (vault/skills per-agent) + capability block.
+- [x] **v20**: AgentRuntime seam (Native/ToolCalling/DeepAgent) + 3 ổ cắm community. Red-team 4
+  reviewer (5 Critical) → fix thiết kế giữ moat. DeepAgent experimental (deepagents optional);
+  researcher-pack = template skeleton (team-step đã phục vụ researcher).
+- [ ] **v19.5 (kioku adapter)**: cắm my-kioku sau khi giải 7 điều kiện red-team — dist
+  (`bun link`+`MY_KIOKU_BIN`, BỎ `bun x`); recall `<query>` (không `--digest`); wrap digest
+  `format_internal_content`; env allowlist subprocess; flock per-vault + stagger reflect;
+  health probe thật; pin "zero network I/O". Xem `plans/260711-1543-v19-.../plan.md` §"Giữ cho v19.5".
+- [ ] **v20**: channel binding account→agent (mỗi agent 1 bot Telegram, OpenClaw-style).
+- [ ] **v21**: 2-mode UI (CEO đơn giản / Maintainer config+monitoring).
+
+### Tài liệu
 - [x] Dựng bộ doc chuẩn v18 (overview-pdr, system-architecture, deployment-guide, roadmap).
 - [x] Archive doc cũ (v1/v2/interview) + gộp UAT.
 - [ ] Đồng bộ header `codebase-summary.md` (ghi v13 → v18) + gộp phần lịch sử dài.
